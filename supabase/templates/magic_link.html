@@ -1,0 +1,12 @@
+<h2>로그인 코드를 보냈어요</h2>
+
+<p>아래 6자리 코드를 로그인 화면에 넣으면 바로 들어와요.</p>
+
+<p style="font-size: 28px; font-weight: 600; letter-spacing: 6px;">{{ .Token }}</p>
+
+<p>
+  메일의 링크로도 열려요.
+  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">이 링크로 로그인하기</a>
+</p>
+
+<p>코드는 한 시간 뒤에 만료돼요. 직접 요청한 게 아니면 이 메일은 지워 주세요.</p>
