@@ -39,4 +39,17 @@ describe('TripList — 여행 목록 (FR-014)', () => {
 
     expect(screen.getByRole('link', { name: /제주 3일/ }).textContent).toContain('장소 0곳')
   })
+
+  // T7-3 (FR-017) — 지우기는 목록 항목에서 시작한다. 판정은 TripsPanel 이 한다
+  it('삭제하기는 지울 수 있을 때만 둔다', () => {
+    const onDelete = vi.fn()
+    const { unmount } = render(<TripList trips={[trip]} onCreateFirst={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: /삭제하기/ })).toBeNull()
+
+    unmount()
+    render(<TripList trips={[trip]} onCreateFirst={vi.fn()} onDelete={onDelete} />)
+    fireEvent.click(screen.getByRole('button', { name: '제주 3일 삭제하기' }))
+
+    expect(onDelete).toHaveBeenCalledWith(trip)
+  })
 })

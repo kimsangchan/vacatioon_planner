@@ -8,10 +8,12 @@
 // (SC-004 — 390×844 에서 Stop 8 + Leg 3 이 1스크롤 안에).
 
 import { useId, useMemo, useState } from 'react'
+import { ConfirmRow } from '@/components/common/ConfirmRow'
+import { PhotoError, photoErrorMessage, photoPublicUrl } from '@/lib/photo/upload'
 import { LEG_MODE_LABEL, type LegDraft } from '@/lib/timeline/api'
 import { dayTotal, mergeDayItems, movedItemIds } from '@/lib/timeline/merge'
 import { formatAmount, formatAmountInput, formatWon, parseAmountInput } from '@/lib/timeline/money'
-import type { DayRow, LegRow, PlaceRow, StopRow } from '@/lib/trips/bundle'
+import type { DayRow, LegRow, PhotoRow, PlaceRow, StopRow } from '@/lib/trips/bundle'
 import { LegForm } from './LegForm'
 
 export interface TimelinePaneProps {
@@ -29,8 +31,19 @@ export interface TimelinePaneProps {
     patch: { start_time: string | null; cost_amount: number | null },
   ) => Promise<void> | void
   onSaveLeg?: (dayId: string, draft: LegDraft, legId?: string) => Promise<void> | void
+  /** FR-018 — 예매 확인·티켓 캡처를 그 Leg 에 담는다 (E-05 leg_id 첨부) */
+  onAddLegPhoto?: (legId: string, file: File) => Promise<void> | void
+  onRemovePhoto?: (photo: PhotoRow) => Promise<void> | void
+  onRemoveLeg?: (legId: string) => Promise<void> | void
   /** 지도 핀에서 온 강조를 이 리스트에서 받는다 (FR-005 상호 하이라이트) */
   registerItem?: (placeId: string, node: HTMLElement | null) => void
+}
+
+// 되돌릴 수 없는 일만 여기를 거친다 (E-12 hard delete — Stop 해제·기간 변경은 묻지 않는다)
+interface PendingConfirm {
+  message: string
+  confirmLabel: string
+  run: () => Promise<void> | void
 }
 
 const ICON_BUTTON =
@@ -54,11 +67,18 @@ export function TimelinePane({
   onUnassignStop,
   onUpdateStop,
   onSaveLeg,
+  onAddLegPhoto,
+  onRemovePhoto,
+  onRemoveLeg,
   registerItem,
 }: TimelinePaneProps) {
+  const ids = useId()
   const [editingStopId, setEditingStopId] = useState<string | null>(null)
   const [editingLegId, setEditingLegId] = useState<string | null>(null)
   const [addingLeg, setAddingLeg] = useState(false)
+  const [pending, setPending] = useState<PendingConfirm | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [failure, setFailure] = useState<string | null>(null)
 
   const items = useMemo(() => mergeDayItems(day.stops, day.legs), [day.stops, day.legs])
   const total = dayTotal(day.stops, day.legs)
@@ -71,6 +91,25 @@ export function TimelinePane({
 
   function move(id: string, delta: -1 | 1) {
     void onReorder?.(day.id, movedItemIds(items, id, delta))
+  }
+
+  // 사진 쪽 실패는 폼 밖에서 일어난다 — 삼키지 않고 한 줄로 알린다 (SPEC §UI 규칙)
+  async function run(action: () => Promise<void> | void): Promise<void> {
+    if (busy) return
+    setBusy(true)
+    setFailure(null)
+    try {
+      await action()
+      setPending(null)
+    } catch (error) {
+      setFailure(
+        error instanceof PhotoError
+          ? photoErrorMessage(error.code)
+          : '방금 한 일을 저장하지 못했어요. 잠시 뒤에 다시 해 주세요.',
+      )
+    } finally {
+      setBusy(false)
+    }
   }
 
   function moveButtons(id: string, index: number) {
@@ -186,6 +225,99 @@ export function TimelinePane({
     )
   }
 
+  // FR-018 — 담아 둔 캡처는 항상 보이고(예매번호를 눈으로 맞춰 보는 게 쓰임새다),
+  // 담기·지우기는 이동을 고칠 때만 펼친다 (SC-004 — 한 항목 한 줄)
+  function legPhotos(leg: LegRow, editing: boolean) {
+    const photos = leg.photos ?? []
+    if (photos.length === 0) return null
+
+    return (
+      <ul className="flex flex-wrap gap-2 pl-1">
+        {photos.map((photo) => (
+          <li key={photo.id} className="flex flex-col items-center gap-1">
+            <a
+              href={photoPublicUrl(photo.storage_path)}
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label="예매 캡처 크게 보기"
+            >
+              {/* next/image 를 쓰지 않는 이유는 PreviewCard 와 같다 — 이미 줄여 올린 WebP 다 */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photoPublicUrl(photo.thumb_path)}
+                alt="예매 캡처"
+                width={56}
+                height={56}
+                className="size-14 rounded-lg object-cover"
+              />
+            </a>
+            {editing && onRemovePhoto && (
+              <button
+                type="button"
+                onClick={() =>
+                  setPending({
+                    message: '이 캡처를 지울까요? 되돌릴 수 없어요.',
+                    confirmLabel: '캡처 지우기',
+                    run: () => onRemovePhoto(photo),
+                  })
+                }
+                className="flex min-h-8 items-center rounded-full border border-black/15 px-2 text-xs dark:border-white/20"
+              >
+                예매 캡처 지우기
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  function legActions(leg: LegRow) {
+    const inputId = `${ids}-leg-photo-${leg.id}`
+
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        {onAddLegPhoto && (
+          <>
+            <label
+              htmlFor={inputId}
+              className={`${TEXT_BUTTON} cursor-pointer font-medium`}
+            >
+              예매 캡처 담기
+            </label>
+            <input
+              id={inputId}
+              type="file"
+              accept="image/*"
+              disabled={busy}
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                event.target.value = '' // 같은 파일을 다시 골라도 change 가 오도록
+                if (file) void run(() => onAddLegPhoto(leg.id, file))
+              }}
+              className="sr-only"
+            />
+          </>
+        )}
+        {onRemoveLeg && (
+          <button
+            type="button"
+            onClick={() =>
+              setPending({
+                message: '이 이동을 지울까요? 담아 둔 캡처도 함께 사라져요 — 되돌릴 수 없어요.',
+                confirmLabel: '지우기',
+                run: () => onRemoveLeg(leg.id),
+              })
+            }
+            className={TEXT_BUTTON}
+          >
+            이동 지우기
+          </button>
+        )}
+      </div>
+    )
+  }
+
   function renderLeg(leg: LegRow, index: number, timeWarning: boolean) {
     const editing = editingLegId === leg.id
 
@@ -213,12 +345,14 @@ export function TimelinePane({
           {timeWarning && warningBadge}
 
           {moveButtons(leg.id, index)}
-          {onSaveLeg && (
+          {(onSaveLeg || onAddLegPhoto || onRemoveLeg) && (
             <button
               type="button"
               onClick={() => {
                 setEditingLegId(editing ? null : leg.id)
                 setAddingLeg(false)
+                setPending(null)
+                setFailure(null)
               }}
               className={ICON_BUTTON}
               aria-label="이동 고치기"
@@ -236,6 +370,8 @@ export function TimelinePane({
           </p>
         )}
 
+        {legPhotos(leg, editing)}
+
         {editing && onSaveLeg && (
           <LegForm
             leg={leg}
@@ -245,6 +381,24 @@ export function TimelinePane({
             }}
             onCancel={() => setEditingLegId(null)}
           />
+        )}
+
+        {editing && (onAddLegPhoto || onRemoveLeg) && legActions(leg)}
+
+        {editing && pending && (
+          <ConfirmRow
+            message={pending.message}
+            confirmLabel={pending.confirmLabel}
+            busy={busy}
+            onConfirm={() => void run(pending.run)}
+            onCancel={() => setPending(null)}
+          />
+        )}
+
+        {editing && failure && (
+          <p role="status" className="text-sm">
+            {failure}
+          </p>
         )}
       </li>
     )

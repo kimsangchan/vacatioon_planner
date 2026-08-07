@@ -9,7 +9,14 @@ import { signInWithOtpCode, uniqueTestEmail, SUPABASE_URL } from '@/test-support
 import { createTrip } from '@/lib/trips/api'
 import { fetchTripBundle } from '@/lib/trips/bundle'
 import type { PreparedTripPhoto } from './resize'
-import { PHOTO_BUCKET, photoObjectName, photoPublicUrl, setCoverPhoto, uploadTripPhoto } from './upload'
+import {
+  PHOTO_BUCKET,
+  deletePhoto,
+  photoObjectName,
+  photoPublicUrl,
+  setCoverPhoto,
+  uploadTripPhoto,
+} from './upload'
 
 // 실제 WebP 헤더 12바이트 + 패딩 — 버킷의 allowed_mime_types 는 contentType 으로 판정한다
 function webpBlob(size: number): Blob {
@@ -157,5 +164,55 @@ describe('E-05 사진 업로드 (FR-004)', () => {
       })
 
     expect(error).not.toBeNull()
+  })
+
+  // ── T7-3 (06 변환표 FR-018) ────────────────────────────────────────────────
+  it('Leg 에 담은 예매 캡처는 같은 파이프라인을 타고 Trip Bundle 의 legs 에 실린다 (FR-018)', async () => {
+    const { data: days } = await client.from('days').select('id').eq('trip_id', tripId).order('position')
+    const legId = crypto.randomUUID()
+    const { error: legError } = await client.from('legs').insert({
+      id: legId,
+      day_id: days![0].id,
+      mode: 'train',
+      depart_at: '09:00',
+      arrive_at: '11:30',
+      position: 5,
+    })
+    expect(legError).toBeNull()
+
+    const photo = await uploadTripPhoto(
+      client,
+      { file: webpBlob(4_096), target: { leg_id: legId } },
+      deps,
+    )
+
+    expect(photo.is_cover).toBe(true)
+    expect(photo.thumb_path).toMatch(/-thumb\.webp$/)
+    expect((await fetch(photoPublicUrl(photo.thumb_path, SUPABASE_URL))).status).toBe(200)
+
+    const bundle = await fetchTripBundle(client, tripId)
+    const leg = bundle.days[0].legs.find((item) => item.id === legId)
+    expect(leg?.photos.map((p) => p.id)).toEqual([photo.id])
+    // Place 사진과 섞이지 않는다 — 첨부 대상은 하나뿐이다 (E-05 parent-exclusive)
+    expect(bundle.places[0].photos.map((p) => p.id)).not.toContain(photo.id)
+  })
+
+  it('사진을 지우면 photos 행과 파일이 함께 사라진다 (E-12 hard delete)', async () => {
+    const photo = await uploadTripPhoto(
+      client,
+      { file: webpBlob(4_096), target: { place_id: placeId } },
+      deps,
+    )
+    expect((await fetch(photoPublicUrl(photo.storage_path, SUPABASE_URL))).status).toBe(200)
+
+    await deletePhoto(client, photo)
+
+    const { count } = await client
+      .from('photos')
+      .select('id', { count: 'exact', head: true })
+      .eq('id', photo.id)
+    expect(count).toBe(0)
+    expect((await fetch(photoPublicUrl(photo.storage_path, SUPABASE_URL))).ok).toBe(false)
+    expect((await fetch(photoPublicUrl(photo.thumb_path, SUPABASE_URL))).ok).toBe(false)
   })
 })

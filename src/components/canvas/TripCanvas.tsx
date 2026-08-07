@@ -12,12 +12,13 @@ import {
 } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { setCoverPhoto, uploadTripPhoto } from '@/lib/photo/upload'
-import { savePlace, updatePlaceMemo } from '@/lib/place/api'
+import { deletePhoto, setCoverPhoto, uploadTripPhoto } from '@/lib/photo/upload'
+import { restorePlace, savePlace, softDeletePlace, updatePlaceMemo } from '@/lib/place/api'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import {
   TimelineError,
   placeStops,
+  removeLeg,
   removeStop,
   reorderDayItems,
   saveLeg,
@@ -26,10 +27,24 @@ import {
   type LegDraft,
 } from '@/lib/timeline/api'
 import { nextPosition } from '@/lib/timeline/merge'
-import { TripError, tripErrorMessage } from '@/lib/trips/api'
-import { fetchTripBundle, tripBundleKey, type DayRow } from '@/lib/trips/bundle'
+import { TripError, tripErrorMessage, updateTripDates } from '@/lib/trips/api'
+import {
+  fetchTripBundle,
+  tripBundleKey,
+  type DayRow,
+  type PhotoRow,
+  type PlaceRow,
+} from '@/lib/trips/bundle'
+import { dateChangeNotice } from '@/lib/trips/dates'
 import { CanvasBoard } from './CanvasBoard'
 import type { PlaceDraft } from './PlaceSearchBox'
+import { TripDatesForm } from './TripDatesForm'
+
+// 알림 줄 하나로 두 가지를 말한다: 방금 무엇이 됐는지, 그리고 되돌릴 수 있다면 그 자리 (T-06)
+interface CanvasNotice {
+  text: string
+  undo?: { label: string; run: () => Promise<void> }
+}
 
 export interface TripCanvasProps {
   tripId: string
@@ -57,6 +72,8 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), [])
   const queryClient = useQueryClient()
   const [scheduleFailure, setScheduleFailure] = useState<string | null>(null)
+  const [notice, setNotice] = useState<CanvasNotice | null>(null)
+  const [editingDates, setEditingDates] = useState(false)
 
   const bundleQuery = useQuery({
     queryKey: tripBundleKey(tripId),
@@ -84,9 +101,45 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
     onSuccess: refetchBundle,
   })
 
+  // FR-018 — 예매 캡처는 Leg 에 붙는다. 첨부 대상은 하나뿐이다 (E-05 parent-exclusive)
+  const addLegPhoto = useMutation({
+    mutationFn: ({ legId, file }: { legId: string; file: File }) =>
+      uploadTripPhoto(supabase, { file, target: { leg_id: legId } }),
+    onSuccess: refetchBundle,
+  })
+
   const changeCover = useMutation({
     mutationFn: ({ placeId, photoId }: { placeId: string; photoId: string }) =>
       setCoverPhoto(supabase, { placeId, photoId }),
+    onSuccess: refetchBundle,
+  })
+
+  // E-12 — 사진·Leg 는 hard delete 라 화면에서 먼저 확인을 받은 뒤에 온다
+  const dropPhoto = useMutation({
+    mutationFn: (photo: PhotoRow) => deletePhoto(supabase, photo),
+    onSuccess: refetchBundle,
+  })
+
+  const dropLeg = useMutation({
+    mutationFn: (legId: string) => removeLeg(supabase, legId),
+    onSuccess: refetchBundle,
+  })
+
+  // E-12 — Place 는 soft delete. 배치된 Stop 은 함께 사라지고(미리 알린 대로), 되돌리면 보관함으로 온다
+  const dropPlace = useMutation({
+    mutationFn: (placeId: string) => softDeletePlace(supabase, placeId),
+    onSuccess: refetchBundle,
+  })
+
+  const undropPlace = useMutation({
+    mutationFn: (placeId: string) => restorePlace(supabase, placeId),
+    onSuccess: refetchBundle,
+  })
+
+  // E-14 — Day 증감·Stop 제거가 한 트랜잭션이라, 화면은 반환 카운트만 옮기면 된다 (FR-015)
+  const changeDates = useMutation({
+    mutationFn: (input: { start_date: string; end_date: string }) =>
+      updateTripDates(supabase, { trip_id: tripId, ...input }),
     onSuccess: refetchBundle,
   })
 
@@ -194,18 +247,69 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
   }
 
   const bundle = bundleQuery.data
+  const undo = notice?.undo
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex items-baseline gap-3 px-4 pt-4 pb-3 md:px-5">
-        <Link href="/" className="flex min-h-8 items-center text-sm underline underline-offset-4">
-          여행 목록
-        </Link>
-        <h1 className="truncate text-lg font-semibold tracking-tight">{bundle.name}</h1>
-        <p className="text-sm text-black/55 dark:text-white/55">
-          {bundle.start_date.replaceAll('-', '.')} ~ {bundle.end_date.replaceAll('-', '.')}
-        </p>
+      <header className="flex flex-col gap-2 px-4 pt-4 pb-3 md:px-5">
+        <div className="flex items-baseline gap-3">
+          <Link href="/" className="flex min-h-8 items-center text-sm underline underline-offset-4">
+            여행 목록
+          </Link>
+          <h1 className="truncate text-lg font-semibold tracking-tight">{bundle.name}</h1>
+          {/* 기간은 읽을 거리이자 손잡이다 — 누르면 그 자리에서 고친다 (FR-015, 모달 금지) */}
+          <button
+            type="button"
+            aria-expanded={editingDates}
+            onClick={() => {
+              setEditingDates((open) => !open)
+              setNotice(null)
+            }}
+            className="flex min-h-8 items-center text-sm text-black/55 underline underline-offset-4 dark:text-white/55"
+          >
+            {bundle.start_date.replaceAll('-', '.')} ~ {bundle.end_date.replaceAll('-', '.')}
+            <span className="sr-only"> 기간 고치기</span>
+          </button>
+        </div>
+
+        {editingDates && (
+          <TripDatesForm
+            startDate={bundle.start_date}
+            endDate={bundle.end_date}
+            days={bundle.days}
+            onCancel={() => setEditingDates(false)}
+            onSubmit={async (startDate, endDate) => {
+              const change = await changeDates.mutateAsync({
+                start_date: startDate,
+                end_date: endDate,
+              })
+              setEditingDates(false)
+              setNotice({ text: dateChangeNotice(change) })
+            }}
+          />
+        )}
       </header>
+
+      {notice && (
+        <p
+          role="status"
+          className="flex flex-wrap items-center gap-3 px-4 pb-2 text-sm md:px-5"
+        >
+          {notice.text}
+          {undo && (
+            <button
+              type="button"
+              onClick={() => {
+                setNotice(null)
+                void guard(undo.run)
+              }}
+              className="flex min-h-8 items-center rounded-full border border-black/15 px-3 text-xs font-medium dark:border-white/20"
+            >
+              {undo.label}
+            </button>
+          )}
+        </p>
+      )}
 
       {scheduleFailure && (
         <p
@@ -244,8 +348,28 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
         onAddPhoto={async (placeId, file) => {
           await addPhoto.mutateAsync({ placeId, file })
         }}
+        onAddLegPhoto={async (legId, file) => {
+          await addLegPhoto.mutateAsync({ legId, file })
+        }}
         onSetCover={async (placeId, photoId) => {
           await changeCover.mutateAsync({ placeId, photoId })
+        }}
+        onRemovePhoto={async (photo) => {
+          await dropPhoto.mutateAsync(photo)
+        }}
+        onRemoveLeg={(legId) => guard(() => dropLeg.mutateAsync(legId))}
+        onDeletePlace={async (place: PlaceRow) => {
+          await dropPlace.mutateAsync(place.id)
+          // 되돌리기는 여기 한 줄이 전부다 — 장소는 90일 안이면 그대로 돌아온다 (FR-017)
+          setNotice({
+            text: `‘${place.name}’ 장소를 보관함에서 뺐어요.`,
+            undo: {
+              label: '되돌리기',
+              run: async () => {
+                await undropPlace.mutateAsync(place.id)
+              },
+            },
+          })
         }}
         onSaveMemo={async (placeId, memo) => {
           await saveMemo.mutateAsync({ placeId, memo })

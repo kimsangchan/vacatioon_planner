@@ -8,8 +8,10 @@ import type { PlaceProvider } from '@/lib/place/api'
 import type { LegMode } from '@/lib/timeline/api'
 import { TripError, toTripError } from './api'
 
+// legs 임베드에도 photos 를 딸려 온다 — 예매 캡처가 타임라인에서 바로 보여야 하고(FR-018),
+// 그러자고 카드마다 조회를 늘리면 E-06 "단일 쿼리"가 깨진다
 export const TRIP_BUNDLE_SELECT =
-  '*,days(*,stops(*,place:places(*,photos(*))),legs(*)),places(*,photos(*))'
+  '*,days(*,stops(*,place:places(*,photos(*))),legs(*,photos(*))),places(*,photos(*))'
 
 export interface PhotoRow {
   id: string
@@ -57,6 +59,7 @@ export interface LegRow {
   cost_amount: number | null
   memo: string
   position: number
+  photos: PhotoRow[] // 예매 확인·티켓 캡처 (FR-018 — place 사진과 같은 파이프라인)
 }
 
 export interface DayRow {
@@ -111,7 +114,10 @@ export async function fetchTripBundle(
     days: (bundle.days ?? []).slice().sort(byPosition).map((day) => ({
       ...day,
       stops: (day.stops ?? []).slice().sort(byPosition),
-      legs: (day.legs ?? []).slice().sort(byPosition),
+      legs: (day.legs ?? [])
+        .slice()
+        .sort(byPosition)
+        .map((leg) => ({ ...leg, photos: leg.photos ?? [] })),
     })),
   }
 }
@@ -142,9 +148,16 @@ export function coverPhoto(place: Pick<PlaceRow, 'photos'>): PhotoRow | null {
   return photos.find((photo) => photo.is_cover) ?? photos[0] ?? null
 }
 
-// 캔버스가 열릴 때 미리 받아 둘 썸네일들 (SC-002 — 호버 경로에 네트워크 왕복 0)
+// 캔버스가 열릴 때 미리 받아 둘 썸네일들 (SC-002 — 호버 경로에 네트워크 왕복 0).
+// Leg 의 예매 캡처도 같이 받아 둔다 — 타임라인은 탭 전환 한 번이면 열린다
 export function thumbPaths(bundle: TripBundle): string[] {
-  return (bundle.places ?? []).flatMap((place) => (place.photos ?? []).map((p) => p.thumb_path))
+  const fromPlaces = (bundle.places ?? []).flatMap((place) =>
+    (place.photos ?? []).map((photo) => photo.thumb_path),
+  )
+  const fromLegs = (bundle.days ?? []).flatMap((day) =>
+    (day.legs ?? []).flatMap((leg) => (leg.photos ?? []).map((photo) => photo.thumb_path)),
+  )
+  return [...fromPlaces, ...fromLegs]
 }
 
 // numeric(9,6) 은 PostgREST 에서 문자열로 올 수 있다 — 지도에 넘기기 전에 숫자로 고정한다

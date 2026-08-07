@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CATEGORY_LABEL } from '@/lib/map/provider'
 import type { LegDraft } from '@/lib/timeline/api'
-import type { DayRow, PlaceRow } from '@/lib/trips/bundle'
+import type { DayRow, PhotoRow, PlaceRow } from '@/lib/trips/bundle'
 import { TimelinePane } from './TimelinePane'
 
 export interface ListPaneProps {
@@ -30,6 +30,9 @@ export interface ListPaneProps {
   ) => Promise<void> | void
   onReorderDay?: (dayId: string, orderedIds: string[]) => Promise<void> | void
   onSaveLeg?: (dayId: string, draft: LegDraft, legId?: string) => Promise<void> | void
+  onAddLegPhoto?: (legId: string, file: File) => Promise<void> | void
+  onRemovePhoto?: (photo: PhotoRow) => Promise<void> | void
+  onRemoveLeg?: (legId: string) => Promise<void> | void
 }
 
 const STORAGE_TAB = 'storage'
@@ -51,6 +54,9 @@ export function ListPane({
   onUpdateStop,
   onReorderDay,
   onSaveLeg,
+  onAddLegPhoto,
+  onRemovePhoto,
+  onRemoveLeg,
 }: ListPaneProps) {
   const itemsRef = useRef(new Map<string, HTMLElement>())
   const [tab, setTab] = useState<string>(STORAGE_TAB)
@@ -201,6 +207,9 @@ export function ListPane({
           onUnassignStop={onUnassignStop}
           onUpdateStop={onUpdateStop}
           onSaveLeg={onSaveLeg}
+          onAddLegPhoto={onAddLegPhoto}
+          onRemovePhoto={onRemovePhoto}
+          onRemoveLeg={onRemoveLeg}
           registerItem={registerItem}
         />
       ) : (

@@ -115,6 +115,27 @@ export async function updatePlaceMemo(
   return data as SavedPlace
 }
 
+// E-12 (FR-017) — Place 는 소프트 삭제, 배치된 Stop 은 즉시 삭제.
+// 순서가 중요하다: Stop 을 먼저 치워야 중간에 실패해도 "보관함엔 없는데 일정엔 남은" 상태가 안 생긴다.
+// Stop 은 되돌아오지 않으므로 UI 가 먼저 알린 뒤에 부른다 (PreviewCard 확인 문구).
+export async function softDeletePlace(client: SupabaseClient, placeId: string): Promise<void> {
+  const { error: stopError } = await client.from('stops').delete().eq('place_id', placeId)
+  if (stopError) throw toPlaceError(stopError)
+
+  const { error } = await client
+    .from('places')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', placeId)
+
+  if (error) throw toPlaceError(error)
+}
+
+// E-09 — 되돌리기는 deleted_at 을 비운다. 사진은 지운 적이 없어 그대로 딸려 온다
+export async function restorePlace(client: SupabaseClient, placeId: string): Promise<void> {
+  const { error } = await client.from('places').update({ deleted_at: null }).eq('id', placeId)
+  if (error) throw toPlaceError(error)
+}
+
 // 부분 유니크 키 (trip_id, name, lat, lng) WHERE deleted_at IS NULL 로 기존 항목을 찾는다
 export async function findExistingPlaceId(
   client: SupabaseClient,

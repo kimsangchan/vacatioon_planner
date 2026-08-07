@@ -4,10 +4,23 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import type { DayRow, LegRow, PlaceRow, StopRow } from '@/lib/trips/bundle'
+import type { DayRow, LegRow, PhotoRow, PlaceRow, StopRow } from '@/lib/trips/bundle'
 import { TimelinePane } from './TimelinePane'
 
 afterEach(cleanup)
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321'
+
+function photo(id: string): PhotoRow {
+  return {
+    id,
+    storage_path: `photos/${id}/${id}.webp`,
+    thumb_path: `photos/${id}/${id}-thumb.webp`,
+    is_cover: true,
+  }
+}
+
+const TICKET = photo('33333333-3333-4333-8333-333333333333')
 
 const place = (id: string, name: string): PlaceRow => ({
   id,
@@ -45,6 +58,7 @@ const leg = (o: Partial<LegRow> & { id: string; position: number }): LegRow => (
   booking_ref: '',
   cost_amount: null,
   memo: '',
+  photos: [],
   ...o,
 })
 
@@ -69,6 +83,9 @@ function renderPane(props: Partial<Parameters<typeof TimelinePane>[0]> = {}) {
     onUnassignStop: vi.fn().mockResolvedValue(undefined),
     onUpdateStop: vi.fn().mockResolvedValue(undefined),
     onSaveLeg: vi.fn().mockResolvedValue(undefined),
+    onAddLegPhoto: vi.fn().mockResolvedValue(undefined),
+    onRemovePhoto: vi.fn().mockResolvedValue(undefined),
+    onRemoveLeg: vi.fn().mockResolvedValue(undefined),
   }
   render(<TimelinePane day={day()} label="1일차" places={PLACES} {...handlers} {...props} />)
   return handlers
@@ -252,5 +269,78 @@ describe('TimelinePane — 이동 담기 (FR-008)', () => {
       expect.objectContaining({ to_label: '중문' }),
       'l1',
     )
+  })
+})
+
+describe('TimelinePane — Leg 예매 캡처 (FR-018 / E-05 leg_id 첨부)', () => {
+  const withTicket = () => day({ legs: [leg({ id: 'l1', position: 1, photos: [TICKET] })] })
+
+  it('담아 둔 캡처를 썸네일로 두고, 누르면 원본을 연다', () => {
+    renderPane({ day: withTicket() })
+
+    const link = within(row('l1')).getByRole('link', { name: '예매 캡처 크게 보기' })
+    expect(link.getAttribute('href')).toBe(
+      `${SUPABASE_URL}/storage/v1/object/public/${TICKET.storage_path}`,
+    )
+    expect(link.getAttribute('target')).toBe('_blank')
+
+    const image = within(row('l1')).getByRole('img', { name: '예매 캡처' }) as HTMLImageElement
+    expect(image.src).toBe(`${SUPABASE_URL}/storage/v1/object/public/${TICKET.thumb_path}`)
+  })
+
+  it('이동 고치기에서 고른 파일을 그 Leg 로 넘긴다', async () => {
+    const { onAddLegPhoto } = renderPane()
+
+    fireEvent.click(within(row('l1')).getByRole('button', { name: '이동 고치기' }))
+    const file = new File([new Uint8Array(8)], 'ktx.jpg', { type: 'image/jpeg' })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('예매 캡처 담기'), { target: { files: [file] } })
+    })
+
+    expect(onAddLegPhoto).toHaveBeenCalledWith('l1', file)
+  })
+
+  it('캡처 지우기는 되돌릴 수 없어 한 번 묻는다 (E-12 hard delete)', async () => {
+    const { onRemovePhoto } = renderPane({ day: withTicket() })
+
+    fireEvent.click(within(row('l1')).getByRole('button', { name: '이동 고치기' }))
+    fireEvent.click(within(row('l1')).getByRole('button', { name: '예매 캡처 지우기' }))
+
+    expect(onRemovePhoto).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert').textContent).toContain('되돌릴 수 없어요')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '캡처 지우기' }))
+    })
+    expect(onRemovePhoto).toHaveBeenCalledWith(TICKET)
+  })
+})
+
+describe('TimelinePane — 이동 지우기 (E-12 hard delete)', () => {
+  it('확인한 뒤에만 지운다', async () => {
+    const { onRemoveLeg } = renderPane()
+
+    fireEvent.click(within(row('l1')).getByRole('button', { name: '이동 고치기' }))
+    fireEvent.click(within(row('l1')).getByRole('button', { name: '이동 지우기' }))
+
+    expect(onRemoveLeg).not.toHaveBeenCalled()
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toContain('되돌릴 수 없어요')
+
+    await act(async () => {
+      fireEvent.click(within(alert).getByRole('button', { name: '지우기' }))
+    })
+    expect(onRemoveLeg).toHaveBeenCalledWith('l1')
+  })
+
+  it('그만두면 이동은 그대로 남는다 (T-06)', () => {
+    const { onRemoveLeg } = renderPane()
+
+    fireEvent.click(within(row('l1')).getByRole('button', { name: '이동 고치기' }))
+    fireEvent.click(within(row('l1')).getByRole('button', { name: '이동 지우기' }))
+    fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: '그만두기' }))
+
+    expect(onRemoveLeg).not.toHaveBeenCalled()
+    expect(row('l1')).toBeTruthy()
   })
 })

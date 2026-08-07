@@ -146,6 +146,7 @@ describe('LegForm — 고치기 (기존 Leg)', () => {
     cost_amount: 12800,
     memo: '',
     position: 2,
+    photos: [],
   }
 
   it('기존 값을 채워 두고 같은 폼으로 고친다', async () => {

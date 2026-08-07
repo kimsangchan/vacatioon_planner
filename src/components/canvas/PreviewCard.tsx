@@ -7,25 +7,43 @@
 // 썸네일은 캔버스가 열릴 때 이미 받아 뒀다(lib/photo/prefetch.ts) — 여기서 네트워크를 타지 않는다.
 
 import { useId, useState } from 'react'
+import { ConfirmRow } from '@/components/common/ConfirmRow'
 import { CATEGORY_LABEL } from '@/lib/map/provider'
 import { PhotoError, photoErrorMessage, photoPublicUrl } from '@/lib/photo/upload'
-import { coverPhoto, type PlaceRow } from '@/lib/trips/bundle'
+import { coverPhoto, type PhotoRow, type PlaceRow } from '@/lib/trips/bundle'
 
 export interface PreviewCardProps {
   place: PlaceRow
   variant: 'card' | 'sheet'
+  /** 이 장소가 지금 몇 개의 Stop 으로 담겨 있는지 — 빼기 확인 문구의 근거 (FR-017) */
+  placedCount?: number
   onAddPhoto?: (file: File) => Promise<void> | void
   onSetCover?: (photoId: string) => Promise<void> | void
+  onRemovePhoto?: (photo: PhotoRow) => Promise<void> | void
   onSaveMemo?: (memo: string) => Promise<void> | void
+  onDeletePlace?: () => Promise<void> | void
   onClose?: () => void
+}
+
+const SMALL_BUTTON =
+  'flex min-h-8 items-center rounded-full border border-black/15 px-2 text-xs dark:border-white/20'
+
+// 되돌릴 수 없는 일(사진 hard delete)과 미리 알려야 하는 일(Stop 동반 삭제)만 여기를 거친다
+interface PendingConfirm {
+  message: string
+  confirmLabel: string
+  run: () => Promise<void> | void
 }
 
 export function PreviewCard({
   place,
   variant,
+  placedCount = 0,
   onAddPhoto,
   onSetCover,
+  onRemovePhoto,
   onSaveMemo,
+  onDeletePlace,
   onClose,
 }: PreviewCardProps) {
   const fileInputId = useId()
@@ -34,6 +52,7 @@ export function PreviewCard({
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
+  const [pending, setPending] = useState<PendingConfirm | null>(null)
 
   const cover = coverPhoto(place)
   const sheet = variant === 'sheet'
@@ -46,6 +65,7 @@ export function PreviewCard({
     setNote(null)
     try {
       await action()
+      setPending(null)
       if (done) setNote(done)
     } catch (error) {
       setFailure(
@@ -56,6 +76,21 @@ export function PreviewCard({
     } finally {
       setBusy(false)
     }
+  }
+
+  // 보관함에서 빼기 = Place 소프트 삭제. 되돌릴 수 있으니 평소엔 묻지 않는다 (T-06).
+  // 다만 일정에 담겨 있으면 그 자리(Stop)는 hard delete 라 먼저 알린다 (E-12)
+  function removePlace() {
+    if (!onDeletePlace) return
+    if (placedCount === 0) {
+      void run(onDeletePlace)
+      return
+    }
+    setPending({
+      message: `일정에 ${placedCount}곳 담겨 있어 일정에서도 빠져요. 되돌리면 보관함으로 돌아오지만 일정은 다시 담아야 해요.`,
+      confirmLabel: '네, 뺄게요',
+      run: onDeletePlace,
+    })
   }
 
   function pickPhoto(event: React.ChangeEvent<HTMLInputElement>) {
@@ -144,7 +179,7 @@ export function PreviewCard({
         )}
       </div>
 
-      {sheet && place.photos.length > 1 && onSetCover && (
+      {sheet && place.photos.length > 0 && (onSetCover || onRemovePhoto) && (
         <ul className="flex flex-wrap gap-2">
           {place.photos.map((photo) => (
             <li key={photo.id} className="flex flex-col items-center gap-1">
@@ -159,13 +194,30 @@ export function PreviewCard({
               {photo.id === cover?.id ? (
                 <span className="text-xs text-black/60 dark:text-white/60">대표</span>
               ) : (
+                onSetCover && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void run(() => onSetCover(photo.id), '대표 사진을 바꿨어요.')}
+                    className={SMALL_BUTTON}
+                  >
+                    대표로 두기
+                  </button>
+                )
+              )}
+              {onRemovePhoto && (
                 <button
                   type="button"
-                  disabled={busy}
-                  onClick={() => void run(() => onSetCover(photo.id), '대표 사진을 바꿨어요.')}
-                  className="flex min-h-8 items-center rounded-full border border-black/15 px-2 text-xs dark:border-white/20"
+                  onClick={() =>
+                    setPending({
+                      message: '이 사진을 지울까요? 되돌릴 수 없어요.',
+                      confirmLabel: '지우기',
+                      run: () => onRemovePhoto(photo),
+                    })
+                  }
+                  className={SMALL_BUTTON}
                 >
-                  대표로 두기
+                  사진 지우기
                 </button>
               )}
             </li>
@@ -197,7 +249,7 @@ export function PreviewCard({
         </div>
       )}
 
-      {sheet && (photoButton !== null || place.provider_link !== null) && (
+      {sheet && (photoButton !== null || place.provider_link !== null || onDeletePlace) && (
         <div className="flex flex-wrap items-center gap-2">
           {photoButton}
           {place.provider_link && (
@@ -210,7 +262,28 @@ export function PreviewCard({
               네이버에서 보기
             </a>
           )}
+          {/* 파괴적이지만 되돌릴 수 있는 일이다 — 빨간 강조 대신 보조 스타일로 둔다 */}
+          {onDeletePlace && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={removePlace}
+              className="flex min-h-8 items-center rounded-full px-3 text-sm text-black/60 underline underline-offset-4 dark:text-white/60"
+            >
+              보관함에서 빼기
+            </button>
+          )}
         </div>
+      )}
+
+      {sheet && pending && (
+        <ConfirmRow
+          message={pending.message}
+          confirmLabel={pending.confirmLabel}
+          busy={busy}
+          onConfirm={() => void run(pending.run)}
+          onCancel={() => setPending(null)}
+        />
       )}
 
       {/* 사진이 없으면 호버 카드에서도 바로 담을 수 있다 (PRD 엣지 — 기능은 성립) */}

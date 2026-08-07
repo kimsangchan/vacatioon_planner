@@ -12,7 +12,13 @@ import type { LatLng, PinEventKind } from '@/lib/map/provider'
 import { prefetchThumbnails } from '@/lib/photo/prefetch'
 import { photoPublicUrl } from '@/lib/photo/upload'
 import type { LegDraft } from '@/lib/timeline/api'
-import { thumbPaths, unassignedPlaces, type PlaceRow, type TripBundle } from '@/lib/trips/bundle'
+import {
+  thumbPaths,
+  unassignedPlaces,
+  type PhotoRow,
+  type PlaceRow,
+  type TripBundle,
+} from '@/lib/trips/bundle'
 import { ListPane } from './ListPane'
 import { ManualPlaceForm } from './ManualPlaceForm'
 import { MapPane } from './MapPane'
@@ -25,6 +31,11 @@ export interface CanvasBoardProps {
   onAddPhoto?: (placeId: string, file: File) => Promise<void>
   onSetCover?: (placeId: string, photoId: string) => Promise<void>
   onSaveMemo?: (placeId: string, memo: string) => Promise<void>
+  // T7-3 — 사진 첨부·삭제·되돌리기 (FR-017·FR-018)
+  onAddLegPhoto?: (legId: string, file: File) => Promise<void>
+  onRemovePhoto?: (photo: PhotoRow) => Promise<void>
+  onRemoveLeg?: (legId: string) => Promise<void>
+  onDeletePlace?: (place: PlaceRow) => Promise<void>
   // T7-1·T7-2 — 배치·순서·이동 (FR-007·FR-008)
   onAssignPlace?: (placeId: string, dayId: string) => Promise<void>
   onUnassignStop?: (stopId: string) => Promise<void>
@@ -44,6 +55,10 @@ export function CanvasBoard({
   onAddPhoto,
   onSetCover,
   onSaveMemo,
+  onAddLegPhoto,
+  onRemovePhoto,
+  onRemoveLeg,
+  onDeletePlace,
   onAssignPlace,
   onUnassignStop,
   onUpdateStop,
@@ -71,6 +86,13 @@ export function CanvasBoard({
 
   const byId = (id: string | null) =>
     id === null ? null : (bundle.places.find((place: PlaceRow) => place.id === id) ?? null)
+
+  // 빼기 확인 문구의 근거 — 같은 곳을 여러 날에 담을 수 있으므로 Stop 수를 센다 (결정 #21)
+  const placedCount = (placeId: string) =>
+    bundle.days.reduce(
+      (total, day) => total + day.stops.filter((stop) => stop.place_id === placeId).length,
+      0,
+    )
 
   const detailPlace = byId(detailId)
   // 카드와 시트는 같은 자리를 두고 다투지 않는다 — 시트가 열려 있으면 카드는 쉰다
@@ -199,6 +221,9 @@ export function CanvasBoard({
             onUpdateStop={onUpdateStop}
             onReorderDay={onReorderDay}
             onSaveLeg={onSaveLeg}
+            onAddLegPhoto={onAddLegPhoto}
+            onRemovePhoto={onRemovePhoto}
+            onRemoveLeg={onRemoveLeg}
           />
         </div>
 
@@ -209,6 +234,7 @@ export function CanvasBoard({
               key={detailPlace.id}
               variant="sheet"
               place={detailPlace}
+              placedCount={placedCount(detailPlace.id)}
               onClose={() => {
                 setDetailId(null)
                 setHighlightedId(null)
@@ -217,7 +243,18 @@ export function CanvasBoard({
               onSetCover={
                 onSetCover ? (photoId) => onSetCover(detailPlace.id, photoId) : undefined
               }
+              onRemovePhoto={onRemovePhoto}
               onSaveMemo={onSaveMemo ? (memo) => onSaveMemo(detailPlace.id, memo) : undefined}
+              onDeletePlace={
+                onDeletePlace
+                  ? async () => {
+                      await onDeletePlace(detailPlace)
+                      // 뺀 자리를 계속 열어 둘 이유가 없다 — 시트를 닫고 리스트로 돌려보낸다
+                      setDetailId(null)
+                      setHighlightedId(null)
+                    }
+                  : undefined
+              }
             />
           </div>
         )}

@@ -2,6 +2,7 @@
 // UI 가 항상 "다음 행동"을 붙일 수 있게 한다 (05 §규약 — Problem JSON 과 같은 어휘).
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { TripDateChange } from './dates'
 
 export interface TripSummary {
   id: string
@@ -17,6 +18,15 @@ export interface TripRow {
   start_date: string
   end_date: string
   timezone: string
+}
+
+// 90일 안이면 되돌릴 수 있는 여행 (FR-017 — 지운 것도 목록에서 손이 닿아야 한다)
+export interface DeletedTrip {
+  id: string
+  name: string
+  start_date: string
+  end_date: string
+  deleted_at: string
 }
 
 export interface NewTrip {
@@ -110,4 +120,56 @@ export async function createTrip(client: SupabaseClient, input: NewTrip): Promis
 
   if (error) throw toTripError(error)
   return data as TripRow
+}
+
+// E-14: Day 증감 + 삭제 Day 의 Stop 제거를 단일 트랜잭션으로. 부분 실패가 없으니
+// 화면은 반환 카운트만 믿고 안내하면 된다 (FR-015)
+export async function updateTripDates(
+  client: SupabaseClient,
+  input: { trip_id: string; start_date: string; end_date: string },
+): Promise<TripDateChange> {
+  const { data, error } = await client.rpc('update_trip_dates', input)
+
+  if (error) throw toTripError(error)
+
+  // `returns table (...)` 이라 PostgREST 는 한 행짜리 배열로 돌려준다
+  const row = (Array.isArray(data) ? data[0] : data) as TripDateChange | undefined
+  return {
+    removed_stops: row?.removed_stops ?? 0,
+    unassigned_places: row?.unassigned_places ?? 0,
+  }
+}
+
+// E-12: Trip 은 소프트 삭제다 — 목록에서만 사라지고 90일 안에는 되돌릴 수 있다 (FR-017)
+export async function softDeleteTrip(client: SupabaseClient, tripId: string): Promise<void> {
+  const { error } = await client
+    .from('trips')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', tripId)
+
+  if (error) throw toTripError(error)
+}
+
+// E-09: 되돌리기는 deleted_at 을 비우는 일 하나뿐이다 — 딸린 것들은 지운 적이 없다
+export async function restoreTrip(client: SupabaseClient, tripId: string): Promise<void> {
+  const { error } = await client.from('trips').update({ deleted_at: null }).eq('id', tripId)
+  if (error) throw toTripError(error)
+}
+
+export const TRIP_RESTORE_WINDOW_DAYS = 90
+
+export async function listDeletedTrips(client: SupabaseClient): Promise<DeletedTrip[]> {
+  const since = new Date(
+    Date.now() - TRIP_RESTORE_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString()
+
+  const { data, error } = await client
+    .from('trips')
+    .select('id,name,start_date,end_date,deleted_at')
+    .not('deleted_at', 'is', null)
+    .gte('deleted_at', since)
+    .order('deleted_at', { ascending: false })
+
+  if (error) throw toTripError(error)
+  return (data ?? []) as unknown as DeletedTrip[]
 }

@@ -177,3 +177,88 @@ describe('PreviewCard — 사진 담기 (FR-004 / E-05)', () => {
     expect(alert.textContent).toContain('다시 골라')
   })
 })
+
+describe('PreviewCard — 사진 지우기 (FR-017 / E-12 hard delete)', () => {
+  const only = photo('11111111-1111-4111-8111-111111111111', true)
+
+  it('되돌릴 수 없으니 한 번 묻고 지운다', async () => {
+    const onRemovePhoto = vi.fn().mockResolvedValue(undefined)
+    render(
+      <PreviewCard variant="sheet" place={place({ photos: [only] })} onRemovePhoto={onRemovePhoto} />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '사진 지우기' }))
+    expect(onRemovePhoto).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert').textContent).toContain('되돌릴 수 없어요')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '지우기' }))
+    })
+    expect(onRemovePhoto).toHaveBeenCalledWith(only)
+  })
+
+  it('그만두면 사진은 그대로다', () => {
+    const onRemovePhoto = vi.fn()
+    render(
+      <PreviewCard variant="sheet" place={place({ photos: [only] })} onRemovePhoto={onRemovePhoto} />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '사진 지우기' }))
+    fireEvent.click(screen.getByRole('button', { name: '그만두기' }))
+
+    expect(onRemovePhoto).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: '사진 지우기' })).toBeTruthy()
+  })
+})
+
+describe('PreviewCard — 보관함에서 빼기 (FR-017 soft delete)', () => {
+  it('일정에 담긴 적 없으면 곧장 뺀다 — 되돌릴 수 있으니 묻지 않는다 (T-06)', async () => {
+    const onDeletePlace = vi.fn().mockResolvedValue(undefined)
+    render(
+      <PreviewCard
+        variant="sheet"
+        place={place()}
+        placedCount={0}
+        onDeletePlace={onDeletePlace}
+      />,
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '보관함에서 빼기' }))
+    })
+
+    expect(onDeletePlace).toHaveBeenCalledTimes(1)
+  })
+
+  it('일정에 담겨 있으면 그 자리도 빠진다고 먼저 알린다 (Stop 은 hard delete — E-12)', async () => {
+    const onDeletePlace = vi.fn().mockResolvedValue(undefined)
+    render(
+      <PreviewCard
+        variant="sheet"
+        place={place()}
+        placedCount={2}
+        onDeletePlace={onDeletePlace}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '보관함에서 빼기' }))
+
+    expect(onDeletePlace).not.toHaveBeenCalled()
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toContain('일정에서도 빠져요')
+    expect(alert.textContent).toContain('2곳')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '네, 뺄게요' }))
+    })
+    expect(onDeletePlace).toHaveBeenCalledTimes(1)
+  })
+
+  it('빼기는 강조하지 않는다 — 파괴적 행동에 빨간 강조를 남발하지 않는다', () => {
+    render(<PreviewCard variant="sheet" place={place()} onDeletePlace={vi.fn()} />)
+
+    const button = screen.getByRole('button', { name: '보관함에서 빼기' })
+    expect(button.className).not.toContain('bg-foreground')
+    expect(button.className).not.toMatch(/text-red|bg-red/)
+  })
+})

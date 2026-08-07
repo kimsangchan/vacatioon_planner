@@ -23,6 +23,8 @@
 
 ## 함정 (gotcha)
 
+- dev 서버 포트 **3010 고정**(`npm run dev`) — 3000은 사용자의 다른 앱이 사용. 지도(NCP)는 등록된 Web 서비스 URL과 포트까지 일치해야 인증됨. supabase/config.toml site_url도 3010
+
 - 네이버 지역검색 `mapx/mapy`는 3형식(KATECH / WGS84×10⁷ / WGS84 도) — 값 크기로 판별, SPEC §알고리즘 1. 실측(T0-4) 결과 현재 API HUB는 WGS84×10⁷ 반환 (decision-log #20)
 - iOS 설치형 PWA는 Safari와 세션 격리 — 인증은 OTP 코드 입력이 기본, 매직링크는 보조 (#13)
 - 네이버 검색 응답 title에 `<b>` 태그 포함 — 프록시에서 제거

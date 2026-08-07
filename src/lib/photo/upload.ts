@@ -165,6 +165,19 @@ export async function uploadTripPhoto(
   }
 }
 
+// E-12 — 사진은 hard delete 다. 행을 먼저 지운다: 행이 진실이고, 파일만 남으면 아무도 못 여는
+// 고아일 뿐이지만(경로가 곧 비밀 — 결정 #12) 반대로 파일만 사라지면 화면에 깨진 사진이 남는다.
+// Storage 제거는 시도하고 실패해도 삼킨다 — 사용자가 다시 할 일이 아니다.
+export async function deletePhoto(client: SupabaseClient, photo: PhotoRow): Promise<void> {
+  const { error } = await client.from('photos').delete().eq('id', photo.id)
+  if (error) throw toPhotoError(error)
+
+  await client.storage
+    .from(PHOTO_BUCKET)
+    .remove([photoObjectName(photo.storage_path), photoObjectName(photo.thumb_path)])
+    .catch(() => undefined)
+}
+
 export interface SetCoverPhotoInput {
   placeId?: string
   legId?: string
