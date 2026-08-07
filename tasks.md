@@ -52,9 +52,9 @@
 
 ## T6. 캔버스 — 저장·지도·미리보기 (T4·T5 후, 지도 렌더만 T0-2 필요)
 
-- [ ] T6-1 `MapProvider` 인터페이스 + `naver.ts` 구현 + **FakeMapProvider**(테스트·키 없는 개발용)
-- [ ] T6-2 실패 테스트 먼저 → `PlaceSearchBox`: 검색→선택→카테고리 확정 = 결정 3지점, 저장 시 E-04(+중복 conflict 안내) (FR-003, SC-001)
-- [ ] T6-3 실패 테스트 먼저 → `ListPane`+`MapPane` 상호 하이라이트, 카테고리 3색 핀 (FR-005)
+- [x] T6-1 MapProvider·NaverMapProvider·FakeMapProvider — SDK 파라미터 실측: `ncpClientId`→`ncpKeyId` 개명(회귀 어서션 포함). 키 미설정 시 Fake 자동 폴백+안내 배너 (2026-08-07, Opus)
+- [x] T6-2 `PlaceSearchBox` — 결정 3지점 유지 위해 카테고리 버튼("식당으로 담기")이 곧 저장. 0건/중복/429 분기 (2026-08-07, Opus)
+- [x] T6-3 캔버스 조립 — Trip Bundle(react-query)·보관함/일정 섹션·3색 핀·리스트↔핀 상호 하이라이트·모바일 하단 시트 (2026-08-07, Opus. vitest 112) — 클러스터링은 별도 라이브러리 필요로 보류(핀 겹침 엣지)
 - [ ] T6-4 실패 테스트 먼저 → `PreviewCard` 호버/탭·썸네일 프리페치·사진 없음 플레이스홀더 (FR-006), 사진 업로드(FR-004, E-05)
 - [ ] T6-5 지도 롱프레스/우클릭 수동 등록 (FR-016) + 메모·상세 링크 (FR-009)
 - 완료 기준: 06 변환표 FR-003~006·009·016 시나리오 green (지도는 FakeMapProvider로, 실지도는 T0 후 육안 확인)

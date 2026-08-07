@@ -1,0 +1,114 @@
+// E-04 장소 저장 (docs/design/05 엔드포인트 표). PostgREST 오류를 계약 코드로 정규화해서
+// UI 가 항상 "다음 행동"을 붙일 수 있게 한다 — lib/trips/api.ts 와 같은 어휘·같은 모양.
+
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { PlaceCategory } from './category'
+
+export type PlaceProvider = 'naver' | 'kakao' | 'google' | 'manual'
+
+export interface NewPlace {
+  id: string // 클라이언트 생성 UUID — 재시도해도 한 행 (05 §멱등성)
+  trip_id: string
+  owner_id: string
+  category: PlaceCategory
+  name: string
+  address: string
+  road_address: string
+  lat: number
+  lng: number
+  provider: PlaceProvider
+  provider_link: string | null
+  memo?: string
+}
+
+export interface SavedPlace {
+  id: string
+  trip_id: string
+  category: PlaceCategory
+  name: string
+  address: string
+  road_address: string
+  lat: number
+  lng: number
+  provider: PlaceProvider
+  provider_link: string | null
+  memo: string
+}
+
+export type PlaceErrorCode = 'conflict/duplicate' | 'validation/coords' | 'unknown'
+
+export class PlaceError extends Error {
+  readonly code: PlaceErrorCode
+  // 중복일 때 "담아둔 곳 보기"로 데려갈 대상 (덮어쓰기 금지 — PRD 엣지케이스)
+  readonly existingPlaceId?: string
+
+  constructor(code: PlaceErrorCode, message?: string, existingPlaceId?: string) {
+    super(message ?? code)
+    this.name = 'PlaceError'
+    this.code = code
+    this.existingPlaceId = existingPlaceId
+  }
+}
+
+const MESSAGES: Record<PlaceErrorCode, string> = {
+  'conflict/duplicate': '이미 담아둔 곳이에요. 보관함에서 확인해 주세요.',
+  'validation/coords': '좌표가 국내 범위를 벗어났어요. 지도에서 위치를 확인해 주세요.',
+  unknown: '보관함에 담지 못했어요. 잠시 뒤에 다시 해 주세요.',
+}
+
+export function placeErrorMessage(code: PlaceErrorCode): string {
+  return MESSAGES[code] ?? MESSAGES.unknown
+}
+
+interface DataLayerError {
+  message: string
+  code?: string
+}
+
+export function toPlaceError(error: DataLayerError, existingPlaceId?: string): PlaceError {
+  if (error.code === '23505') {
+    return new PlaceError('conflict/duplicate', error.message, existingPlaceId)
+  }
+  // lat·lng CHECK 제약 (0001_schema.sql) — WGS84 국내 범위 밖
+  if (error.code === '23514' && /lat|lng/.test(error.message)) {
+    return new PlaceError('validation/coords', error.message)
+  }
+  return new PlaceError('unknown', error.message)
+}
+
+const SAVED_COLUMNS =
+  'id,trip_id,category,name,address,road_address,lat,lng,provider,provider_link,memo'
+
+export async function savePlace(client: SupabaseClient, input: NewPlace): Promise<SavedPlace> {
+  const { data, error } = await client
+    .from('places')
+    .insert({ memo: '', ...input })
+    .select(SAVED_COLUMNS)
+    .single()
+
+  if (error) {
+    const existingPlaceId =
+      error.code === '23505' ? await findExistingPlaceId(client, input) : undefined
+    throw toPlaceError(error, existingPlaceId)
+  }
+
+  return data as SavedPlace
+}
+
+// 부분 유니크 키 (trip_id, name, lat, lng) WHERE deleted_at IS NULL 로 기존 항목을 찾는다
+export async function findExistingPlaceId(
+  client: SupabaseClient,
+  input: Pick<NewPlace, 'trip_id' | 'name' | 'lat' | 'lng'>,
+): Promise<string | undefined> {
+  const { data } = await client
+    .from('places')
+    .select('id')
+    .eq('trip_id', input.trip_id)
+    .eq('name', input.name)
+    .eq('lat', input.lat)
+    .eq('lng', input.lng)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  return (data as { id: string } | null)?.id
+}

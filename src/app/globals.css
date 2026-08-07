@@ -3,11 +3,20 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* 카테고리 3색 — 핀·배지가 공유하는 유일한 출처 (SPEC §UI 규칙). 정보 전달용이라
+     "화면당 강조 1곳" 원칙과 충돌하지 않는다 (docs/design/03 §UI 방향 T-14) */
+  --pin-restaurant: #e8590c;
+  --pin-lodging: #1c7ed6;
+  --pin-spot: #2f9e44;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-pin-restaurant: var(--pin-restaurant);
+  --color-pin-lodging: var(--pin-lodging);
+  --color-pin-spot: var(--pin-spot);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -16,6 +25,9 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --pin-restaurant: #ff922b;
+    --pin-lodging: #4dabf7;
+    --pin-spot: #51cf66;
   }
 }
 
