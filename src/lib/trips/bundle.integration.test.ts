@@ -3,7 +3,7 @@
 
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { savePlace, PlaceError } from '@/lib/place/api'
+import { savePlace, PlaceError, updatePlaceMemo } from '@/lib/place/api'
 import { signInWithOtpCode, uniqueTestEmail } from '@/test-support/supabase-local'
 import { createTrip } from './api'
 import { fetchTripBundle, unassignedPlaces } from './bundle'
@@ -117,6 +117,14 @@ describe('E-04 savePlace + E-06 Trip Bundle', () => {
     expect(bundle.days).toHaveLength(2)
     expect(bundle.places.map((p) => p.id).sort()).toEqual([hotelId, seongsanId].sort())
     expect(unassignedPlaces(bundle).map((p) => p.id)).toEqual([seongsanId])
+  })
+
+  it('메모를 고치면 Trip Bundle 에 그대로 실린다 (E-09 / FR-009)', async () => {
+    const updated = await updatePlaceMemo(client, seongsanId, '일출 전에 도착하기')
+    expect(updated.memo).toBe('일출 전에 도착하기')
+
+    const bundle = await fetchTripBundle(client, tripId)
+    expect(bundle.places.find((p) => p.id === seongsanId)?.memo).toBe('일출 전에 도착하기')
   })
 
   it('없는 여행은 not-found 로 알린다', async () => {

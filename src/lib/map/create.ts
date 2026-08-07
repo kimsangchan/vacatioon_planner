@@ -2,7 +2,7 @@
 // 캔버스가 끝까지 동작한다 (배너로 사용자에게 알린다 — T0-2 전 개발 환경).
 
 import { FakeMapProvider } from './fake'
-import { NaverMapProvider } from './naver'
+import { NaverMapProvider, onNaverAuthFailure } from './naver'
 import type { MapProvider } from './provider'
 
 export type MapProviderKind = 'naver' | 'fake'
@@ -10,6 +10,8 @@ export type MapProviderKind = 'naver' | 'fake'
 export interface CreatedMapProvider {
   provider: MapProvider
   kind: MapProviderKind
+  /** 지도 인증이 mount 이후 비동기로 실패할 수 있다(naver) — UI 는 이걸 구독해 강등 안내한다 */
+  subscribeAuthFailure?: (cb: () => void) => void
 }
 
 // NEXT_PUBLIC_* 는 빌드 시 인라인되므로 리터럴 표기를 유지한다 (lib/supabase/env.ts 와 같은 규칙)
@@ -20,5 +22,9 @@ export function mapClientId(): string {
 export function createMapProvider(): CreatedMapProvider {
   const clientId = mapClientId()
   if (!clientId) return { provider: new FakeMapProvider(), kind: 'fake' }
-  return { provider: new NaverMapProvider({ clientId }), kind: 'naver' }
+  return {
+    provider: new NaverMapProvider({ clientId }),
+    kind: 'naver',
+    subscribeAuthFailure: onNaverAuthFailure,
+  }
 }

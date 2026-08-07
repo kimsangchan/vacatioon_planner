@@ -8,7 +8,13 @@ import { FakeMapProvider } from '@/lib/map/fake'
 import type { PlaceRow, TripBundle } from '@/lib/trips/bundle'
 import { CanvasBoard } from './CanvasBoard'
 
-function place(id: string, name: string, category: PlaceRow['category'], lat: number): PlaceRow {
+function place(
+  id: string,
+  name: string,
+  category: PlaceRow['category'],
+  lat: number,
+  photos: PlaceRow['photos'] = [],
+): PlaceRow {
   return {
     id,
     trip_id: 'trip-1',
@@ -21,8 +27,16 @@ function place(id: string, name: string, category: PlaceRow['category'], lat: nu
     provider: 'naver',
     provider_link: null,
     memo: '',
-    photos: [],
+    photos,
   }
+}
+
+const COVER = {
+  id: '11111111-1111-4111-8111-111111111111',
+  storage_path: 'photos/11111111-1111-4111-8111-111111111111/11111111-1111-4111-8111-111111111111.webp',
+  thumb_path:
+    'photos/11111111-1111-4111-8111-111111111111/11111111-1111-4111-8111-111111111111-thumb.webp',
+  is_cover: true,
 }
 
 const bundle: TripBundle = {
@@ -32,7 +46,7 @@ const bundle: TripBundle = {
   end_date: '2026-08-02',
   timezone: 'Asia/Seoul',
   places: [
-    place('p1', '흑돼지집', 'restaurant', 33.5),
+    place('p1', '흑돼지집', 'restaurant', 33.5, [COVER]),
     place('p2', '호텔제주', 'lodging', 33.51),
     place('p3', '성산일출봉', 'spot', 33.46),
   ],
@@ -57,14 +71,18 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = scrollIntoView
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  document.head.innerHTML = ''
+})
 
-async function renderBoard() {
+async function renderBoard(props: Partial<Parameters<typeof CanvasBoard>[0]> = {}) {
   render(
     <CanvasBoard
       bundle={bundle}
       onSave={vi.fn()}
       createProvider={() => ({ provider, kind: 'fake' as const })}
+      {...props}
     />,
   )
   // mount 가 Promise 라 한 번 흘려보낸다
@@ -141,5 +159,109 @@ describe('CanvasBoard — 리스트↔핀 상호 하이라이트 (FR-005)', () =
     fireEvent.click(item('p3'))
 
     expect(provider.pannedTo.at(-1)).toEqual({ lat: 33.46, lng: 126.5 })
+  })
+})
+
+describe('CanvasBoard — 미리보기 (FR-006 / SC-002)', () => {
+  it('캔버스가 열리면 썸네일을 미리 받아 둔다', async () => {
+    await renderBoard()
+
+    const hrefs = Array.from(
+      document.head.querySelectorAll<HTMLLinkElement>('link[rel="prefetch"]'),
+    ).map((link) => link.href)
+
+    expect(hrefs).toHaveLength(1)
+    expect(hrefs[0]).toContain('/storage/v1/object/public/')
+    expect(hrefs[0]).toContain('-thumb.webp')
+  })
+
+  it('리스트 항목에 호버하면 카드가 뜬다 (데스크톱)', async () => {
+    await renderBoard()
+
+    expect(screen.queryByTestId('preview-card')).toBeNull()
+
+    fireEvent.mouseEnter(item('p1'))
+    const card = screen.getByTestId('preview-card')
+    expect(card.dataset.variant).toBe('card')
+    expect(card.textContent).toContain('흑돼지집')
+
+    fireEvent.mouseLeave(item('p1'))
+    expect(screen.queryByTestId('preview-card')).toBeNull()
+  })
+
+  it('핀을 누르면 바텀시트로 열고, 닫으면 사라진다 (모바일 — 뎁스 2)', async () => {
+    await renderBoard()
+
+    await act(async () => provider.emitPinEvent('p3', 'tap'))
+
+    const sheet = screen.getByTestId('preview-card')
+    expect(sheet.dataset.variant).toBe('sheet')
+    expect(sheet.textContent).toContain('성산일출봉')
+
+    fireEvent.click(screen.getByRole('button', { name: '미리보기 닫기' }))
+    expect(screen.queryByTestId('preview-card')).toBeNull()
+  })
+
+  it('사진 없는 곳도 카드에서 바로 사진을 담을 수 있다 (PRD 엣지)', async () => {
+    const onAddPhoto = vi.fn().mockResolvedValue(undefined)
+    await renderBoard({ onAddPhoto })
+
+    await act(async () => provider.emitPinEvent('p3', 'tap'))
+    expect(screen.getByTestId('photo-placeholder')).toBeTruthy()
+
+    const file = new File([new Uint8Array(8)], 'jeju.jpg', { type: 'image/jpeg' })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('사진 담기'), { target: { files: [file] } })
+    })
+
+    expect(onAddPhoto).toHaveBeenCalledWith('p3', file)
+  })
+
+  it('시트에서 고친 메모를 그 장소에 저장한다 (FR-009)', async () => {
+    const onSaveMemo = vi.fn().mockResolvedValue(undefined)
+    await renderBoard({ onSaveMemo })
+
+    await act(async () => provider.emitPinEvent('p1', 'tap'))
+    fireEvent.change(screen.getByLabelText('메모'), { target: { value: '예약 필요' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '메모 저장하기' }))
+    })
+
+    expect(onSaveMemo).toHaveBeenCalledWith('p1', '예약 필요')
+  })
+})
+
+describe('CanvasBoard — 지도에서 직접 담기 (FR-016)', () => {
+  it('지도를 길게 누르면 그 좌표로 미니 폼을 연다', async () => {
+    await renderBoard()
+
+    expect(screen.queryByTestId('manual-place-form')).toBeNull()
+
+    await act(async () => provider.emitLongPress({ lat: 33.4, lng: 126.6 }))
+
+    expect(screen.getByTestId('manual-place-form').textContent).toContain('33.4, 126.6')
+  })
+
+  it('이름을 적고 담으면 provider=manual 로 저장한다', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    await renderBoard({ onSave })
+
+    await act(async () => provider.emitLongPress({ lat: 33.4, lng: 126.6 }))
+    fireEvent.change(screen.getByLabelText('장소 이름'), { target: { value: '이름 없는 전망대' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '이 자리에 담기' }))
+    })
+
+    expect(onSave).toHaveBeenCalledWith({
+      category: 'spot',
+      name: '이름 없는 전망대',
+      address: '',
+      road_address: '',
+      lat: 33.4,
+      lng: 126.6,
+      provider: 'manual',
+      provider_link: null,
+    })
+    expect(screen.queryByTestId('manual-place-form')).toBeNull()
   })
 })

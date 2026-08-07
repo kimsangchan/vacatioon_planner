@@ -133,6 +133,18 @@ export function assignedPlaces(bundle: TripBundle): PlaceRow[] {
   return (bundle.places ?? []).filter((place) => assigned.has(place.id))
 }
 
+// 카드 썸네일의 출처. 대표 지정이 없으면 먼저 담은 사진을 쓴다 — 사진이 없으면 null 이고,
+// 그때는 카테고리 자리표시가 대신 선다 (PRD 엣지케이스 — 기능은 성립)
+export function coverPhoto(place: Pick<PlaceRow, 'photos'>): PhotoRow | null {
+  const photos = place.photos ?? []
+  return photos.find((photo) => photo.is_cover) ?? photos[0] ?? null
+}
+
+// 캔버스가 열릴 때 미리 받아 둘 썸네일들 (SC-002 — 호버 경로에 네트워크 왕복 0)
+export function thumbPaths(bundle: TripBundle): string[] {
+  return (bundle.places ?? []).flatMap((place) => (place.photos ?? []).map((p) => p.thumb_path))
+}
+
 // numeric(9,6) 은 PostgREST 에서 문자열로 올 수 있다 — 지도에 넘기기 전에 숫자로 고정한다
 export function toPins(places: PlaceRow[], highlightedId: string | null): Pin[] {
   return places.map((place) => ({

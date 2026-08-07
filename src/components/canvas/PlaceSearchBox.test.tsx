@@ -175,6 +175,18 @@ describe('PlaceSearchBox — 분기 (PRD 엣지케이스 / L-06)', () => {
     expect(status.textContent).toContain('길게 눌러')
   })
 
+  it('0건 안내에서 지도로 바로 넘어간다 (FR-016 연결)', async () => {
+    fetchMock.mockResolvedValue(jsonOnce([]))
+    const onPickOnMap = vi.fn()
+    render(<PlaceSearchBox onSave={vi.fn()} onPickOnMap={onPickOnMap} />)
+
+    type('없는가게')
+    await tick(300)
+
+    fireEvent.click(screen.getByRole('button', { name: '지도에 직접 찍기' }))
+    expect(onPickOnMap).toHaveBeenCalled()
+  })
+
   it('429 는 서버가 준 문구를 그대로 보여주고 다시 검색하기를 준다', async () => {
     fetchMock.mockResolvedValueOnce(problem(429, '내일 다시 검색할 수 있어요.'))
     render(<PlaceSearchBox onSave={vi.fn()} />)

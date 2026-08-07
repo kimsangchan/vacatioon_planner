@@ -1,37 +1,83 @@
 'use client'
 
-// FR-003·FR-005 캔버스 본체. 데이터(TripBundle)를 받아 보관함·지도·검색을 한 화면에 묶는다.
-// 레이아웃: 데스크톱 = 좌 리스트(360px) + 우 지도 / 모바일 = 지도 위 + 끌어올리는 하단 시트
-// (docs/design/03 §UI 방향). 라이브러리 없이 CSS 만으로 — 장식 모션은 넣지 않는다.
+// FR-003·FR-005·FR-006·FR-016 캔버스 본체. 데이터(TripBundle)를 받아 보관함·지도·검색·미리보기를
+// 한 화면에 묶는다. 레이아웃: 데스크톱 = 좌 리스트(360px) + 우 지도 / 모바일 = 지도 위 + 끌어올리는
+// 하단 시트 (docs/design/03 §UI 방향). 라이브러리 없이 CSS 만으로 — 장식 모션은 넣지 않는다.
+//
+// 미리보기는 라우트를 늘리지 않는다 — 호버는 지도 위 카드, 탭·클릭은 리스트 아래 시트다 (SC-003 뎁스 2).
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createMapProvider, type CreatedMapProvider } from '@/lib/map/create'
-import type { PinEventKind } from '@/lib/map/provider'
-import { assignedPlaces, unassignedPlaces, type PlaceRow, type TripBundle } from '@/lib/trips/bundle'
+import type { LatLng, PinEventKind } from '@/lib/map/provider'
+import { prefetchThumbnails } from '@/lib/photo/prefetch'
+import { photoPublicUrl } from '@/lib/photo/upload'
+import {
+  assignedPlaces,
+  thumbPaths,
+  unassignedPlaces,
+  type PlaceRow,
+  type TripBundle,
+} from '@/lib/trips/bundle'
 import { ListPane } from './ListPane'
+import { ManualPlaceForm } from './ManualPlaceForm'
 import { MapPane } from './MapPane'
 import { PlaceSearchBox, type PlaceDraft } from './PlaceSearchBox'
+import { PreviewCard } from './PreviewCard'
 
 export interface CanvasBoardProps {
   bundle: TripBundle
   onSave: (draft: PlaceDraft) => Promise<void>
+  onAddPhoto?: (placeId: string, file: File) => Promise<void>
+  onSetCover?: (placeId: string, photoId: string) => Promise<void>
+  onSaveMemo?: (placeId: string, memo: string) => Promise<void>
   /** 테스트·스토리에서 FakeMapProvider 를 끼우는 자리 */
   createProvider?: () => CreatedMapProvider
 }
 
-export function CanvasBoard({ bundle, onSave, createProvider }: CanvasBoardProps) {
+export function CanvasBoard({
+  bundle,
+  onSave,
+  onAddPhoto,
+  onSetCover,
+  onSaveMemo,
+  createProvider,
+}: CanvasBoardProps) {
   const [created] = useState<CreatedMapProvider>(() => (createProvider ?? createMapProvider)())
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
+  const [detailId, setDetailId] = useState<string | null>(null)
   const [scrollTarget, setScrollTarget] = useState<{ id: string; nonce: number } | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [manualLatLng, setManualLatLng] = useState<LatLng | null>(null)
+  const [pickHint, setPickHint] = useState(false)
   const nonceRef = useRef(0)
 
   const unassigned = useMemo(() => unassignedPlaces(bundle), [bundle])
   const assigned = useMemo(() => assignedPlaces(bundle), [bundle])
 
+  // SC-002 의 전제 — 호버 순간에 썸네일을 받으러 가면 400ms 를 못 지킨다 (FR-006)
+  const thumbUrls = useMemo(
+    () => thumbPaths(bundle).map((path) => photoPublicUrl(path)),
+    [bundle],
+  )
+  useEffect(() => prefetchThumbnails(thumbUrls), [thumbUrls])
+
+  const byId = (id: string | null) =>
+    id === null ? null : (bundle.places.find((place: PlaceRow) => place.id === id) ?? null)
+
+  const detailPlace = byId(detailId)
+  // 카드와 시트는 같은 자리를 두고 다투지 않는다 — 시트가 열려 있으면 카드는 쉰다
+  const hoverPlace = detailPlace ? null : byId(highlightedId)
+
   function revealInList(id: string) {
     setHighlightedId(id)
     setScrollTarget({ id, nonce: ++nonceRef.current })
+  }
+
+  function openDetail(id: string) {
+    revealInList(id)
+    setDetailId(id)
+    setManualLatLng(null)
+    setPickHint(false)
   }
 
   function handlePinEvent(id: string, ev: PinEventKind) {
@@ -40,7 +86,7 @@ export function CanvasBoard({ bundle, onSave, createProvider }: CanvasBoardProps
       return
     }
     if (ev === 'tap') {
-      revealInList(id)
+      openDetail(id)
       setSheetOpen(true)
       return
     }
@@ -48,20 +94,46 @@ export function CanvasBoard({ bundle, onSave, createProvider }: CanvasBoardProps
   }
 
   function handleSelect(id: string) {
-    const place = bundle.places.find((candidate: PlaceRow) => candidate.id === id)
-    setHighlightedId(id)
+    const place = byId(id)
+    openDetail(id)
     if (place) created.provider.panTo({ lat: Number(place.lat), lng: Number(place.lng) })
+  }
+
+  // FR-016 — 길게 누른(우클릭한) 자리로 미니 폼을 연다
+  function handleLongPress(latLng: LatLng) {
+    setManualLatLng(latLng)
+    setDetailId(null)
+    setPickHint(false)
+    setSheetOpen(true)
   }
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-      <div className="h-[48vh] w-full shrink-0 md:order-2 md:h-auto md:flex-1">
+      <div className="relative h-[48vh] w-full shrink-0 md:order-2 md:h-auto md:flex-1">
         <MapPane
           created={created}
           places={bundle.places}
           highlightedId={highlightedId}
           onPinEvent={handlePinEvent}
+          onLongPress={handleLongPress}
         />
+
+        {hoverPlace && (
+          <div
+            className="absolute top-3 left-3 z-20 hidden w-72 md:block"
+            onMouseEnter={() => setHighlightedId(hoverPlace.id)}
+            onMouseLeave={() => setHighlightedId(null)}
+          >
+            <PreviewCard
+              key={hoverPlace.id}
+              variant="card"
+              place={hoverPlace}
+              onAddPhoto={
+                onAddPhoto ? (file) => onAddPhoto(hoverPlace.id, file) : undefined
+              }
+            />
+          </div>
+        )}
       </div>
 
       <aside
@@ -80,7 +152,32 @@ export function CanvasBoard({ bundle, onSave, createProvider }: CanvasBoardProps
         </button>
 
         <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-6 md:pt-5">
-          <PlaceSearchBox onSave={onSave} onShowExisting={revealInList} />
+          {manualLatLng && (
+            <ManualPlaceForm
+              latLng={manualLatLng}
+              onSubmit={async (draft) => {
+                await onSave(draft)
+                setManualLatLng(null)
+              }}
+              onCancel={() => setManualLatLng(null)}
+            />
+          )}
+
+          <PlaceSearchBox
+            onSave={onSave}
+            onShowExisting={revealInList}
+            onPickOnMap={() => {
+              setPickHint(true)
+              setManualLatLng(null)
+            }}
+          />
+
+          {pickHint && (
+            <p role="status" className="text-sm text-black/60 dark:text-white/60">
+              지도에서 그 자리를 길게 눌러 주세요. 데스크톱은 오른쪽 클릭이에요.
+            </p>
+          )}
+
           <ListPane
             unassigned={unassigned}
             assigned={assigned}
@@ -90,6 +187,26 @@ export function CanvasBoard({ bundle, onSave, createProvider }: CanvasBoardProps
             onSelect={handleSelect}
           />
         </div>
+
+        {detailPlace && (
+          <div className="border-t border-black/10 px-4 py-3 dark:border-white/15">
+            {/* 다른 곳을 고르면 새로 시작한다 — 메모 초안이 옆 장소로 새지 않게 */}
+            <PreviewCard
+              key={detailPlace.id}
+              variant="sheet"
+              place={detailPlace}
+              onClose={() => {
+                setDetailId(null)
+                setHighlightedId(null)
+              }}
+              onAddPhoto={onAddPhoto ? (file) => onAddPhoto(detailPlace.id, file) : undefined}
+              onSetCover={
+                onSetCover ? (photoId) => onSetCover(detailPlace.id, photoId) : undefined
+              }
+              onSaveMemo={onSaveMemo ? (memo) => onSaveMemo(detailPlace.id, memo) : undefined}
+            />
+          </div>
+        )}
       </aside>
     </section>
   )

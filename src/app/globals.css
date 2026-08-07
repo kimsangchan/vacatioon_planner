@@ -31,6 +31,17 @@
   }
 }
 
+/* 미리보기 카드 등장 — SPEC §UI 규칙이 허용하는 유일한 장식 모션(fade 120ms).
+   시트 슬라이드 외에 다른 애니메이션을 여기에 추가하지 않는다 */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

@@ -67,8 +67,43 @@ export interface NaverMapProviderOptions {
 // 스크립트는 한 번만 붙인다 — 페이지 전환마다 다시 붙이면 SDK 가 전역을 덮어쓴다
 let sdkPromise: Promise<NaverMapsNamespace> | null = null
 
+// ── 인증 실패 대응 ────────────────────────────────────────────────────────────
+// SDK 는 Map 생성 "후" 비동기로 인증을 검사하고, 실패하면 전역 navermap_authFailure 를
+// 호출한 뒤 naver.maps 내부를 비운다 — mount 성공 이후에도 setPins 가 null 을 만질 수
+// 있다는 뜻이다. 앱이 죽는 대신(막다른 에러 금지, L-06) 구독자에게 알리고 강등한다.
+type AuthFailureCb = () => void
+let authFailureCbs: AuthFailureCb[] = []
+let authFailed = false
+
+export function onNaverAuthFailure(cb: AuthFailureCb): void {
+  if (authFailed) {
+    cb()
+    return
+  }
+  authFailureCbs.push(cb)
+}
+
+export function installAuthFailureHook(target: object = window): void {
+  const w = target as { navermap_authFailure?: () => void }
+  if (w.navermap_authFailure) return
+  w.navermap_authFailure = () => {
+    authFailed = true
+    sdkPromise = null
+    const cbs = authFailureCbs
+    authFailureCbs = []
+    for (const cb of cbs) cb()
+  }
+}
+
+export function resetNaverAuthStateForTests(): void {
+  authFailed = false
+  authFailureCbs = []
+  sdkPromise = null
+}
+
 export function loadNaverSdk(clientId: string): Promise<NaverMapsNamespace> {
   if (sdkPromise) return sdkPromise
+  installAuthFailureHook()
 
   sdkPromise = new Promise<NaverMapsNamespace>((resolve, reject) => {
     const ready = () => {
@@ -139,24 +174,34 @@ export class NaverMapProvider implements MapProvider {
     const maps = this.maps
     if (!maps || !this.map) return
 
-    for (const marker of this.markers) marker.setMap(null)
-    this.markers = []
+    // 인증 실패 후 SDK 가 네임스페이스를 비우면 여기가 첫 null 접촉점이다 —
+    // 던지는 대신 조용히 물러난다 (UI 는 onNaverAuthFailure 구독으로 이미 안내 중)
+    try {
+      for (const marker of this.markers) marker.setMap(null)
+      this.markers = []
 
-    for (const pin of pins) {
-      const marker = new maps.Marker({
-        position: new maps.LatLng(pin.latLng.lat, pin.latLng.lng),
-        map: this.map,
-        icon: { content: pinContent(pin), anchor: new maps.Point(11, 11) },
-        zIndex: pin.selected ? 100 : 1,
-      })
-      this.markers.push(marker)
-      this.bindPinEvents(maps, marker, pin.id)
+      for (const pin of pins) {
+        const marker = new maps.Marker({
+          position: new maps.LatLng(pin.latLng.lat, pin.latLng.lng),
+          map: this.map,
+          icon: { content: pinContent(pin), anchor: new maps.Point(11, 11) },
+          zIndex: pin.selected ? 100 : 1,
+        })
+        this.markers.push(marker)
+        this.bindPinEvents(maps, marker, pin.id)
+      }
+    } catch {
+      this.markers = []
     }
   }
 
   panTo(latLng: LatLng): void {
     if (!this.maps || !this.map) return
-    this.map.panTo(new this.maps.LatLng(latLng.lat, latLng.lng))
+    try {
+      this.map.panTo(new this.maps.LatLng(latLng.lat, latLng.lng))
+    } catch {
+      // 인증 실패 상태 — 이동 불가는 배너가 설명한다
+    }
   }
 
   onPinEvent(cb: PinEventHandler): void {
@@ -168,8 +213,12 @@ export class NaverMapProvider implements MapProvider {
   }
 
   destroy(): void {
-    for (const listener of this.listeners) this.maps?.Event.removeListener(listener)
-    for (const marker of this.markers) marker.setMap(null)
+    try {
+      for (const listener of this.listeners) this.maps?.Event.removeListener(listener)
+      for (const marker of this.markers) marker.setMap(null)
+    } catch {
+      // 인증 실패로 SDK 내부가 비어도 정리는 계속한다
+    }
     this.listeners = []
     this.markers = []
     this.pinHandlers = []

@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { CreatedMapProvider } from '@/lib/map/create'
-import { DEFAULT_CENTER, DEFAULT_ZOOM, type PinEventKind } from '@/lib/map/provider'
+import { DEFAULT_CENTER, DEFAULT_ZOOM, type LatLng, type PinEventKind } from '@/lib/map/provider'
 import { toPins, type PlaceRow } from '@/lib/trips/bundle'
 
 export interface MapPaneProps {
@@ -13,9 +13,11 @@ export interface MapPaneProps {
   places: PlaceRow[]
   highlightedId: string | null
   onPinEvent: (id: string, ev: PinEventKind) => void
+  /** FR-016 — 모바일 길게 누르기 / 데스크톱 우클릭 */
+  onLongPress?: (latLng: LatLng) => void
 }
 
-export function MapPane({ created, places, highlightedId, onPinEvent }: MapPaneProps) {
+export function MapPane({ created, places, highlightedId, onPinEvent, onLongPress }: MapPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -25,6 +27,11 @@ export function MapPane({ created, places, highlightedId, onPinEvent }: MapPaneP
   useEffect(() => {
     pinHandlerRef.current = onPinEvent
   }, [onPinEvent])
+
+  const longPressHandlerRef = useRef(onLongPress)
+  useEffect(() => {
+    longPressHandlerRef.current = onLongPress
+  }, [onLongPress])
 
   // 초기 중심은 첫 렌더의 첫 장소로 고정한다 — 핀이 늘 때마다 지도가 튀면 안 된다
   const [initialCenter] = useState(() => {
@@ -39,11 +46,15 @@ export function MapPane({ created, places, highlightedId, onPinEvent }: MapPaneP
     const { provider } = created
     let alive = true
     provider.onPinEvent((id, ev) => pinHandlerRef.current(id, ev))
+    provider.onLongPress((latLng) => longPressHandlerRef.current?.(latLng))
 
     provider
       .mount(element, initialCenter, DEFAULT_ZOOM)
       .then(() => alive && setReady(true))
       .catch(() => alive && setFailed(true))
+
+    // 인증 실패는 mount 성공 "이후" 비동기로 온다 (naver SDK 규약 — lib/map/naver.ts)
+    created.subscribeAuthFailure?.(() => alive && setFailed(true))
 
     return () => {
       alive = false
@@ -52,9 +63,9 @@ export function MapPane({ created, places, highlightedId, onPinEvent }: MapPaneP
   }, [created, initialCenter])
 
   useEffect(() => {
-    if (!ready) return
+    if (!ready || failed) return
     created.provider.setPins(toPins(places, highlightedId))
-  }, [created, ready, places, highlightedId])
+  }, [created, ready, failed, places, highlightedId])
 
   return (
     <div className="relative h-full w-full bg-black/5 dark:bg-white/5">
@@ -74,7 +85,7 @@ export function MapPane({ created, places, highlightedId, onPinEvent }: MapPaneP
           role="alert"
           className="absolute inset-x-3 top-3 rounded-xl bg-background/90 px-3 py-2 text-sm shadow-sm"
         >
-          지도를 불러오지 못했어요. 새로고침하면 다시 시도해요.
+          지도를 불러오지 못했어요. NCP 콘솔의 Web 서비스 URL이 지금 주소(포트 포함)와 같은지 확인해 주세요. 담고 고르는 건 그대로 할 수 있어요.
         </p>
       )}
     </div>

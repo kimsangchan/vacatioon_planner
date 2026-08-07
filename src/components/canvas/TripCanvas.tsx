@@ -12,7 +12,8 @@ import {
 } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { savePlace } from '@/lib/place/api'
+import { setCoverPhoto, uploadTripPhoto } from '@/lib/photo/upload'
+import { savePlace, updatePlaceMemo } from '@/lib/place/api'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { TripError, tripErrorMessage } from '@/lib/trips/api'
 import { fetchTripBundle, tripBundleKey } from '@/lib/trips/bundle'
@@ -50,6 +51,8 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
     queryFn: () => fetchTripBundle(supabase, tripId),
   })
 
+  const refetchBundle = () => queryClient.invalidateQueries({ queryKey: tripBundleKey(tripId) })
+
   const save = useMutation({
     mutationFn: (draft: PlaceDraft) =>
       // PK 는 클라이언트가 만든다 — 재시도해도 한 행 (05 §멱등성)
@@ -59,7 +62,27 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
         owner_id: ownerId,
         ...draft,
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: tripBundleKey(tripId) }),
+    onSuccess: refetchBundle,
+  })
+
+  // E-05 — 리사이즈·업로드·photos 행이 한 덩어리다 (lib/photo/upload.ts)
+  const addPhoto = useMutation({
+    mutationFn: ({ placeId, file }: { placeId: string; file: File }) =>
+      uploadTripPhoto(supabase, { file, target: { place_id: placeId } }),
+    onSuccess: refetchBundle,
+  })
+
+  const changeCover = useMutation({
+    mutationFn: ({ placeId, photoId }: { placeId: string; photoId: string }) =>
+      setCoverPhoto(supabase, { placeId, photoId }),
+    onSuccess: refetchBundle,
+  })
+
+  // E-09 — 메모는 카드에서 바로 고친다 (FR-009)
+  const saveMemo = useMutation({
+    mutationFn: ({ placeId, memo }: { placeId: string; memo: string }) =>
+      updatePlaceMemo(supabase, placeId, memo),
+    onSuccess: refetchBundle,
   })
 
   if (bundleQuery.isPending) {
@@ -107,6 +130,15 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
         bundle={bundle}
         onSave={async (draft) => {
           await save.mutateAsync(draft)
+        }}
+        onAddPhoto={async (placeId, file) => {
+          await addPhoto.mutateAsync({ placeId, file })
+        }}
+        onSetCover={async (placeId, photoId) => {
+          await changeCover.mutateAsync({ placeId, photoId })
+        }}
+        onSaveMemo={async (placeId, memo) => {
+          await saveMemo.mutateAsync({ placeId, memo })
         }}
       />
     </div>

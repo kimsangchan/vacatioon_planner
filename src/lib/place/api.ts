@@ -35,7 +35,7 @@ export interface SavedPlace {
   memo: string
 }
 
-export type PlaceErrorCode = 'conflict/duplicate' | 'validation/coords' | 'unknown'
+export type PlaceErrorCode = 'conflict/duplicate' | 'validation/coords' | 'not-found' | 'unknown'
 
 export class PlaceError extends Error {
   readonly code: PlaceErrorCode
@@ -53,6 +53,7 @@ export class PlaceError extends Error {
 const MESSAGES: Record<PlaceErrorCode, string> = {
   'conflict/duplicate': '이미 담아둔 곳이에요. 보관함에서 확인해 주세요.',
   'validation/coords': '좌표가 국내 범위를 벗어났어요. 지도에서 위치를 확인해 주세요.',
+  'not-found': '그 장소를 찾지 못했어요. 보관함에서 다시 골라 주세요.',
   unknown: '보관함에 담지 못했어요. 잠시 뒤에 다시 해 주세요.',
 }
 
@@ -73,6 +74,8 @@ export function toPlaceError(error: DataLayerError, existingPlaceId?: string): P
   if (error.code === '23514' && /lat|lng/.test(error.message)) {
     return new PlaceError('validation/coords', error.message)
   }
+  // PGRST116 = 한 행을 기대했는데 0행 (RLS 로 안 보이는 경우 포함)
+  if (error.code === 'PGRST116') return new PlaceError('not-found', error.message)
   return new PlaceError('unknown', error.message)
 }
 
@@ -92,6 +95,23 @@ export async function savePlace(client: SupabaseClient, input: NewPlace): Promis
     throw toPlaceError(error, existingPlaceId)
   }
 
+  return data as SavedPlace
+}
+
+// E-09 부분 갱신 (FR-009). 메모는 카드·바텀시트에서 바로 고친다 — 별도 화면을 만들지 않는다
+export async function updatePlaceMemo(
+  client: SupabaseClient,
+  placeId: string,
+  memo: string,
+): Promise<SavedPlace> {
+  const { data, error } = await client
+    .from('places')
+    .update({ memo: memo.trim() })
+    .eq('id', placeId)
+    .select(SAVED_COLUMNS)
+    .single()
+
+  if (error) throw toPlaceError(error)
   return data as SavedPlace
 }
 

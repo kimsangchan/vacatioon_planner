@@ -21,7 +21,8 @@ export interface PlaceDraft {
   road_address: string
   lat: number
   lng: number
-  provider: 'naver'
+  /** 검색 결과는 naver, 지도에서 직접 찍은 곳은 manual (FR-016) */
+  provider: 'naver' | 'manual'
   provider_link: string | null
 }
 
@@ -29,6 +30,8 @@ export interface PlaceSearchBoxProps {
   onSave: (draft: PlaceDraft) => Promise<void>
   /** 중복일 때 "담아둔 곳 보기" — 덮어쓰지 않고 기존 항목으로 데려간다 (PRD 엣지케이스) */
   onShowExisting?: (placeId: string) => void
+  /** 0건일 때 지도에서 직접 찍기로 넘어간다 (FR-016 — 막다른 안내 금지) */
+  onPickOnMap?: () => void
 }
 
 interface Failure {
@@ -39,7 +42,7 @@ interface Failure {
 
 const CATEGORY_ITEM = 'flex min-h-11 flex-1 items-center justify-center rounded-full px-4 text-sm font-medium transition-opacity duration-[120ms] hover:opacity-90'
 
-export function PlaceSearchBox({ onSave, onShowExisting }: PlaceSearchBoxProps) {
+export function PlaceSearchBox({ onSave, onShowExisting, onPickOnMap }: PlaceSearchBoxProps) {
   const [query, setQuery] = useState('')
   const [attempt, setAttempt] = useState(0)
   const [results, setResults] = useState<NormalizedPlace[] | null>(null)
@@ -150,6 +153,8 @@ export function PlaceSearchBox({ onSave, onShowExisting }: PlaceSearchBoxProps) 
   }
 
   const existingPlaceId = failure?.existingPlaceId
+  // 0건은 막다른 길이 아니다 — 지도에서 직접 찍는 길로 이어 준다 (FR-016 / L-06)
+  const noResults = results !== null && results.length === 0
 
   return (
     <div className="flex flex-col gap-3">
@@ -236,6 +241,16 @@ export function PlaceSearchBox({ onSave, onShowExisting }: PlaceSearchBoxProps) 
         <p role="status" className="text-sm text-black/60 dark:text-white/60">
           {note}
         </p>
+      )}
+
+      {noResults && onPickOnMap && (
+        <button
+          type="button"
+          onClick={onPickOnMap}
+          className="flex min-h-8 w-fit items-center rounded-full border border-black/15 px-3 text-sm dark:border-white/20"
+        >
+          지도에 직접 찍기
+        </button>
       )}
 
       {failure && (
