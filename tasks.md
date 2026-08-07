@@ -63,8 +63,10 @@
 
 ## T7. 일정 배치 + 타임라인 (T6 후)
 
-- [ ] T7-1 실패 테스트 먼저 → 보관함→Day 배치·순서 변경(E-07 + reorder_day_items) (FR-007)
-- [ ] T7-2 실패 테스트 먼저 → `LegForm`(시각·offset 확인 플로우·가격·예약번호) + `TimelinePane`(통합 position 병합·경고 배지·Day 지출 합계) (FR-008)
+- [x] T7-1 배치("일정에 넣기" 2탭)·해제·일차 탭·순서 변경(reorder_day_items — Stop 단독 이동도 혼합 배열)·Stop 시각/가격 입력 (2026-08-07, Opus)
+- [x] T7-2 `LegForm`(offset 확인 게이트·가격)·`TimelinePane`(통합 position 병합·경고 배지·**Day 지출 합계 = Stop+Leg** 결정 #24)·`0005_stop_cost.sql`+pgTAP 13 (2026-08-07, Opus. vitest 234·pgTAP 136·실브라우저 확인)
+- [x] 검토 반영: storage.sql #14의 절대 건수 어서션 → 시드 경로 한정으로 수정 (실사용 업로드 누적 시 오탐 — 2026-08-07)
+- [ ] T7-4(백로그, P2 공유 착수 시): `get_shared_trip` stops 투영에 `cost_amount` 추가 — 새 마이그레이션으로 함수 재정의 (0003 불변 원칙. 미반영 시 공유 뷰 Day 합계가 Stop 지출만큼 누락)
 - [ ] T7-3 실패 테스트 먼저 → Leg 사진 첨부(FR-018, parent-exclusive) · 기간 변경 캐스케이드(FR-015, E-14) · 삭제·되돌리기(FR-017)
 - 완료 기준: 06 변환표 FR-007·008·015·017·018 시나리오 green
 

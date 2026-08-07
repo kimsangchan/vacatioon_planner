@@ -88,7 +88,7 @@ mergeDayItems(stops[], legs[]) → DayItem[]:
   전 항목을 position 오름차순 단일 배열로 정렬 (시각은 정렬 키 아님)
   timeWarning = true 조건: 시각이 있는 항목들 사이에서, position 순서와 시각 순서가 역전될 때
     (Leg는 depart_at 기준, arrive_day_offset ≥ 1인 Leg의 arrive는 비교 대상 제외)
-daySum(legs[]) → int: cost_amount 비-null 합 (원 단위 정수 그대로 — 부동소수점 연산 금지)
+dayTotal(stops[], legs[]) → int: 양쪽 cost_amount 비-null 합 (원 단위 정수 그대로 — 부동소수점 연산 금지. 결정 #24: Stop 지출 = 방문 귀속)
 ```
 
 **3. 카테고리 힌트 — `place/category.ts`**

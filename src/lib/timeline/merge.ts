@@ -5,6 +5,7 @@ export interface StopLike {
   id: string
   position: number
   start_time: string | null // 'HH:MM' 벽시계 값
+  cost_amount: number | null // 원 단위 정수 — 방문 지출 (decision-log #24)
 }
 
 export interface LegLike {
@@ -43,6 +44,29 @@ export function mergeDayItems(stops: StopLike[], legs: LegLike[]): DayItem[] {
   return items
 }
 
-export function daySum(legs: LegLike[]): number {
-  return legs.reduce((sum, l) => sum + (l.cost_amount ?? 0), 0)
+// Day 지출 합계 = Stop(방문) + Leg(이동)의 cost_amount 비-null 합.
+// 원 단위 정수만 더한다 — 나눗셈·환산이 없으니 부동소수점이 끼어들 자리도 없다 (#17·#24).
+export function dayTotal(stops: StopLike[], legs: LegLike[]): number {
+  let total = 0
+  for (const item of [...stops, ...legs]) total += item.cost_amount ?? 0
+  return total
+}
+
+// 새 항목이 들어갈 자리 — Stop·Leg 를 통틀어 맨 뒤다 (통합 시퀀스라 둘을 같이 본다)
+export function nextPosition(stops: StopLike[], legs: LegLike[]): number {
+  const positions = [...stops, ...legs].map((item) => item.position)
+  return positions.length === 0 ? 0 : Math.max(...positions) + 1
+}
+
+// 위/아래 한 칸 이동을 reorder_day_items(day_id, ordered_ids[]) 의 입력으로 바꾼다 (E-07).
+// 경계 밖·없는 id 는 순서를 그대로 둔다 — 버튼을 눌렀다고 데이터가 흔들리면 안 된다.
+export function movedItemIds(items: DayItem[], id: string, delta: -1 | 1): string[] {
+  const ids = items.map((item) => item.id)
+  const from = ids.indexOf(id)
+  const to = from + delta
+  if (from === -1 || to < 0 || to >= ids.length) return ids
+
+  ids[from] = ids[to]
+  ids[to] = id
+  return ids
 }

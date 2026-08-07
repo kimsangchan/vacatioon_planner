@@ -127,6 +127,7 @@ erDiagram
         uuid place_id FK
         int position "Day 내 stops∪legs 통합 시퀀스 (결정 #15)"
         time start_time "nullable 벽시계 값 — 표시 정보, 정렬 키 아님"
+        int cost_amount "원 단위 정수, nullable — 방문 지출 (결정 #24)"
         text note
     }
     legs {

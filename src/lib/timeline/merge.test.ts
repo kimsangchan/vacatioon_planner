@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { daySum, mergeDayItems, type LegLike, type StopLike } from './merge'
+import {
+  dayTotal,
+  mergeDayItems,
+  movedItemIds,
+  nextPosition,
+  type LegLike,
+  type StopLike,
+} from './merge'
 
 const stop = (o: Partial<StopLike> & { id: string; position: number }): StopLike => ({
   start_time: null,
+  cost_amount: null,
   ...o,
 })
 const leg = (o: Partial<LegLike> & { id: string; position: number }): LegLike => ({
@@ -70,19 +78,80 @@ describe('mergeDayItems — 통합 position 병합 (결정 #15)', () => {
   })
 })
 
-describe('daySum — Day 지출 합계 (결정 #17, 원 단위 정수)', () => {
-  it('cost_amount 비-null 합을 반환한다', () => {
+describe('dayTotal — Day 지출 합계 (결정 #17·#24, 원 단위 정수)', () => {
+  it('Leg 의 cost_amount 비-null 합을 반환한다', () => {
     expect(
-      daySum([
-        leg({ id: 'l1', position: 0, cost_amount: 59800 }),
-        leg({ id: 'l2', position: 1 }),
-        leg({ id: 'l3', position: 2, cost_amount: 3000 }),
-      ]),
+      dayTotal(
+        [],
+        [
+          leg({ id: 'l1', position: 0, cost_amount: 59800 }),
+          leg({ id: 'l2', position: 1 }),
+          leg({ id: 'l3', position: 2, cost_amount: 3000 }),
+        ],
+      ),
     ).toBe(62800)
   })
 
+  it('Stop 지출도 같은 합에 넣는다 — 방문 귀속 (결정 #24)', () => {
+    expect(
+      dayTotal(
+        [
+          stop({ id: 's1', position: 0, cost_amount: 12000 }),
+          stop({ id: 's2', position: 1 }),
+        ],
+        [leg({ id: 'l1', position: 2, cost_amount: 35800 })],
+      ),
+    ).toBe(47800)
+  })
+
   it('빈 배열·전부 null이면 0', () => {
-    expect(daySum([])).toBe(0)
-    expect(daySum([leg({ id: 'l1', position: 0 })])).toBe(0)
+    expect(dayTotal([], [])).toBe(0)
+    expect(dayTotal([stop({ id: 's1', position: 0 })], [leg({ id: 'l1', position: 1 })])).toBe(0)
+  })
+
+  it('원 단위 정수만 더한다 — 부동소수점 오차가 끼어들 자리가 없다 (결정 #17)', () => {
+    const total = dayTotal(
+      [stop({ id: 's1', position: 0, cost_amount: 10 })],
+      [leg({ id: 'l1', position: 1, cost_amount: 20 })],
+    )
+    expect(Number.isInteger(total)).toBe(true)
+    expect(total).toBe(30)
+  })
+})
+
+describe('nextPosition — 통합 시퀀스의 다음 자리 (결정 #15)', () => {
+  it('Stop·Leg 통틀어 가장 큰 position 다음을 준다', () => {
+    expect(
+      nextPosition([stop({ id: 's1', position: 0 })], [leg({ id: 'l1', position: 3 })]),
+    ).toBe(4)
+  })
+
+  it('비어 있는 Day 의 첫 자리는 0', () => {
+    expect(nextPosition([], [])).toBe(0)
+  })
+})
+
+describe('movedItemIds — 위/아래 이동을 통합 순서 배열로 (E-07 reorder_day_items 입력)', () => {
+  const items = () =>
+    mergeDayItems(
+      [stop({ id: 's1', position: 0 }), stop({ id: 's2', position: 2 })],
+      [leg({ id: 'l1', position: 1 })],
+    )
+
+  it('한 칸 위로 올리면 앞 항목과 자리를 바꾼다', () => {
+    expect(movedItemIds(items(), 'l1', -1)).toEqual(['l1', 's1', 's2'])
+  })
+
+  it('한 칸 아래로 내리면 뒤 항목과 자리를 바꾼다', () => {
+    expect(movedItemIds(items(), 'l1', 1)).toEqual(['s1', 's2', 'l1'])
+  })
+
+  it('맨 위·맨 아래에서는 순서를 그대로 둔다', () => {
+    expect(movedItemIds(items(), 's1', -1)).toEqual(['s1', 'l1', 's2'])
+    expect(movedItemIds(items(), 's2', 1)).toEqual(['s1', 'l1', 's2'])
+  })
+
+  it('없는 id 는 순서를 건드리지 않는다', () => {
+    expect(movedItemIds(items(), 'nope', -1)).toEqual(['s1', 'l1', 's2'])
   })
 })

@@ -56,9 +56,20 @@ const bundle: TripBundle = {
       trip_id: 'trip-1',
       date: '2026-08-01',
       position: 0,
-      stops: [{ id: 's1', day_id: 'd1', place_id: 'p2', position: 0, start_time: null, note: '' }],
+      stops: [
+        {
+          id: 's1',
+          day_id: 'd1',
+          place_id: 'p2',
+          position: 0,
+          start_time: null,
+          cost_amount: null,
+          note: '',
+        },
+      ],
       legs: [],
     },
+    { id: 'd2', trip_id: 'trip-1', date: '2026-08-02', position: 1, stops: [], legs: [] },
   ],
 }
 
@@ -102,7 +113,9 @@ describe('CanvasBoard — 보관함 (FR-005)', () => {
     expect(storage.textContent).toContain('성산일출봉')
     expect(storage.textContent).not.toContain('호텔제주')
 
-    expect(screen.getByRole('region', { name: /일정에 담긴 곳/ }).textContent).toContain('호텔제주')
+    // 배치된 곳은 평면 목록이 아니라 그 일차 탭에서 본다 (T7-1)
+    fireEvent.click(screen.getByRole('button', { name: '1일차' }))
+    expect(screen.getByRole('region', { name: '1일차 일정' }).textContent).toContain('호텔제주')
   })
 
   it('지도 키가 없으면 Fake 지도임을 알려준다', async () => {
@@ -228,6 +241,41 @@ describe('CanvasBoard — 미리보기 (FR-006 / SC-002)', () => {
     })
 
     expect(onSaveMemo).toHaveBeenCalledWith('p1', '예약 필요')
+  })
+})
+
+describe('CanvasBoard — 보관함↔일차 배치 (FR-007)', () => {
+  it('보관함 항목에서 두 번 눌러 일차에 넣는다 (모바일 친화)', async () => {
+    const onAssignPlace = vi.fn().mockResolvedValue(undefined)
+    await renderBoard({ onAssignPlace })
+
+    fireEvent.click(screen.getByRole('button', { name: '흑돼지집 일정에 넣기' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '흑돼지집 2일차에 넣기' }))
+    })
+
+    expect(onAssignPlace).toHaveBeenCalledWith('p1', 'd2')
+  })
+
+  it('일차 탭에서 보관함으로 되돌린다', async () => {
+    const onUnassignStop = vi.fn().mockResolvedValue(undefined)
+    await renderBoard({ onUnassignStop })
+
+    fireEvent.click(screen.getByRole('button', { name: '1일차' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '보관함으로 되돌리기' }))
+    })
+
+    expect(onUnassignStop).toHaveBeenCalledWith('s1')
+  })
+
+  it('배치된 곳의 핀을 누르면 그 일차 탭을 열어 보여 준다', async () => {
+    await renderBoard()
+
+    await act(async () => provider.emitPinEvent('p2', 'tap'))
+
+    expect(screen.getByRole('region', { name: '1일차 일정' }).textContent).toContain('호텔제주')
+    expect(scrollIntoView).toHaveBeenCalled()
   })
 })
 

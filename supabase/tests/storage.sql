@@ -118,8 +118,11 @@ select throws_like(
 set local role anon;
 select set_config('request.jwt.claim.sub', '', true);
 
+-- 절대 건수 금지 — 실사용 업로드가 쌓이면 깨진다. 이 테스트가 만든 경로만 센다.
 select is(
-  (select count(*)::int from storage.objects where bucket_id = 'photos'),
+  (select count(*)::int from storage.objects
+    where bucket_id = 'photos'
+      and (name like '60000000-%' or name like '70000000-%' or name like '80000000-%')),
   4,
   'anyone can read photo objects (공유 뷰·오프라인 캐시 전제)'
 );

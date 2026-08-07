@@ -15,8 +15,19 @@ import { useMemo, useState } from 'react'
 import { setCoverPhoto, uploadTripPhoto } from '@/lib/photo/upload'
 import { savePlace, updatePlaceMemo } from '@/lib/place/api'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
+import {
+  TimelineError,
+  placeStops,
+  removeStop,
+  reorderDayItems,
+  saveLeg,
+  timelineErrorMessage,
+  updateStop,
+  type LegDraft,
+} from '@/lib/timeline/api'
+import { nextPosition } from '@/lib/timeline/merge'
 import { TripError, tripErrorMessage } from '@/lib/trips/api'
-import { fetchTripBundle, tripBundleKey } from '@/lib/trips/bundle'
+import { fetchTripBundle, tripBundleKey, type DayRow } from '@/lib/trips/bundle'
 import { CanvasBoard } from './CanvasBoard'
 import type { PlaceDraft } from './PlaceSearchBox'
 
@@ -45,6 +56,7 @@ export function TripCanvas({ tripId, ownerId }: TripCanvasProps) {
 function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), [])
   const queryClient = useQueryClient()
+  const [scheduleFailure, setScheduleFailure] = useState<string | null>(null)
 
   const bundleQuery = useQuery({
     queryKey: tripBundleKey(tripId),
@@ -84,6 +96,75 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
       updatePlaceMemo(supabase, placeId, memo),
     onSuccess: refetchBundle,
   })
+
+  // ── T7 일정 (E-07·E-08) ────────────────────────────────────────────────────
+  // 새 항목의 자리는 그 Day 의 Stop∪Leg 맨 뒤다 — position 은 한 시퀀스다 (결정 #15)
+  const dayOf = (dayId: string): DayRow | undefined =>
+    bundleQuery.data?.days.find((day) => day.id === dayId)
+
+  const tailPosition = (dayId: string): number => {
+    const day = dayOf(dayId)
+    return nextPosition(day?.stops ?? [], day?.legs ?? [])
+  }
+
+  const assignPlace = useMutation({
+    mutationFn: ({ placeId, dayId }: { placeId: string; dayId: string }) =>
+      placeStops(supabase, [
+        {
+          id: crypto.randomUUID(),
+          day_id: dayId,
+          place_id: placeId,
+          position: tailPosition(dayId),
+        },
+      ]),
+    onSuccess: refetchBundle,
+  })
+
+  const unassignStop = useMutation({
+    mutationFn: (stopId: string) => removeStop(supabase, stopId),
+    onSuccess: refetchBundle,
+  })
+
+  const changeStop = useMutation({
+    mutationFn: ({
+      stopId,
+      patch,
+    }: {
+      stopId: string
+      patch: { start_time: string | null; cost_amount: number | null }
+    }) => updateStop(supabase, stopId, patch),
+    onSuccess: refetchBundle,
+  })
+
+  const reorderDay = useMutation({
+    mutationFn: ({ dayId, orderedIds }: { dayId: string; orderedIds: string[] }) =>
+      reorderDayItems(supabase, dayId, orderedIds),
+    onSuccess: refetchBundle,
+  })
+
+  const storeLeg = useMutation({
+    mutationFn: ({ dayId, draft, legId }: { dayId: string; draft: LegDraft; legId?: string }) =>
+      saveLeg(supabase, {
+        id: legId ?? crypto.randomUUID(),
+        day_id: dayId,
+        position: legId ? (dayOf(dayId)?.legs.find((leg) => leg.id === legId)?.position ?? 0) : tailPosition(dayId),
+        ...draft,
+      }),
+    onSuccess: refetchBundle,
+  })
+
+  // 일정 조작은 폼 밖에서 일어나기도 한다(순서 버튼·되돌리기) — 실패를 삼키지 않고
+  // 다음 행동과 함께 한 줄로 알린다 (SPEC §UI 규칙 — 막다른 에러 금지)
+  async function guard(action: () => Promise<unknown>): Promise<void> {
+    setScheduleFailure(null)
+    try {
+      await action()
+    } catch (error) {
+      setScheduleFailure(
+        timelineErrorMessage(error instanceof TimelineError ? error.code : 'unknown'),
+      )
+    }
+  }
 
   if (bundleQuery.isPending) {
     return (
@@ -126,10 +207,39 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
         </p>
       </header>
 
+      {scheduleFailure && (
+        <p
+          role="alert"
+          className="flex flex-wrap items-center gap-2 px-4 pb-2 text-sm md:px-5"
+        >
+          {scheduleFailure}
+          <button
+            type="button"
+            onClick={() => {
+              setScheduleFailure(null)
+              void refetchBundle()
+            }}
+            className="flex min-h-8 items-center rounded-full border border-black/15 px-3 text-xs dark:border-white/20"
+          >
+            여행 다시 불러오기
+          </button>
+        </p>
+      )}
+
       <CanvasBoard
         bundle={bundle}
         onSave={async (draft) => {
           await save.mutateAsync(draft)
+        }}
+        onAssignPlace={(placeId, dayId) => guard(() => assignPlace.mutateAsync({ placeId, dayId }))}
+        onUnassignStop={(stopId) => guard(() => unassignStop.mutateAsync(stopId))}
+        onUpdateStop={(stopId, patch) => guard(() => changeStop.mutateAsync({ stopId, patch }))}
+        onReorderDay={(dayId, orderedIds) =>
+          guard(() => reorderDay.mutateAsync({ dayId, orderedIds }))
+        }
+        onSaveLeg={async (dayId, draft, legId) => {
+          // 이동 폼은 제 안에서 오류를 말한다 (validation/time-reversed 등) — 그대로 올려보낸다
+          await storeLeg.mutateAsync({ dayId, draft, legId })
         }}
         onAddPhoto={async (placeId, file) => {
           await addPhoto.mutateAsync({ placeId, file })

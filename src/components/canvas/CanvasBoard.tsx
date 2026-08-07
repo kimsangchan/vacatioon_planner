@@ -11,13 +11,8 @@ import { createMapProvider, type CreatedMapProvider } from '@/lib/map/create'
 import type { LatLng, PinEventKind } from '@/lib/map/provider'
 import { prefetchThumbnails } from '@/lib/photo/prefetch'
 import { photoPublicUrl } from '@/lib/photo/upload'
-import {
-  assignedPlaces,
-  thumbPaths,
-  unassignedPlaces,
-  type PlaceRow,
-  type TripBundle,
-} from '@/lib/trips/bundle'
+import type { LegDraft } from '@/lib/timeline/api'
+import { thumbPaths, unassignedPlaces, type PlaceRow, type TripBundle } from '@/lib/trips/bundle'
 import { ListPane } from './ListPane'
 import { ManualPlaceForm } from './ManualPlaceForm'
 import { MapPane } from './MapPane'
@@ -30,6 +25,15 @@ export interface CanvasBoardProps {
   onAddPhoto?: (placeId: string, file: File) => Promise<void>
   onSetCover?: (placeId: string, photoId: string) => Promise<void>
   onSaveMemo?: (placeId: string, memo: string) => Promise<void>
+  // T7-1·T7-2 — 배치·순서·이동 (FR-007·FR-008)
+  onAssignPlace?: (placeId: string, dayId: string) => Promise<void>
+  onUnassignStop?: (stopId: string) => Promise<void>
+  onUpdateStop?: (
+    stopId: string,
+    patch: { start_time: string | null; cost_amount: number | null },
+  ) => Promise<void>
+  onReorderDay?: (dayId: string, orderedIds: string[]) => Promise<void>
+  onSaveLeg?: (dayId: string, draft: LegDraft, legId?: string) => Promise<void>
   /** 테스트·스토리에서 FakeMapProvider 를 끼우는 자리 */
   createProvider?: () => CreatedMapProvider
 }
@@ -40,6 +44,11 @@ export function CanvasBoard({
   onAddPhoto,
   onSetCover,
   onSaveMemo,
+  onAssignPlace,
+  onUnassignStop,
+  onUpdateStop,
+  onReorderDay,
+  onSaveLeg,
   createProvider,
 }: CanvasBoardProps) {
   const [created] = useState<CreatedMapProvider>(() => (createProvider ?? createMapProvider)())
@@ -52,7 +61,6 @@ export function CanvasBoard({
   const nonceRef = useRef(0)
 
   const unassigned = useMemo(() => unassignedPlaces(bundle), [bundle])
-  const assigned = useMemo(() => assignedPlaces(bundle), [bundle])
 
   // SC-002 의 전제 — 호버 순간에 썸네일을 받으러 가면 400ms 를 못 지킨다 (FR-006)
   const thumbUrls = useMemo(
@@ -180,11 +188,17 @@ export function CanvasBoard({
 
           <ListPane
             unassigned={unassigned}
-            assigned={assigned}
+            days={bundle.days}
+            places={bundle.places}
             highlightedId={highlightedId}
             scrollTarget={scrollTarget}
             onHover={setHighlightedId}
             onSelect={handleSelect}
+            onAssignPlace={onAssignPlace}
+            onUnassignStop={onUnassignStop}
+            onUpdateStop={onUpdateStop}
+            onReorderDay={onReorderDay}
+            onSaveLeg={onSaveLeg}
           />
         </div>
 

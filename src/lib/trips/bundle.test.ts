@@ -41,7 +41,17 @@ const bundle: TripBundle = {
       trip_id: 'trip-1',
       date: '2026-08-01',
       position: 0,
-      stops: [{ id: 's1', day_id: 'd1', place_id: 'p2', position: 0, start_time: null, note: '' }],
+      stops: [
+        {
+          id: 's1',
+          day_id: 'd1',
+          place_id: 'p2',
+          position: 0,
+          start_time: null,
+          cost_amount: null,
+          note: '',
+        },
+      ],
       legs: [],
     },
     { id: 'd2', trip_id: 'trip-1', date: '2026-08-02', position: 1, stops: [], legs: [] },

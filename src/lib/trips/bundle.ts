@@ -5,6 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Pin } from '@/lib/map/provider'
 import type { PlaceCategory } from '@/lib/place/category'
 import type { PlaceProvider } from '@/lib/place/api'
+import type { LegMode } from '@/lib/timeline/api'
 import { TripError, toTripError } from './api'
 
 export const TRIP_BUNDLE_SELECT =
@@ -37,7 +38,8 @@ export interface StopRow {
   day_id: string
   place_id: string
   position: number
-  start_time: string | null
+  start_time: string | null // 'HH:MM(:SS)' 벽시계 값 — 표시 정보, 정렬 키 아님 (결정 #15)
+  cost_amount: number | null // 원 단위 정수 — 방문 지출 (결정 #24)
   note: string
   place?: PlaceRow | null
 }
@@ -45,7 +47,7 @@ export interface StopRow {
 export interface LegRow {
   id: string
   day_id: string
-  mode: string
+  mode: LegMode
   depart_at: string
   arrive_at: string
   arrive_day_offset: number
