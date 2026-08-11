@@ -7,6 +7,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { FakeMapProvider } from '@/lib/map/fake'
 import type { PlaceRow, TripBundle } from '@/lib/trips/bundle'
 import { CanvasBoard } from './CanvasBoard'
+import { SEARCH_DEBOUNCE_MS } from './PlaceSearchBox'
 
 function place(
   id: string,
@@ -87,17 +88,22 @@ afterEach(() => {
   document.head.innerHTML = ''
 })
 
-async function renderBoard(props: Partial<Parameters<typeof CanvasBoard>[0]> = {}) {
-  render(
+function board(props: Partial<Parameters<typeof CanvasBoard>[0]> = {}) {
+  return (
     <CanvasBoard
       bundle={bundle}
       onSave={vi.fn()}
       createProvider={() => ({ provider, kind: 'fake' as const })}
       {...props}
-    />,
+    />
   )
+}
+
+async function renderBoard(props: Partial<Parameters<typeof CanvasBoard>[0]> = {}) {
+  const view = render(board(props))
   // mount 가 Promise 라 한 번 흘려보낸다
   await act(async () => {})
+  return view
 }
 
 function item(placeId: string): HTMLElement {
@@ -276,6 +282,100 @@ describe('CanvasBoard — 보관함↔일차 배치 (FR-007)', () => {
 
     expect(screen.getByRole('region', { name: '1일차 일정' }).textContent).toContain('호텔제주')
     expect(scrollIntoView).toHaveBeenCalled()
+  })
+})
+
+// 06 부록 체크리스트 5 (L-09) — 한 화면에 강조색 CTA 는 하나뿐이다
+describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
+  it('펼친 일차 칩은 강조하지 않는다 — 고르는 자리이지 주 행동이 아니다', async () => {
+    await renderBoard({ onAssignPlace: vi.fn() })
+
+    fireEvent.click(screen.getByRole('button', { name: '흑돼지집 일정에 넣기' }))
+
+    for (const name of ['흑돼지집 1일차에 넣기', '흑돼지집 2일차에 넣기']) {
+      expect(screen.getByRole('button', { name }).className).not.toContain('bg-foreground')
+    }
+  })
+
+  it('이동 폼을 펼치면 열려 있던 미리보기 시트를 닫는다', async () => {
+    await renderBoard({ onSaveLeg: vi.fn(), onSaveMemo: vi.fn() })
+
+    // 배치된 곳의 핀 → 1일차 타임라인 + 미리보기 시트("메모 저장하기" 강조)
+    await act(async () => provider.emitPinEvent('p2', 'tap'))
+    expect(screen.getByRole('button', { name: '메모 저장하기' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: '이동 적기' }))
+
+    expect(screen.getByTestId('leg-form')).toBeTruthy()
+    expect(screen.queryByTestId('preview-card')).toBeNull()
+  })
+
+  it('Stop 시각·가격 편집기를 펼쳐도 미리보기 시트를 닫는다', async () => {
+    await renderBoard({ onUpdateStop: vi.fn(), onSaveMemo: vi.fn() })
+
+    await act(async () => provider.emitPinEvent('p2', 'tap'))
+    expect(screen.getByRole('button', { name: '메모 저장하기' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: '시각·가격 적기' }))
+
+    expect(screen.getByLabelText('방문 시각')).toBeTruthy()
+    expect(screen.queryByTestId('preview-card')).toBeNull()
+  })
+
+  it('검색 결과를 고르면 (카테고리 확정 칩) 미리보기 시트를 닫는다', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify([
+            {
+              name: '흑돼지 명가',
+              address: '제주특별자치도 제주시 연동 1',
+              roadAddress: '제주특별자치도 제주시 노형로 1',
+              lat: 33.49,
+              lng: 126.53,
+              categoryHint: 'restaurant',
+              providerLink: null,
+              provider: 'naver',
+            },
+          ]),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    )
+
+    try {
+      await renderBoard({ onSaveMemo: vi.fn() })
+
+      fireEvent.click(item('p3'))
+      expect(screen.getByRole('button', { name: '메모 저장하기' })).toBeTruthy()
+
+      fireEvent.change(screen.getByLabelText('장소 검색'), { target: { value: '흑돼지' } })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS + 10)
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /흑돼지 명가/ }))
+      })
+
+      expect(screen.getByRole('button', { name: '식당으로 담기' })).toBeTruthy()
+      expect(screen.queryByTestId('preview-card')).toBeNull()
+    } finally {
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    }
+  })
+
+  it('캔버스 밖(헤더 기간 폼)에서 온 신호에도 시트를 닫는다', async () => {
+    const { rerender } = await renderBoard({ editorSignal: 0, onSaveMemo: vi.fn() })
+
+    fireEvent.click(item('p3'))
+    expect(screen.getByTestId('preview-card')).toBeTruthy()
+
+    rerender(board({ editorSignal: 1, onSaveMemo: vi.fn() }))
+
+    expect(screen.queryByTestId('preview-card')).toBeNull()
   })
 })
 

@@ -31,14 +31,28 @@ async function mailpit<T>(path: string): Promise<T> {
   return (await response.json()) as T
 }
 
+async function inboxOf(email: string): Promise<MailpitMessage[]> {
+  const { messages } = await mailpit<{ messages: MailpitMessage[] }>('/api/v1/messages?limit=50')
+  return messages
+    .filter((m) => m.To.some((to) => to.Address.toLowerCase() === email.toLowerCase()))
+    .sort((a, b) => b.Created.localeCompare(a.Created))
+}
+
+// 코드를 새로 받기 전에 찍어 두는 스냅샷. 같은 주소로 두 번 로그인하면(E2E: 브라우저 + 노드)
+// 이전 코드가 함께 남아 있어서, 이걸 빼지 않으면 이미 무효가 된 코드를 집는다
+export async function mailpitMessageIds(email: string): Promise<string[]> {
+  return (await inboxOf(email)).map((message) => message.ID)
+}
+
 // 메일 본문의 6자리 코드 (SPEC §인증 — 메일 템플릿에 {{ .Token }} 필요)
-export async function waitForOtpCode(email: string, timeoutMs = 15_000): Promise<string> {
+export async function waitForOtpCode(
+  email: string,
+  timeoutMs = 15_000,
+  ignoreIds: readonly string[] = [],
+): Promise<string> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    const { messages } = await mailpit<{ messages: MailpitMessage[] }>('/api/v1/messages?limit=50')
-    const mine = messages
-      .filter((m) => m.To.some((to) => to.Address.toLowerCase() === email.toLowerCase()))
-      .sort((a, b) => b.Created.localeCompare(a.Created))[0]
+    const mine = (await inboxOf(email)).find((message) => !ignoreIds.includes(message.ID))
 
     if (mine) {
       const detail = await mailpit<{ Text: string; HTML: string }>(`/api/v1/message/${mine.ID}`)
@@ -88,10 +102,11 @@ export function clearApiUsage(counter: string): void {
 // signInWithOtp → 코드 추출 → verifyOtp. 세션이 붙은 클라이언트를 돌려준다 (E-01)
 export async function signInWithOtpCode(email: string): Promise<SupabaseClient> {
   const client = anonClient()
+  const seen = await mailpitMessageIds(email)
   const { error: otpError } = await client.auth.signInWithOtp({ email })
   if (otpError) throw otpError
 
-  const token = await waitForOtpCode(email)
+  const token = await waitForOtpCode(email, 15_000, seen)
   const { error: verifyError } = await client.auth.verifyOtp({ email, token, type: 'email' })
   if (verifyError) throw verifyError
 

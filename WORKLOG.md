@@ -5,14 +5,17 @@
 
 ## Current State
 
-- Status: doing
-- Focus: T8 — E2E(여정 1 스모크) + SC-001/002/004 계측. 작업물 미커밋 상태
-- 검증 기준선: vitest 280 · pgTAP 136 · `npm run build`/`lint` 종료코드 0
-- 블로커: T0-2(NCP Maps 무료량)·T0-3(Supabase 원격) — 사용자 작업, T9 배포 전 필요
+- Status: blocked (사용자 작업 대기)
+- Focus: T8 완료. 다음은 T9 배포지만 **T0-2(NCP Maps 무료량)·T0-3(Supabase 원격)** 이 선행 — 사용자 작업
+- 검증 기준선: vitest 290(37파일) · pgTAP 136 · E2E 5테스트 · `npm run build`/`lint` 종료코드 0
 - Last updated: 2026-08-11
 
 ## History (append; 최신이 위)
 
+- 2026-08-11 — **T8 완료**: E2E 4스펙 green(여정 1 스모크 18.7s). SC 실측 — SC-001 결정 3지점·1106ms·
+  확인 대화 0 / SC-002 호버→카드 중앙값 30ms(≤400) / SC-004 390×844 전 Leg 시각 1스크롤 내(681px).
+  T8-3 SC-003 체크리스트 5항목 전부 ✓ (강조 CTA는 12개 상태 전수 측정 전부 ≤1, 에러 화면 2종 다음 행동 버튼 확인).
+  계측용 임시 스펙 `zz-tmp-recheck.spec.ts`는 실행 후 삭제
 - 2026-08-11 — catch-up 컨텍스트 구조 도입: `AGENTS.md` 단일 원본화, 루트 `CLAUDE.md`는 행동규칙만,
   `NEXT.md`/`WORKLOG.md` 분리, 스코프 4종(`src/lib`·`src/components`·`supabase`·`e2e`) CLAUDE.md,
   SessionStart 훅 배선

@@ -30,6 +30,8 @@ export interface ListPaneProps {
   ) => Promise<void> | void
   onReorderDay?: (dayId: string, orderedIds: string[]) => Promise<void> | void
   onSaveLeg?: (dayId: string, draft: LegDraft, legId?: string) => Promise<void> | void
+  /** 편집 폼을 펼친 순간 — 강조 CTA 가 겹치지 않게 캔버스가 미리보기 시트를 닫는다 (L-09) */
+  onEditorOpen?: () => void
   onAddLegPhoto?: (legId: string, file: File) => Promise<void> | void
   onRemovePhoto?: (photo: PhotoRow) => Promise<void> | void
   onRemoveLeg?: (legId: string) => Promise<void> | void
@@ -54,6 +56,7 @@ export function ListPane({
   onUpdateStop,
   onReorderDay,
   onSaveLeg,
+  onEditorOpen,
   onAddLegPhoto,
   onRemovePhoto,
   onRemoveLeg,
@@ -148,7 +151,8 @@ export function ListPane({
                     setPickingFor(null)
                     void onAssignPlace(place.id, day.id)
                   }}
-                  className="flex min-h-8 items-center rounded-full bg-foreground px-3 text-xs font-medium text-background transition-opacity duration-[120ms] hover:opacity-90"
+                  // 고르는 자리는 주 행동이 아니다 — 강조색은 화면당 하나뿐이다 (L-09)
+                  className="flex min-h-8 items-center rounded-full border border-black/15 px-3 text-xs font-medium transition-colors duration-[120ms] hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
                 >
                   {dayLabel(day)}
                 </button>
@@ -207,6 +211,7 @@ export function ListPane({
           onUnassignStop={onUnassignStop}
           onUpdateStop={onUpdateStop}
           onSaveLeg={onSaveLeg}
+          onEditorOpen={onEditorOpen}
           onAddLegPhoto={onAddLegPhoto}
           onRemovePhoto={onRemovePhoto}
           onRemoveLeg={onRemoveLeg}

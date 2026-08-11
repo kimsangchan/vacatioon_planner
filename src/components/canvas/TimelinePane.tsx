@@ -31,6 +31,8 @@ export interface TimelinePaneProps {
     patch: { start_time: string | null; cost_amount: number | null },
   ) => Promise<void> | void
   onSaveLeg?: (dayId: string, draft: LegDraft, legId?: string) => Promise<void> | void
+  /** 편집 폼(이동·시각·가격)을 펼친 순간 — 미리보기 시트와 강조 CTA 가 겹치지 않게 위에서 정리한다 (L-09) */
+  onEditorOpen?: () => void
   /** FR-018 — 예매 확인·티켓 캡처를 그 Leg 에 담는다 (E-05 leg_id 첨부) */
   onAddLegPhoto?: (legId: string, file: File) => Promise<void> | void
   onRemovePhoto?: (photo: PhotoRow) => Promise<void> | void
@@ -67,6 +69,7 @@ export function TimelinePane({
   onUnassignStop,
   onUpdateStop,
   onSaveLeg,
+  onEditorOpen,
   onAddLegPhoto,
   onRemovePhoto,
   onRemoveLeg,
@@ -192,7 +195,11 @@ export function TimelinePane({
           {onUpdateStop && (
             <button
               type="button"
-              onClick={() => setEditingStopId(editingStopId === stop.id ? null : stop.id)}
+              onClick={() => {
+                const opening = editingStopId !== stop.id
+                setEditingStopId(opening ? stop.id : null)
+                if (opening) onEditorOpen?.()
+              }}
               className={ICON_BUTTON}
               aria-label="시각·가격 적기"
             >
@@ -353,6 +360,7 @@ export function TimelinePane({
                 setAddingLeg(false)
                 setPending(null)
                 setFailure(null)
+                if (!editing) onEditorOpen?.()
               }}
               className={ICON_BUTTON}
               aria-label="이동 고치기"
@@ -437,6 +445,7 @@ export function TimelinePane({
             onClick={() => {
               setAddingLeg(true)
               setEditingLegId(null)
+              onEditorOpen?.()
             }}
             className={`${TEXT_BUTTON} w-fit`}
           >

@@ -270,6 +270,34 @@ describe('TimelinePane — 이동 담기 (FR-008)', () => {
       'l1',
     )
   })
+
+  // 06 부록 체크리스트 5 (L-09) — 편집 폼의 강조가 미리보기 시트의 강조와 겹치지 않게,
+  // 펼치는 순간을 위(CanvasBoard)로 알린다
+  it('이동 폼을 펼칠 때마다 알려 준다 (담기·고치기 모두)', () => {
+    const onEditorOpen = vi.fn()
+    renderPane({ onEditorOpen })
+
+    fireEvent.click(screen.getByRole('button', { name: '이동 적기' }))
+    expect(onEditorOpen).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(within(row('l1')).getByRole('button', { name: '이동 고치기' }))
+    expect(onEditorOpen).toHaveBeenCalledTimes(2)
+
+    // 접을 때는 알리지 않는다 — 닫힌 폼 때문에 시트가 사라지면 이상하다
+    fireEvent.click(within(row('l1')).getByRole('button', { name: '이동 고치기' }))
+    expect(onEditorOpen).toHaveBeenCalledTimes(2)
+  })
+
+  it('Stop 시각·가격 편집기를 펼칠 때도 알려 준다 — 강조는 하나다', () => {
+    const onEditorOpen = vi.fn()
+    renderPane({ onEditorOpen })
+
+    fireEvent.click(within(row('s1')).getByRole('button', { name: '시각·가격 적기' }))
+    expect(onEditorOpen).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(within(row('s1')).getByRole('button', { name: '시각·가격 적기' }))
+    expect(onEditorOpen).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('TimelinePane — Leg 예매 캡처 (FR-018 / E-05 leg_id 첨부)', () => {

@@ -260,7 +260,12 @@ export function LegForm({ leg, onSubmit, onCancel }: LegFormProps) {
         <button
           type="submit"
           disabled={saving}
-          className="flex min-h-11 flex-1 items-center justify-center rounded-full bg-foreground px-4 text-base font-medium text-background transition-opacity duration-[120ms] hover:opacity-90 disabled:opacity-40"
+          // 확인 줄이 열려 있는 동안의 주 결정은 "다음 날 도착인가요?" 다 — 강조를 넘겨준다 (L-09)
+          className={
+            askNextDay
+              ? 'flex min-h-11 flex-1 items-center justify-center rounded-full border border-black/15 px-4 text-base font-medium transition-colors duration-[120ms] hover:bg-black/5 disabled:opacity-40 dark:border-white/20 dark:hover:bg-white/10'
+              : 'flex min-h-11 flex-1 items-center justify-center rounded-full bg-foreground px-4 text-base font-medium text-background transition-opacity duration-[120ms] hover:opacity-90 disabled:opacity-40'
+          }
         >
           {editing ? '이동 저장하기' : '이동 담기'}
         </button>

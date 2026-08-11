@@ -74,6 +74,9 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
   const [scheduleFailure, setScheduleFailure] = useState<string | null>(null)
   const [notice, setNotice] = useState<CanvasNotice | null>(null)
   const [editingDates, setEditingDates] = useState(false)
+  // 기간 폼을 펼치면 캔버스의 미리보기 시트를 닫는다 — 강조 CTA 는 화면당 하나다 (L-09).
+  // 시트 상태는 CanvasBoard 가 쥐고 있어 값이 바뀐 것만 신호로 보낸다
+  const [editorSignal, setEditorSignal] = useState(0)
 
   const bundleQuery = useQuery({
     queryKey: tripBundleKey(tripId),
@@ -262,6 +265,7 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
             type="button"
             aria-expanded={editingDates}
             onClick={() => {
+              if (!editingDates) setEditorSignal((value) => value + 1)
               setEditingDates((open) => !open)
               setNotice(null)
             }}
@@ -332,6 +336,7 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
 
       <CanvasBoard
         bundle={bundle}
+        editorSignal={editorSignal}
         onSave={async (draft) => {
           await save.mutateAsync(draft)
         }}

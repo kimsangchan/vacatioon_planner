@@ -32,6 +32,8 @@ export interface PlaceSearchBoxProps {
   onShowExisting?: (placeId: string) => void
   /** 0건일 때 지도에서 직접 찍기로 넘어간다 (FR-016 — 막다른 안내 금지) */
   onPickOnMap?: () => void
+  /** 카테고리 확정 칩(강조)을 펼친 순간 — 캔버스가 미리보기 시트를 닫는다 (L-09) */
+  onEditorOpen?: () => void
 }
 
 interface Failure {
@@ -42,7 +44,12 @@ interface Failure {
 
 const CATEGORY_ITEM = 'flex min-h-11 flex-1 items-center justify-center rounded-full px-4 text-sm font-medium transition-opacity duration-[120ms] hover:opacity-90'
 
-export function PlaceSearchBox({ onSave, onShowExisting, onPickOnMap }: PlaceSearchBoxProps) {
+export function PlaceSearchBox({
+  onSave,
+  onShowExisting,
+  onPickOnMap,
+  onEditorOpen,
+}: PlaceSearchBoxProps) {
   const [query, setQuery] = useState('')
   const [attempt, setAttempt] = useState(0)
   const [results, setResults] = useState<NormalizedPlace[] | null>(null)
@@ -183,6 +190,7 @@ export function PlaceSearchBox({ onSave, onShowExisting, onPickOnMap }: PlaceSea
                     setPicked(place)
                     setFailure(null)
                     setNote(null)
+                    onEditorOpen?.()
                   }}
                   className={`flex min-h-11 w-full flex-col items-start gap-0.5 rounded-xl px-3 py-2 text-left transition-colors duration-[120ms] hover:bg-black/5 dark:hover:bg-white/10 ${
                     active ? 'bg-black/5 dark:bg-white/10' : ''

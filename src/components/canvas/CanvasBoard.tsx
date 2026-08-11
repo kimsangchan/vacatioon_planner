@@ -45,6 +45,11 @@ export interface CanvasBoardProps {
   ) => Promise<void>
   onReorderDay?: (dayId: string, orderedIds: string[]) => Promise<void>
   onSaveLeg?: (dayId: string, draft: LegDraft, legId?: string) => Promise<void>
+  /**
+   * 캔버스 밖(헤더 기간 폼)에서 편집을 펼친 순간 — 값이 바뀌면 미리보기 시트를 닫는다.
+   * 강조 CTA 는 화면당 하나다 (L-09). 시트 상태는 이 컴포넌트가 쥐고 있어 신호로 받는다
+   */
+  editorSignal?: number
   /** 테스트·스토리에서 FakeMapProvider 를 끼우는 자리 */
   createProvider?: () => CreatedMapProvider
 }
@@ -64,6 +69,7 @@ export function CanvasBoard({
   onUpdateStop,
   onReorderDay,
   onSaveLeg,
+  editorSignal,
   createProvider,
 }: CanvasBoardProps) {
   const [created] = useState<CreatedMapProvider>(() => (createProvider ?? createMapProvider)())
@@ -73,6 +79,7 @@ export function CanvasBoard({
   const [sheetOpen, setSheetOpen] = useState(false)
   const [manualLatLng, setManualLatLng] = useState<LatLng | null>(null)
   const [pickHint, setPickHint] = useState(false)
+  const [seenSignal, setSeenSignal] = useState(editorSignal)
   const nonceRef = useRef(0)
 
   const unassigned = useMemo(() => unassignedPlaces(bundle), [bundle])
@@ -101,6 +108,21 @@ export function CanvasBoard({
   function revealInList(id: string) {
     setHighlightedId(id)
     setScrollTarget({ id, nonce: ++nonceRef.current })
+  }
+
+  // 다른 강조가 열리면 시트는 자리를 비운다 — 강조 CTA 는 화면당 하나다 (L-09).
+  // 호버 카드가 대신 뜨지 않도록 강조도 함께 거둔다
+  function closeDetail() {
+    setDetailId(null)
+    setHighlightedId(null)
+  }
+
+  // 캔버스 밖(헤더 기간 폼)에서 온 신호 — 값이 바뀐 렌더에서 바로 접는다.
+  // effect 가 아니라 렌더 중 조정이다 (react.dev — "프롭이 바뀔 때 state 조정하기")
+  if (editorSignal !== seenSignal) {
+    setSeenSignal(editorSignal)
+    setDetailId(null)
+    setHighlightedId(null)
   }
 
   function openDetail(id: string) {
@@ -196,6 +218,8 @@ export function CanvasBoard({
           <PlaceSearchBox
             onSave={onSave}
             onShowExisting={revealInList}
+            // 카테고리 확정 칩이 뜨는 순간이 그 화면의 주 결정이다 (L-09)
+            onEditorOpen={closeDetail}
             onPickOnMap={() => {
               setPickHint(true)
               setManualLatLng(null)
@@ -221,6 +245,7 @@ export function CanvasBoard({
             onUpdateStop={onUpdateStop}
             onReorderDay={onReorderDay}
             onSaveLeg={onSaveLeg}
+            onEditorOpen={closeDetail}
             onAddLegPhoto={onAddLegPhoto}
             onRemovePhoto={onRemovePhoto}
             onRemoveLeg={onRemoveLeg}
