@@ -47,7 +47,7 @@
 - [x] T5-2 `lib/place/search-proxy.ts`(본체) + `app/api/place-search/route.ts`(배선) + `lib/http/problem.ts` (2026-08-07, Opus)
 - [x] 실키 스모크 1회: 200·5건·좌표 정상(WGS84e7 분기)·태그 제거 확인 (2026-08-07)
 - [x] 카테고리 힌트 실측 정정: API HUB category는 요리명이 최상위 토큰("한식>...") — 어휘 확대 RED→GREEN (2026-08-07, 결정 #23)
-- [ ] T5-3 업스트림 장애 시 stale 캐시 제공 — `get_stale_search(qhash)` RPC 추가(마이그레이션+pgTAP) 후 502 경로 연결 (설계 공백 — 결정 #23. 현재는 5분 내 캐시만 동봉 가능)
+- [x] T5-3 업스트림 장애 시 stale 캐시 제공 — `0006_stale_search.sql`의 `get_stale_search(qhash)`(5분 창 무시, 상한 7일) + pgTAP 11 RED→GREEN + 502 경로 연결 (2026-08-11). **구현 중 발견: 기존 `cached[]` 분기는 도달 불가능한 죽은 코드였다** — `upstreamProblem`이 직전에 miss를 낸 `get_cached_search`를 다시 불렀음 (결정 #26)
 - 완료 기준: 목킹 기반 integration 전부 green — 달성 (vitest 68+)
 
 ## T6. 캔버스 — 저장·지도·미리보기 (T4·T5 후, 지도 렌더만 T0-2 필요)

@@ -21,7 +21,7 @@
 | `days` | `EXISTS (SELECT 1 FROM trips t WHERE t.id = trip_id AND t.owner_id = auth.uid())` |
 | `stops`, `legs` | `EXISTS (… days d JOIN trips t ON t.id = d.trip_id WHERE d.id = day_id AND t.owner_id = auth.uid())` 2단 조인 |
 | `photos` | place 첨부: `EXISTS (… places p WHERE p.id = place_id AND p.owner_id = auth.uid())` / leg 첨부: legs→days→trips 3단 조인 소유 검증 (place_id·leg_id는 CHECK로 정확히 하나) |
-| `search_cache`, `api_usage` | 직접 접근 전면 deny — SECURITY DEFINER RPC 3종(`record_search_usage`·`store_search_cache`·`get_cached_search`)만 접근하며, 이들의 EXECUTE는 **authenticated 롤 한정**(anon 호출 차단 — 카운터 조작·자기 DoS 방지). 공유 조회 실패 카운트는 별도 RPC가 아니라 `get_shared_trip` 내부에서 수행 (04 C-1 해소 경로) |
+| `search_cache`, `api_usage` | 직접 접근 전면 deny — SECURITY DEFINER RPC 4종(`record_search_usage`·`store_search_cache`·`get_cached_search`·`get_stale_search`)만 접근하며, 이들의 EXECUTE는 **authenticated 롤 한정**(anon 호출 차단 — 카운터 조작·자기 DoS 방지). 공유 조회 실패 카운트는 별도 RPC가 아니라 `get_shared_trip` 내부에서 수행 (04 C-1 해소 경로) |
 | RPC EXECUTE 정책 | `get_shared_trip`만 anon 허용(공유 뷰 전제 — 대신 rate limit+내부 실패 카운터), 그 외 전 RPC는 authenticated 한정 |
 | Storage `photos` 버킷 | 읽기 public(무작위 128bit 경로·목록 API 차단 — 결정 #12) / 쓰기·삭제 `auth.uid()` 소유 places 경유 검증 |
 | share-viewer | 테이블 접근 0 — `get_shared_trip(token)` SECURITY DEFINER RPC 하나만, SELECT 전용 |
@@ -32,7 +32,7 @@
 |---|---|---|---|---|---|
 | E-01 | Supabase Auth `signInWithOtp` | email | 매직링크 + 6자리 OTP 코드 동시 발송(메일 템플릿에 `{{ .Token }}` 포함), `verifyOtp`로 코드 인증 — PWA 기본 플로우 (FR-001) | `auth/rate-limited` | 공개 |
 | E-02 | `POST rpc/create_trip` | id·name·start_date·end_date·timezone? | trip + 기간만큼 days 생성(단일 트랜잭션) | `validation/date-range` | owner |
-| E-03 | `GET /api/place-search?q=` | q(2자 이상) | `NormalizedPlace[]` ≤5건. 업스트림 = NCP NAVER API HUB `GET /search/v1/local`(X-NCP-APIGW 헤더 — 정정 #19: 개발자센터 검색 API 신규 등록 불가) | `search/quota-exceeded`(일 12,500 도달 시 429 — SC-008)·`search/upstream-error`(502, 캐시 폴백 `cached[]` 동봉 — 단 현 RPC는 5분 내 캐시만 조회 가능, stale 제공은 `get_stale_search` 추가 후 성립: tasks T5-3·결정 #23)·`auth/required`(401)·`validation/query-too-short`(400)·`search/unavailable`(500 내부 오류, 원문 미노출) | owner |
+| E-03 | `GET /api/place-search?q=` | q(2자 이상) | `NormalizedPlace[]` ≤5건. 업스트림 = NCP NAVER API HUB `GET /search/v1/local`(X-NCP-APIGW 헤더 — 정정 #19: 개발자센터 검색 API 신규 등록 불가) | `search/quota-exceeded`(일 12,500 도달 시 429 — SC-008)·`search/upstream-error`(502, 캐시 폴백 `cached[]` 동봉 — `get_stale_search`가 5분 창을 무시하고 **최대 7일** 된 캐시까지 내준다. 정상 경로의 5분 판정(`get_cached_search`)은 불변: T5-3 완료·결정 #26)·`auth/required`(401)·`validation/query-too-short`(400)·`search/unavailable`(500 내부 오류, 원문 미노출) | owner |
 | E-04 | `POST places` (PostgREST) | id·trip_id·category·name·**address·road_address·lat·lng·provider·provider_link**·memo (manual 등록은 provider=`manual`·provider_link null — FR-016) | place | `validation/coords`(WGS84 범위 밖)·`conflict/duplicate` | owner |
 | E-05 | Storage `photos/{uuid}/{uuid}.webp` PUT + `POST photos` | 리사이즈된 WebP ≤2MB, 첨부 대상 = place_id 또는 leg_id(정확히 하나 — 결정 #18) | photo(storage_path·thumb_path·is_cover) | `storage/too-large`·`storage/bad-mime`·`validation/parent-exclusive` | owner |
 | E-06 | `GET trips?id=eq.{id}&select=*,days(*,stops(*,place:places(*,photos(*))),legs(*,photos(*))),places(*,photos(*))` (PostgREST 단일 쿼리 — legs 임베드에 photos 포함, FR-018 예매 캡처) | trip id | **Trip Bundle** — 캔버스·타임라인·보관함 전체 (FR-005·006·011 데이터원, SW 오프라인 캐시 대상). places 임베드에 `deleted_at IS NULL` 필터 필수 — 삭제 Place의 핀·보관함 재등장 방지 (E-13의 places(count)도 동일) | `not-found` | owner |

@@ -4,6 +4,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
+  ageSearchCache,
   anonClient,
   clearApiUsage,
   seedApiUsage,
@@ -210,6 +211,48 @@ describe('E-03 GET /api/place-search', () => {
     expect(JSON.stringify(problem)).not.toContain('apigw trace')
     expect(JSON.stringify(problem)).not.toContain('boom')
     expect(problem.stack).toBeUndefined()
+  }, 20_000)
+
+  // T5-3 — 위 테스트는 "다른 요청이 방금 캐시를 채운" 경주 상황만 덮는다. 진짜 장애는 캐시가
+  // 5분 창 밖에 있을 때다: 같은 요청이 이미 get_cached_search 로 miss 를 냈으므로, 502 경로가
+  // 같은 함수를 다시 부르면 영영 null 이다. stale 조회가 따로 있어야 성립한다 (결정 #23).
+  it('attaches cache older than the 5-minute window to the 502 (stale fallback)', async () => {
+    const q = freshQuery('오래된 캐시')
+    const qhash = await searchQueryHash(normalizeSearchQuery(q))
+    const cached = [
+      {
+        name: '한 시간 전 캐시 장소',
+        address: '제주특별자치도',
+        roadAddress: '제주특별자치도',
+        lat: 33.5,
+        lng: 126.5,
+        categoryHint: 'restaurant',
+        providerLink: null,
+        provider: 'naver',
+      },
+    ]
+
+    await supabase.rpc('store_search_cache', { qhash, response: cached })
+    ageSearchCache(qhash, '1 hour') // 5분 창 밖 — get_cached_search 는 이제 miss 다
+
+    const fetchUpstream = vi.fn<typeof fetch>(
+      async () => new Response('upstream boom', { status: 503 }),
+    )
+
+    const response = await handlePlaceSearch(searchRequest(q), {
+      supabase,
+      fetchUpstream,
+      credentials: CREDENTIALS,
+    })
+
+    // 캐시가 stale 이므로 200 으로 조용히 내주지 않는다 — 업스트림을 실제로 시도했다
+    expect(fetchUpstream).toHaveBeenCalledTimes(1)
+    expect(response.status).toBe(502)
+
+    const problem = await response.json()
+    expect(problem.cached).toEqual(cached)
+    // 한 시간 전 결과를 "방금 받아둔" 것이라고 말하면 거짓말이다 (관례 — 문구는 사실이어야 한다)
+    expect(problem.detail).not.toContain('방금')
   }, 20_000)
 
   it('rejects an unauthenticated caller with 401 before any upstream call', async () => {

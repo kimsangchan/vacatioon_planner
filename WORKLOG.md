@@ -6,11 +6,17 @@
 ## Current State
 
 - Status: blocked (사용자 작업 대기)
-- Focus: T8 완료·T0-2 검증 완료. 다음은 T9 배포지만 **T0-3(Supabase 원격 + 메일 템플릿)** 이 선행 — 사용자 작업
-- 검증 기준선: vitest 290(37파일) · pgTAP 136 · E2E 5테스트 · `npm run build`/`lint` 종료코드 0
+- Focus: T5-3까지 완료. MVP 코드 작업은 사실상 끝 — 남은 건 T9(배포)이고 **T0-3(Supabase 원격 + 메일 템플릿)**·**GitHub 저장소**가 선행. 둘 다 사용자 작업
+- 검증 기준선: vitest 291(37파일) · pgTAP 147 · E2E 5테스트 · `npm run build`/`lint` 종료코드 0
+- ⚠️ 이 저장소에 **git 원격이 없다** — 백업 0. T9-1(Vercel)·T9-2(Actions) 모두 GitHub 저장소가 전제
 - Last updated: 2026-08-11
 
 ## History (append; 최신이 위)
+
+- 2026-08-11 — **T5-3 완료**: `0006_stale_search.sql`의 `get_stale_search`(5분 창 무시·상한 7일) +
+  pgTAP 11 RED→GREEN. 구현 중 **기존 `cached[]` 분기가 도달 불가능한 죽은 코드**였음을 발견 —
+  502 경로가 직전에 miss를 낸 `get_cached_search`를 다시 부르고 있었다(결정 #26). 문구도 "방금 받아둔"→"전에 받아둔"으로 정정.
+  05 계약의 "추가 후 성립" 단서 해소
 
 - 2026-08-11 — **T0-2 완료**: NCP Maps 실키가 3010에서 인증 성공함을 실브라우저로 검증
   (SDK 네임스페이스·타일 56장·fake/실패 배너 0건, 제주 지도+핀 육안 확인). 무료 이용량은 월 600만 건(대표 계정).

@@ -261,9 +261,25 @@ async function readCache(
   qhash: string,
 ): Promise<NormalizedPlace[] | null> {
   // 5분 판정은 DB(get_cached_search)가 한다
-  const { data, error } = await supabase.rpc('get_cached_search', { qhash })
+  return callCacheRpc(supabase, 'get_cached_search', qhash)
+}
+
+// 5분 창을 무시하고(상한 7일) 있는 것을 그대로 꺼낸다 — 502 폴백 전용 (T5-3·결정 #23)
+async function readStaleCache(
+  supabase: SupabaseClient,
+  qhash: string,
+): Promise<NormalizedPlace[] | null> {
+  return callCacheRpc(supabase, 'get_stale_search', qhash)
+}
+
+async function callCacheRpc(
+  supabase: SupabaseClient,
+  fn: 'get_cached_search' | 'get_stale_search',
+  qhash: string,
+): Promise<NormalizedPlace[] | null> {
+  const { data, error } = await supabase.rpc(fn, { qhash })
   if (error) {
-    console.error('[place-search] 캐시 조회 실패', error.message)
+    console.error(`[place-search] 캐시 조회 실패 (${fn})`, error.message)
     return null
   }
   return (data as NormalizedPlace[] | null) ?? null
@@ -274,14 +290,16 @@ async function upstreamProblem(
   supabase: SupabaseClient,
   qhash: string,
 ): Promise<Response> {
-  const cached = await readCache(supabase, qhash)
+  // 여기 도달했다는 건 위에서 get_cached_search 가 이미 miss 를 냈다는 뜻이다 —
+  // 같은 함수를 다시 부르면 영영 null 이라 cached[] 분기가 죽는다. stale 로 묻는다.
+  const cached = await readStaleCache(supabase, qhash)
 
   return problemResponse({
     type: 'search/upstream-error',
     title: '검색 서버가 잠시 멈췄어요',
     status: 502,
     detail: cached
-      ? '방금 받아둔 결과를 대신 보여드려요. 잠시 뒤에 다시 검색해 주세요.'
+      ? '전에 받아둔 결과를 대신 보여드려요. 잠시 뒤에 다시 검색해 주세요.'
       : '잠시 뒤에 다시 검색하거나, 지도에서 길게 눌러 직접 등록해 보세요.',
     instance,
     ...(cached ? { extensions: { cached } } : {}),

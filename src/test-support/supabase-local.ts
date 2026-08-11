@@ -99,6 +99,18 @@ export function clearApiUsage(counter: string): void {
   psql(`delete from public.api_usage where date = current_date and counter = '${counter}'`)
 }
 
+// search_cache 도 같은 이유로 직접 경로가 필요하다 — fetched_at 을 되돌리는 RPC 는 (당연히) 없다.
+// T5-3 의 502 stale 폴백은 "5분이 지난 캐시"에서만 성립하므로, 기다리지 않고 캐시를 늙힌다.
+export function ageSearchCache(qhash: string, interval: string): void {
+  if (!/^[0-9a-f]{32,}$/.test(qhash)) throw new Error(`qhash 가 이상해요: ${qhash}`)
+  if (!/^\d+ (minute|minutes|hour|hours|day|days)$/.test(interval)) {
+    throw new Error(`interval 이 이상해요: ${interval}`)
+  }
+  psql(
+    `update public.search_cache set fetched_at = now() - interval '${interval}' where query_hash = '${qhash}'`,
+  )
+}
+
 // signInWithOtp → 코드 추출 → verifyOtp. 세션이 붙은 클라이언트를 돌려준다 (E-01)
 export async function signInWithOtpCode(email: string): Promise<SupabaseClient> {
   const client = anonClient()
