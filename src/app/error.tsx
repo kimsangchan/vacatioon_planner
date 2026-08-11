@@ -3,6 +3,7 @@
 // 막다른 에러 화면을 만들지 않기 위한 공통 경계 — 항상 다음 행동 버튼을 둔다 (SPEC §UI 규칙).
 
 import Link from 'next/link'
+import { SignOutButton } from '@/components/auth/SignOutButton'
 
 export default function AppError({ reset }: { error: Error; reset: () => void }) {
   return (
@@ -25,6 +26,14 @@ export default function AppError({ reset }: { error: Error; reset: () => void })
         >
           여행 목록으로
         </Link>
+      </div>
+
+      {/* 로그인 정보가 원인이면 위의 두 길은 같은 실패로 되돌아온다 — 여기서 세션을 버리고 나간다 */}
+      <div className="flex flex-col gap-1 border-t border-black/10 pt-4 dark:border-white/15">
+        <p className="text-sm text-black/60 dark:text-white/60">
+          다시 열어도 같은 화면이면 로그아웃하고 들어와 주세요.
+        </p>
+        <SignOutButton />
       </div>
     </main>
   )
