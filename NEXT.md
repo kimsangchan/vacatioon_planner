@@ -1,13 +1,13 @@
 <!-- NEXT-ACTION:START -->
 ## ▶ 지금 할 일 (새 세션은 이 블록부터 — SessionStart 훅이 자동 주입)
 
-- **[대기·사용자 작업] T0-2 · T0-3 — T9의 블로커**
-  ⓐ NCP 콘솔 Maps(Web Dynamic Map) 신규 계정 **무료 이용량 적용 여부 확인** —
-  미적용이면 카카오 폴백 결정(`docs/design/08` 잔여우려 1). 콘솔 Maps 앱에 `http://localhost:3010` 등록도 함께.
-  ⓑ Supabase 원격 프로젝트 생성 + Auth 메일 템플릿 교체(`supabase/templates/magic_link.html`과 동일 형식 —
-  본문에 `{{ .Token }}` 6자리 코드). 기본 템플릿엔 코드가 없어 FR-001이 불성립한다.
-- **[다음] T9-1** — Vercel 프로젝트 연결 + env 등록 + Preview 배포 → 실기기(아이폰) 육안 확인.
-  T0 완료 후 착수. 앵커: `tasks.md` T9 · `docs/design/07-ops-design.md`
+- **[대기·사용자 작업] T0-3 — T9의 마지막 블로커**
+  Supabase **원격** 프로젝트 생성 + Auth 메일 템플릿 교체. 형식은 `supabase/templates/magic_link.html`과
+  동일하게: 본문에 `{{ .Token }}`(6자리 코드) + 링크 `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email`.
+  기본 템플릿엔 코드가 없어 FR-001(OTP 코드 입력)이 불성립한다. 발급값은 Vercel env로 넣는다(로컬 `.env.local`은 로컬 Supabase용이라 그대로 둔다).
+- **[다음] T9-1** — Vercel 프로젝트 연결 + env 등록(5종) + Preview 배포 → 실기기(아이폰) 육안 확인.
+  NCP 콘솔 Maps 앱에 **배포 도메인 추가**도 함께(등록 URL과 다르면 지도 인증 실패).
+  앵커: `tasks.md` T9 · `docs/design/07-ops-design.md`
 - **[백로그, 착수 전 판단]** T5-3(업스트림 장애 시 stale 캐시 — `get_stale_search` RPC) ·
   T7-4(P2 공유 착수 시 `get_shared_trip`에 `cost_amount` 추가) — 상세는 `tasks.md`
 <!-- NEXT-ACTION:END -->

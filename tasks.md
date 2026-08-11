@@ -5,7 +5,7 @@
 ## T0. 계정·키 발급 — 사용자(사람) 작업 ⚠️ T7·T5 실키 테스트의 블로커
 
 - [x] T0-1 **[정정 2026-08-06]** NCP 콘솔(ncloud.com) 가입 → **NAVER API HUB** 이용 신청 → 검색 API 키쌍(X-NCP-APIGW-API-KEY-ID/-KEY) 발급. **신청 화면의 요금·무료 제공량 확인 필수**(콘솔 확인: 일 25,000회 무료 제공). 개발자센터(developers.naver.com)에는 검색 API 신규 등록이 없음 — decision-log #19/#20 (2026-08-06)
-- [ ] T0-2 같은 NCP 콘솔에서 Maps(Web Dynamic Map) 등록 → **신규 계정 무료 이용량 적용 여부 확인** (미적용이면 즉시 보고 — 카카오 폴백 결정, docs/design/08 잔여 우려 1)
+- [x] T0-2 NCP 콘솔 Maps(Web Dynamic Map) 등록 + `.env` 반영 — **실브라우저 인증 성공 검증** (2026-08-11): `localhost:3010`에서 실지도 렌더(SDK 네임스페이스·타일 56장·fake/실패 배너 0건). 무료 이용량은 공식 정책상 월 600만 건(대표 계정). **카카오 폴백 불필요 — docs/design/08 잔여 우려 1 해소** (결정 #25)
 - [ ] T0-3 Supabase 프로젝트 생성 + Auth 메일 템플릿 교체 — **형식은 `supabase/templates/magic_link.html`과 동일하게**: 본문에 `{{ .Token }}`(6자리 코드) + 링크는 `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email` (T4에서 로컬 실증 — 기본 템플릿엔 코드가 없어 FR-001 불성립)
 - [x] T0-4 검색 API(`GET /search/v1/local`) 실호출 1회로 base URL·`mapx/mapy` 형식(3형식 중 무엇인지) 실측 → 결과를 `docs/design/decision-log.md`에 기록 (변환기는 3형식 모두 지원 — GREEN 상태) (2026-08-06)
 - 완료 기준: `.env.local`에 5개 환경변수 채워짐 + T0-4 기록 존재
