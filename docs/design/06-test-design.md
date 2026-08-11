@@ -14,8 +14,10 @@
 | SC/FR | Gherkin 시나리오 | 레이어 | 데이터/목킹 |
 |---|---|---|---|
 | FR-001 | Given 미인증, When 이메일 제출, Then 매직링크+6자리 코드 발송, 링크 클릭 또는 코드 입력 어느 쪽으로도 세션 생성 (PWA 기본 = 코드 입력) | E2E(스모크) | Supabase 로컬 inbucket |
-| FR-002 | Given 8/1~8/3 입력, When Trip 생성, Then Day 3개(position 0..2) 자동 생성 | integration | 로컬 DB |
-| FR-002 실패 | Given end<start, When 생성, Then `validation/date-range` 문제 응답 | unit(검증)+integration | — |
+| FR-002 | Given 목록에서 "새 여행 만들기", When 누름, Then 폼 없이 초안 Trip(오늘 하루·'제목 없는 여행')이 생기고 `/trip/{id}` 로 이동 (결정 #27) | unit(컴포넌트)+E2E | — |
+| FR-002 이름 | Given 캔버스 헤더, When 이름을 고쳐 저장, Then `trips.name` 갱신·빈 이름은 호출 전 거절 | unit(컴포넌트) | — |
+| FR-002 기간 | Given 8/1~8/3 을 달력에서 고름, When Trip 생성/기간 변경, Then Day 3개(position 0..2) | integration | 로컬 DB |
+| FR-002 실패 | Given end<start, When 생성, Then `validation/date-range` 문제 응답 (달력이 먼저 막지만 계약은 유지) | unit(검증)+integration | — |
 | FR-003 | Given 프록시 목킹 응답(mapx/mapy KATECH), When "성산일출봉" 검색·선택·spot 확정, Then WGS84로 저장·보관함 표시 | integration | 네이버 응답 픽스처 |
 | FR-003 변환 | Given KATECH 좌표 픽스처 5종(서울·제주·경계값), When 변환, Then 기대 WGS84 오차 <1e-5 | unit | proj4 픽스처 |
 | FR-003 엣지 | Given 검색 0건, Then 대안 안내(지도 롱프레스 진입) 표시 / Given 업스트림 500, Then 캐시 폴백+안내 / Given 일 쿼터 소진, Then 429·검색 차단 안내 | unit+integration | 프록시 목킹 3종 |

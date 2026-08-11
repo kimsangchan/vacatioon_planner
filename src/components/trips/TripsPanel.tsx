@@ -7,33 +7,35 @@
 // 그 줄은 새로고침하면 사라지므로, 90일 안의 삭제는 아래 접힌 섹션이 이어받는다.
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import {
   TripError,
-  createTrip,
+  createDraftTrip,
   restoreTrip,
   softDeleteTrip,
   tripErrorMessage,
   type DeletedTrip,
   type TripSummary,
 } from '@/lib/trips/api'
+import { todayIso } from '@/lib/trips/calendar'
 import { DeletedTrips } from './DeletedTrips'
-import { NewTripForm, type NewTripDraft } from './NewTripForm'
 import { TripList } from './TripList'
 
 export interface TripsPanelProps {
   trips: TripSummary[]
   deletedTrips?: DeletedTrip[]
-  onCreate?: (draft: NewTripDraft) => Promise<void>
+  /** 새 여행을 만들고 그 id 를 돌려준다 */
+  onCreate?: () => Promise<string>
   onDelete?: (tripId: string) => Promise<void>
   onRestore?: (tripId: string) => Promise<void>
 }
 
-async function saveTrip(draft: NewTripDraft): Promise<void> {
-  const supabase = createSupabaseBrowserClient()
-  // PK 는 클라이언트가 만든다 — 재시도해도 한 행 (05 §멱등성)
-  await createTrip(supabase, { id: crypto.randomUUID(), ...draft })
+// FR-002 — 이름도 날짜도 묻지 않는다. 초안을 만들고 곧장 캔버스로 보낸다 (결정 #27).
+// 이름은 캔버스 헤더에서, 기간은 그 옆 달력에서 고친다.
+async function startTrip(): Promise<string> {
+  const trip = await createDraftTrip(createSupabaseBrowserClient(), todayIso())
+  return trip.id
 }
 
 const deleteTrip = (tripId: string) => softDeleteTrip(createSupabaseBrowserClient(), tripId)
@@ -47,20 +49,31 @@ export function TripsPanel({
   onRestore,
 }: TripsPanelProps) {
   const router = useRouter()
-  const [open, setOpen] = useState(false)
+  const [starting, setStarting] = useState(false)
+  const startingRef = useRef(false)
   const [hiddenIds, setHiddenIds] = useState<string[]>([])
   const [restoredIds, setRestoredIds] = useState<string[]>([])
   const [removed, setRemoved] = useState<TripSummary | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
 
-  const save = onCreate ?? saveTrip
+  const create = onCreate ?? startTrip
   const remove = onDelete ?? deleteTrip
   const restore = onRestore ?? undeleteTrip
 
-  async function handleCreate(draft: NewTripDraft) {
-    await save(draft)
-    setOpen(false)
-    router.refresh()
+  // state 는 다음 렌더에야 반영된다 — 같은 틱의 두 번째 클릭은 ref 로만 막을 수 있다
+  // (막지 못하면 빈 여행이 둘 생긴다)
+  async function handleStart() {
+    if (startingRef.current) return
+    startingRef.current = true
+    setStarting(true)
+    setFailure(null)
+    try {
+      router.push(`/trip/${await create()}`)
+    } catch (error) {
+      startingRef.current = false
+      setStarting(false)
+      report(error)
+    }
   }
 
   function report(error: unknown) {
@@ -101,15 +114,14 @@ export function TripsPanel({
 
   return (
     <section className="flex flex-col gap-6">
-      {open && <NewTripForm onCreate={handleCreate} onCancel={() => setOpen(false)} />}
-
-      {!open && visible.length > 0 && (
+      {visible.length > 0 && (
         <button
           type="button"
-          onClick={() => setOpen(true)}
-          className="flex min-h-11 items-center justify-center self-start rounded-full bg-foreground px-5 text-base font-medium text-background transition-opacity hover:opacity-90"
+          onClick={() => void handleStart()}
+          disabled={starting}
+          className="flex min-h-11 items-center justify-center self-start rounded-full bg-foreground px-5 text-base font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          새 여행 만들기
+          {starting ? '여는 중이에요' : '새 여행 만들기'}
         </button>
       )}
 
@@ -135,13 +147,11 @@ export function TripsPanel({
         </p>
       )}
 
-      {(!open || visible.length > 0) && (
-        <TripList
-          trips={visible}
-          onCreateFirst={() => setOpen(true)}
-          onDelete={(trip) => void handleDelete(trip)}
-        />
-      )}
+      <TripList
+        trips={visible}
+        onCreateFirst={() => void handleStart()}
+        onDelete={(trip) => void handleDelete(trip)}
+      />
 
       <DeletedTrips trips={recentlyDeleted} onRestore={(id) => void handleRestore(id)} />
     </section>

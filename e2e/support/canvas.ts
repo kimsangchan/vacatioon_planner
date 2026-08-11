@@ -9,18 +9,67 @@ export interface NewTripInput {
   endDate: string
 }
 
-/** 여행 목록(뎁스 0) → 새 여행 → 캔버스(뎁스 1). 연 캔버스의 trip id 를 돌려준다 */
-export async function createTripThroughUi(page: Page, input: NewTripInput): Promise<string> {
-  await page.getByRole('button', { name: '첫 여행 만들기' }).click()
-  await page.getByLabel('여행 이름').fill(input.name)
-  await page.getByLabel('시작하는 날').fill(input.startDate)
-  await page.getByLabel('끝나는 날').fill(input.endDate)
-  await page.getByRole('button', { name: '여행 만들기', exact: true }).click()
+/** '2026-09-10' → '2026년 9월 10일' (달력 버튼의 접근성 이름) */
+function dayLabel(iso: string): string {
+  const [year, month, day] = iso.split('-').map(Number)
+  return `${year}년 ${month}월 ${day}일`
+}
 
-  await page.getByRole('link', { name: input.name }).click()
+// 달력은 여행 시작 달부터 보여준다 — 목표 달까지 넘긴다
+async function goToMonth(page: Page, iso: string): Promise<void> {
+  const [year, month] = iso.split('-').map(Number)
+  const want = `${year}년 ${month}월`
+
+  for (let hop = 0; hop < 24; hop += 1) {
+    if ((await page.getByTestId('calendar-month').textContent())?.trim() === want) return
+    await page.getByRole('button', { name: '다음 달' }).click()
+  }
+  throw new Error(`달력에서 ${want} 로 넘어가지 못했어요`)
+}
+
+/** 캔버스 헤더에서 이름을 붙인다 (FR-002 — 새 여행은 이름 없이 시작한다) */
+export async function renameTripThroughUi(page: Page, name: string): Promise<void> {
+  await page.getByRole('button', { name: /이름 고치기/ }).click()
+  await page.getByLabel('여행 이름').fill(name)
+  await page.getByRole('button', { name: '이름 저장하기' }).click()
+  await expect(page.getByRole('heading', { name })).toBeVisible()
+}
+
+/** 캔버스 헤더의 달력에서 기간을 고른다 (FR-015) */
+export async function setTripDatesThroughUi(
+  page: Page,
+  startDate: string,
+  endDate: string,
+): Promise<void> {
+  await page.getByRole('button', { name: /기간 고치기/ }).click()
+
+  await goToMonth(page, startDate)
+  await page.getByRole('button', { name: dayLabel(startDate) }).click()
+  await goToMonth(page, endDate)
+  await page.getByRole('button', { name: dayLabel(endDate) }).click()
+
+  await page.getByRole('button', { name: '기간 저장하기' }).click()
+  await expect(page.getByTestId('trip-dates-form')).toHaveCount(0)
+
+  // 고른 기간이 실제로 붙었는지 확인한다. 이 단언이 없으면 달력이 하루짜리로 접혀도
+  // 스모크가 통과한다 — 실제로 그런 결함이 한 번 빠져나갔다
+  const shown = `${startDate.replaceAll('-', '.')} ~ ${endDate.replaceAll('-', '.')}`
+  await expect(page.getByRole('button', { name: new RegExp(`${shown}.*기간 고치기`) })).toBeVisible()
+}
+
+/**
+ * 여행 목록(뎁스 0) → 새 여행 → 캔버스(뎁스 1). 연 캔버스의 trip id 를 돌려준다.
+ * 결정 #27 이후 생성은 아무것도 묻지 않는다 — 이름·기간은 캔버스에서 붙인다.
+ */
+export async function createTripThroughUi(page: Page, input: NewTripInput): Promise<string> {
+  await page.getByRole('button', { name: /첫 여행 만들기|새 여행 만들기/ }).click()
   await expect(page.getByLabel('장소 검색')).toBeVisible()
 
-  return tripIdFromUrl(page)
+  const tripId = tripIdFromUrl(page)
+  await renameTripThroughUi(page, input.name)
+  await setTripDatesThroughUi(page, input.startDate, input.endDate)
+
+  return tripId
 }
 
 export function tripIdFromUrl(page: Page): string {

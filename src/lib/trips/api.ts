@@ -39,6 +39,7 @@ export interface NewTrip {
 
 export type TripErrorCode =
   | 'validation/date-range'
+  | 'validation/name-empty'
   | 'conflict/duplicate'
   | 'not-found'
   | 'unknown'
@@ -55,9 +56,13 @@ export class TripError extends Error {
 
 const MESSAGES: Record<TripErrorCode, string> = {
   'validation/date-range': '끝나는 날이 시작하는 날보다 빨라요. 날짜를 다시 골라 주세요.',
+  'validation/name-empty': '여행 이름을 적어 주세요.',
   'conflict/duplicate': '방금 만든 여행이에요. 목록에서 확인해 주세요.',
   'not-found': '그 여행을 찾지 못했어요. 목록에서 다시 골라 주세요.',
-  unknown: '여행을 만들지 못했어요. 잠시 뒤에 다시 해 주세요.',
+  // toTripError 는 생성·이름변경·삭제·되돌리기·기간변경의 모든 미분류 실패를 여기로 떨어뜨린다.
+  // 그래서 문구는 행동 중립이어야 한다 — '만들지 못했어요'는 이름을 고치다 실패한 사람에게 거짓말이다
+  // (timeline/api.ts 가 이미 같은 규칙을 따른다)
+  unknown: '방금 한 일을 저장하지 못했어요. 잠시 뒤에 다시 해 주세요.',
 }
 
 export function tripErrorMessage(code: TripErrorCode): string {
@@ -120,6 +125,38 @@ export async function createTrip(client: SupabaseClient, input: NewTrip): Promis
 
   if (error) throw toTripError(error)
   return data as TripRow
+}
+
+/** 이름 없는 여행의 이름 — 헤더에서 곧바로 고칠 수 있다 (FR-002) */
+export const DRAFT_TRIP_NAME = '제목 없는 여행'
+
+// FR-002: 날짜를 묻지 않고 시작한다. 기간은 오늘 하루로 열어 두고 캔버스 헤더에서 고친다 —
+// 여행 계획은 "언제 갈지"보다 "어디 갈지"에서 시작하는 일이 많다 (결정 #27).
+export async function createDraftTrip(
+  client: SupabaseClient,
+  today: string,
+): Promise<TripRow> {
+  return createTrip(client, {
+    // PK 는 클라이언트가 만든다 — 재시도해도 한 행 (05 §멱등성)
+    id: crypto.randomUUID(),
+    name: DRAFT_TRIP_NAME,
+    start_date: today,
+    end_date: today,
+  })
+}
+
+// 이름 바꾸기는 trips_owner_update RLS 로 직접 UPDATE 한다 — 다른 테이블을 건드리지 않으므로
+// 트랜잭션(RPC)이 필요 없다 (기간 변경은 days 를 함께 손대므로 E-14 RPC 를 쓴다)
+export async function renameTrip(
+  client: SupabaseClient,
+  tripId: string,
+  name: string,
+): Promise<void> {
+  const trimmed = name.trim()
+  if (trimmed === '') throw new TripError('validation/name-empty')
+
+  const { error } = await client.from('trips').update({ name: trimmed }).eq('id', tripId)
+  if (error) throw toTripError(error)
 }
 
 // E-14: Day 증감 + 삭제 Day 의 Stop 제거를 단일 트랜잭션으로. 부분 실패가 없으니

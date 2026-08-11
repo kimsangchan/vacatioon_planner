@@ -5,32 +5,35 @@
 //   ① 담긴 곳이 있는 Day 가 사라질 때 실행 전에 한 번 묻기 (놀람 방지 — 데이터는 보관함에 남는다)
 //   ② 계약 에러(validation/date-range)를 다음 행동이 있는 문구로 옮기기
 
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import { ConfirmRow } from '@/components/common/ConfirmRow'
 import { TripError, tripErrorMessage } from '@/lib/trips/api'
 import type { DayRow } from '@/lib/trips/bundle'
+import { todayIso } from '@/lib/trips/calendar'
 import { shrinkConfirmMessage, shrinkImpact } from '@/lib/trips/dates'
+import { DateRangeCalendar } from './DateRangeCalendar'
 
 export interface TripDatesFormProps {
   startDate: string
   endDate: string
   days: DayRow[]
+  /** 주입 가능 — 실제 오늘에 기대면 테스트가 내일 깨진다 */
+  today?: string
   onSubmit: (startDate: string, endDate: string) => Promise<void>
   onCancel: () => void
 }
-
-const FIELD =
-  'min-h-11 rounded-xl border border-black/15 bg-transparent px-3 text-base outline-none focus:border-foreground dark:border-white/20'
 
 export function TripDatesForm({
   startDate,
   endDate,
   days,
+  today,
   onSubmit,
   onCancel,
 }: TripDatesFormProps) {
-  const ids = useId()
-  const field = (name: string) => `${ids}-${name}`
+  const now = today ?? todayIso()
+  // 이미 시작한 여행은 제 시작일보다 앞으로 못 가게만 한다 — 오늘로 막으면 고칠 길이 없어진다
+  const floor = startDate < now ? startDate : now
 
   const [start, setStart] = useState(startDate)
   const [end, setEnd] = useState(endDate)
@@ -62,12 +65,11 @@ export function TripDatesForm({
     void save()
   }
 
-  function change(setter: (value: string) => void) {
-    return (event: React.ChangeEvent<HTMLInputElement>) => {
-      setter(event.target.value)
-      setQuestion(null)
-      setFailure(null)
-    }
+  function change(nextStart: string, nextEnd: string) {
+    setStart(nextStart)
+    setEnd(nextEnd)
+    setQuestion(null)
+    setFailure(null)
   }
 
   return (
@@ -79,32 +81,7 @@ export function TripDatesForm({
       }}
       className="flex flex-col gap-3 rounded-2xl border border-black/10 p-3 dark:border-white/15"
     >
-      <div className="flex flex-wrap gap-2">
-        <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor={field('start')} className="text-sm font-medium">
-            시작하는 날
-          </label>
-          <input
-            id={field('start')}
-            type="date"
-            value={start}
-            onChange={change(setStart)}
-            className={FIELD}
-          />
-        </div>
-        <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor={field('end')} className="text-sm font-medium">
-            끝나는 날
-          </label>
-          <input
-            id={field('end')}
-            type="date"
-            value={end}
-            onChange={change(setEnd)}
-            className={FIELD}
-          />
-        </div>
-      </div>
+      <DateRangeCalendar start={start} end={end} minDate={floor} onChange={change} />
 
       {question && (
         <ConfirmRow

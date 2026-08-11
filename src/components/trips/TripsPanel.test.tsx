@@ -4,12 +4,16 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import type { DeletedTrip, TripSummary } from '@/lib/trips/api'
+import { TripError, type DeletedTrip, type TripSummary } from '@/lib/trips/api'
 import { TripsPanel } from './TripsPanel'
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
+const push = vi.fn()
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push } as never) }))
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  push.mockClear()
+})
 
 const TRIPS: TripSummary[] = [
   {
@@ -38,21 +42,74 @@ const DELETED: DeletedTrip[] = [
   },
 ]
 
+const NEW_ID = '9c5a2f6c-1a5f-4f3a-9d0b-2c9f7f0a1b26'
+
 function renderPanel(props: Partial<Parameters<typeof TripsPanel>[0]> = {}) {
+  const onCreate = vi.fn().mockResolvedValue(NEW_ID)
   const onDelete = vi.fn().mockResolvedValue(undefined)
   const onRestore = vi.fn().mockResolvedValue(undefined)
   render(
     <TripsPanel
       trips={TRIPS}
       deletedTrips={[]}
-      onCreate={vi.fn()}
+      onCreate={onCreate}
       onDelete={onDelete}
       onRestore={onRestore}
       {...props}
     />,
   )
-  return { onDelete, onRestore }
+  return { onCreate, onDelete, onRestore }
 }
+
+describe('TripsPanel — 새 여행 (FR-002 · 결정 #27)', () => {
+  it('이름도 날짜도 묻지 않고 곧장 캔버스로 보낸다', async () => {
+    const { onCreate } = renderPanel()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '새 여행 만들기' }))
+    })
+
+    expect(onCreate).toHaveBeenCalledTimes(1)
+    expect(push).toHaveBeenCalledWith(`/trip/${NEW_ID}`)
+    // 폼이 끼어들지 않는다 — 물어볼 게 없다
+    expect(screen.queryByRole('textbox')).toBeNull()
+  })
+
+  it('첫 여행도 같은 길로 만든다', async () => {
+    const { onCreate } = renderPanel({ trips: [] })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '첫 여행 만들기' }))
+    })
+
+    expect(onCreate).toHaveBeenCalledTimes(1)
+    expect(push).toHaveBeenCalledWith(`/trip/${NEW_ID}`)
+  })
+
+  it('두 번 눌러도 여행을 둘 만들지 않는다', async () => {
+    const { onCreate } = renderPanel()
+    const button = screen.getByRole('button', { name: '새 여행 만들기' })
+
+    await act(async () => {
+      fireEvent.click(button)
+      fireEvent.click(button)
+    })
+
+    expect(onCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('만들지 못하면 다음 행동이 있는 문구로 알린다 (막다른 에러 금지)', async () => {
+    const onCreate = vi.fn().mockRejectedValue(new TripError('unknown'))
+    renderPanel({ onCreate })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '새 여행 만들기' }))
+    })
+
+    expect(push).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert').textContent).toContain('다시 해 주세요')
+  })
+})
 
 describe('TripsPanel — 여행 지우기 (FR-017 soft delete)', () => {
   it('지우면 목록에서 사라지고 되돌릴 수 있는 알림 줄이 남는다', async () => {

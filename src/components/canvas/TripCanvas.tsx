@@ -27,7 +27,7 @@ import {
   type LegDraft,
 } from '@/lib/timeline/api'
 import { nextPosition } from '@/lib/timeline/merge'
-import { TripError, tripErrorMessage, updateTripDates } from '@/lib/trips/api'
+import { TripError, renameTrip, tripErrorMessage, updateTripDates } from '@/lib/trips/api'
 import {
   fetchTripBundle,
   tripBundleKey,
@@ -39,6 +39,7 @@ import { dateChangeNotice } from '@/lib/trips/dates'
 import { CanvasBoard } from './CanvasBoard'
 import type { PlaceDraft } from './PlaceSearchBox'
 import { TripDatesForm } from './TripDatesForm'
+import { TripTitleField } from './TripTitleField'
 
 // 알림 줄 하나로 두 가지를 말한다: 방금 무엇이 됐는지, 그리고 되돌릴 수 있다면 그 자리 (T-06)
 interface CanvasNotice {
@@ -146,6 +147,12 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
     onSuccess: refetchBundle,
   })
 
+  // FR-002 — 이름은 헤더에서 고친다 (새 여행은 이름 없이 시작한다 · 결정 #27)
+  const rename = useMutation({
+    mutationFn: (name: string) => renameTrip(supabase, tripId, name),
+    onSuccess: refetchBundle,
+  })
+
   // E-09 — 메모는 카드에서 바로 고친다 (FR-009)
   const saveMemo = useMutation({
     mutationFn: ({ placeId, memo }: { placeId: string; memo: string }) =>
@@ -232,8 +239,11 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
 
   if (bundleQuery.isError) {
     const error = bundleQuery.error
+    // 여기는 "읽기" 실패다 — 쓰기용 기본 문구(unknown)를 그대로 쓰면 제목과 어긋난다
     const message =
-      error instanceof TripError ? tripErrorMessage(error.code) : tripErrorMessage('unknown')
+      error instanceof TripError && error.code !== 'unknown'
+        ? tripErrorMessage(error.code)
+        : '잠시 뒤에 다시 열어 보거나, 목록에서 다시 골라 주세요.'
 
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-col items-start gap-4 px-5 py-12 sm:px-8">
@@ -259,7 +269,13 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
           <Link href="/" className="flex min-h-8 items-center text-sm underline underline-offset-4">
             여행 목록
           </Link>
-          <h1 className="truncate text-lg font-semibold tracking-tight">{bundle.name}</h1>
+          <TripTitleField
+            name={bundle.name}
+            onRename={(name) => rename.mutateAsync(name)}
+            // 이름과 기간 편집기가 겹치면 강조 CTA 가 둘이 된다 (L-09) — 양방향으로 닫는다
+            onOpen={() => setEditingDates(false)}
+            closeSignal={editorSignal}
+          />
           {/* 기간은 읽을 거리이자 손잡이다 — 누르면 그 자리에서 고친다 (FR-015, 모달 금지) */}
           <button
             type="button"

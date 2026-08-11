@@ -2,6 +2,9 @@
 // T7-3 (docs/design/06 변환표 FR-015) — 기간 고치기.
 // 데이터는 E-14 가 지킨다(단일 트랜잭션·보관함 복귀). 이 폼의 일은 놀라지 않게 하는 것 —
 // 담긴 곳이 있는 Day 를 줄일 때만 한 번 묻고, 나머지는 곧장 저장한다.
+//
+// 날짜 선택은 DateRangeCalendar 가 맡는다(그 규칙은 그쪽 테스트에서 지킨다). 여기서는
+// "고른 범위가 저장으로 이어지는가"만 본다. today 는 주입한다 — 실제 오늘에 기대면 내일 깨진다.
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
@@ -35,6 +38,7 @@ function renderForm(props: Partial<Parameters<typeof TripDatesForm>[0]> = {}) {
       startDate="2026-08-11"
       endDate="2026-08-13"
       days={DAYS}
+      today="2026-08-11"
       onSubmit={onSubmit}
       onCancel={onCancel}
       {...props}
@@ -43,27 +47,25 @@ function renderForm(props: Partial<Parameters<typeof TripDatesForm>[0]> = {}) {
   return { onSubmit, onCancel }
 }
 
-const setEnd = (value: string) =>
-  fireEvent.change(screen.getByLabelText('끝나는 날'), { target: { value } })
+const pickDay = (label: string) => fireEvent.click(screen.getByRole('button', { name: label }))
+const save = async () => {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: '기간 저장하기' }))
+  })
+}
 
 describe('TripDatesForm — 기간 고치기 (FR-015)', () => {
-  it('지금 기간을 그대로 채워 둔다', () => {
+  it('지금 기간을 고른 상태로 보여준다', () => {
     renderForm()
-
-    expect((screen.getByLabelText('시작하는 날') as HTMLInputElement).value).toBe('2026-08-11')
-    expect((screen.getByLabelText('끝나는 날') as HTMLInputElement).value).toBe('2026-08-13')
+    expect(screen.getByText(/2026\.08\.11 ~ 2026\.08\.13/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: '2026년 8월 11일' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('담긴 게 없는 Day 만 줄어들면 묻지 않고 바로 저장한다', async () => {
-    const { onSubmit } = renderForm({
-      days: [DAYS[0], DAYS[1]],
-      endDate: '2026-08-12',
-    })
+    const { onSubmit } = renderForm({ days: [DAYS[0], DAYS[1]], endDate: '2026-08-12' })
 
-    setEnd('2026-08-11')
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '기간 저장하기' }))
-    })
+    pickDay('2026년 8월 11일') // 하루짜리로 줄인다
+    await save()
 
     expect(onSubmit).toHaveBeenCalledWith('2026-08-11', '2026-08-11')
   })
@@ -71,10 +73,9 @@ describe('TripDatesForm — 기간 고치기 (FR-015)', () => {
   it('늘리기는 확인 없이 저장한다', async () => {
     const { onSubmit } = renderForm()
 
-    setEnd('2026-08-15')
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '기간 저장하기' }))
-    })
+    pickDay('2026년 8월 11일')
+    pickDay('2026년 8월 15일')
+    await save()
 
     expect(onSubmit).toHaveBeenCalledWith('2026-08-11', '2026-08-15')
   })
@@ -84,10 +85,9 @@ describe('TripDatesForm — 줄이기 확인 (PRD 엣지: 데이터 손실 금�
   it('담긴 곳이 있는 Day 가 사라지면 실행 전에 묻는다', async () => {
     const { onSubmit } = renderForm()
 
-    setEnd('2026-08-12')
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '기간 저장하기' }))
-    })
+    pickDay('2026년 8월 11일')
+    pickDay('2026년 8월 12일')
+    await save()
 
     expect(onSubmit).not.toHaveBeenCalled()
     expect(screen.getByRole('alert').textContent).toContain(
@@ -98,10 +98,9 @@ describe('TripDatesForm — 줄이기 확인 (PRD 엣지: 데이터 손실 금�
   it('계속하겠다고 하면 그때 저장한다', async () => {
     const { onSubmit } = renderForm()
 
-    setEnd('2026-08-12')
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '기간 저장하기' }))
-    })
+    pickDay('2026년 8월 11일')
+    pickDay('2026년 8월 12일')
+    await save()
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '네, 줄일게요' }))
     })
@@ -112,10 +111,9 @@ describe('TripDatesForm — 줄이기 확인 (PRD 엣지: 데이터 손실 금�
   it('그만두면 저장하지 않고 날짜를 다시 고르게 둔다', async () => {
     const { onSubmit } = renderForm()
 
-    setEnd('2026-08-12')
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '기간 저장하기' }))
-    })
+    pickDay('2026년 8월 11일')
+    pickDay('2026년 8월 12일')
+    await save()
     fireEvent.click(screen.getByRole('button', { name: '아니요, 날짜를 고칠게요' }))
 
     expect(onSubmit).not.toHaveBeenCalled()
@@ -124,14 +122,12 @@ describe('TripDatesForm — 줄이기 확인 (PRD 엣지: 데이터 손실 금�
 })
 
 describe('TripDatesForm — 막다른 에러 금지 (E-14 validation/date-range)', () => {
-  it('끝나는 날이 앞서면 다음 행동이 있는 문구로 알린다', async () => {
+  // 달력은 거꾸로 된 기간을 애초에 못 만들지만, 계약 에러가 오면 다음 행동을 줘야 한다
+  it('E-14 가 기간을 거절하면 다음 행동이 있는 문구로 알린다', async () => {
     const onSubmit = vi.fn().mockRejectedValue(new TripError('validation/date-range'))
     renderForm({ onSubmit })
 
-    setEnd('2026-08-10')
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '기간 저장하기' }))
-    })
+    await save()
 
     const alert = screen.getByRole('alert')
     expect(alert.textContent).toContain('끝나는 날')
