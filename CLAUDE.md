@@ -1,38 +1,36 @@
+# CLAUDE.md
+
+행동 가이드(모든 프로젝트 공통) + 이 프로젝트의 맥락은 아래 import로 불러온다.
+
 @AGENTS.md
 
-# Trip Canvas — 에이전트 지침
+---
 
-개인용 여행 플래너 (Next.js 16 App Router + Supabase). 진실원: `SPEC.md` → `tasks.md` → `docs/design/`(설계 근거·결정 이력). 충돌 시 SPEC.md 우선. Next.js 16 API는 학습 데이터와 다를 수 있음 — AGENTS.md 지시대로 `node_modules/next/dist/docs/` 먼저 확인.
+## 1. 코딩 전에 생각한다
+**추측하지 마라. 혼란을 숨기지 마라. 트레이드오프를 드러내라.**
+- 가정은 명시한다. 불확실하면 묻는다.
+- 해석이 여러 개면 고르지 말고 제시한다.
+- 더 단순한 방법이 있으면 말한다. 필요하면 반대한다.
+- 불명확하면 멈추고, 무엇이 헷갈리는지 이름 붙여 묻는다.
 
-## 명령
+## 2. 단순함 우선
+**문제를 푸는 최소 코드. 투기적 확장 금지.**
+- 요청 범위 밖 기능 금지.
+- 1회용 코드에 추상화 금지.
+- 요청하지 않은 유연성/설정화 금지.
+- 200줄이 50줄로 가능하면 다시 쓴다.
 
-- `npm test` — vitest · `npm run build` · `npm run lint`
-- `npx supabase start` / `npx supabase db reset`(마이그레이션 적용) / `npx supabase test db`(pgTAP)
-- `npx playwright test` — E2E (로컬 dev 서버 필요)
+## 3. 외과적 변경
+**필요한 것만 건드린다. 자기가 만든 것만 치운다.**
+- 인접 코드/주석/포맷을 "개선"하지 않는다.
+- 고장 안 난 걸 리팩터하지 않는다. 기존 스타일에 맞춘다.
+- 무관한 죽은 코드는 언급만, 삭제는 안 한다.
+- 바뀐 모든 줄은 요청에 직접 추적돼야 한다.
 
-## 반드시 (어기면 설계 붕괴 — 근거: docs/design/decision-log.md의 #번호)
+## 4. 목표 주도 실행
+**성공 기준을 정하고, 검증될 때까지 반복한다.**
+- "검증 추가" → "잘못된 입력 테스트를 쓰고 통과시킨다"
+- "버그 수정" → "재현 테스트를 쓰고 통과시킨다"
+- 다단계 작업은 짧은 계획: `1. [단계] → 검증: [체크]`
 
-- **좌표는 WGS84만 저장.** KATECH·WGS84e7 변환은 `src/lib/geo/naver-coords.ts` 경계에서만 (#6)
-- **일정 시각은 벽시계 값**(time/date, trips.timezone 기준). UTC 변환 저장 금지 — created_at 등 메타만 timestamptz (docs/design/05 §규약)
-- **Day 내 순서는 stops∪legs 통합 position이 유일 진실.** 시각으로 정렬하지 마라 (#15)
-- **금액은 원 단위 정수.** 부동소수점 연산 금지 (#17)
-- **service role 키를 런타임 코드·env에 넣지 마라.** 운영 테이블 쓰기는 SECURITY DEFINER RPC 경유 (#11)
-- **네이버 검색 키는 서버 전용** — `NEXT_PUBLIC_` 접두사 금지, 클라이언트 번들 노출 금지
-- **테스트 우선.** 기능 코드 전에 실패하는 테스트. tasks.md의 완료 기준이 통과 판정 기준
-- 지도는 `MapProvider` 인터페이스만 소비 — 컴포넌트에서 지도 SDK 직접 import 금지 (#2 카카오 폴백 전제)
-
-## 함정 (gotcha)
-
-- dev 서버 포트 **3010 고정**(`npm run dev`) — 3000은 사용자의 다른 앱이 사용. 지도(NCP)는 등록된 Web 서비스 URL과 포트까지 일치해야 인증됨. supabase/config.toml site_url도 3010
-
-- 네이버 지역검색 `mapx/mapy`는 3형식(KATECH / WGS84×10⁷ / WGS84 도) — 값 크기로 판별, SPEC §알고리즘 1. 실측(T0-4) 결과 현재 API HUB는 WGS84×10⁷ 반환 (decision-log #20)
-- iOS 설치형 PWA는 Safari와 세션 격리 — 인증은 OTP 코드 입력이 기본, 매직링크는 보조 (#13)
-- 네이버 검색 응답 title에 `<b>` 태그 포함 — 프록시에서 제거
-- PG enum 타입 대신 CHECK 제약 (enum은 값 추가 마이그레이션이 고통)
-- 검색 쿼터 일 12,500 상한 상수 변경 시 docs/design/05·07도 함께 갱신
-
-## 관례
-
-- 사용자 대면 문구: 해요체·능동형·긍정형, CTA는 다음 행동 서술("보관함에 담기"). 에러 화면엔 항상 다음 행동 버튼
-- API 에러는 RFC 9457 Problem JSON 통일
-- 커밋 메시지 한글, 작업(tasks.md T번호) 단위 증분 커밋. 커밋·푸시는 사용자 요청 시에만
+<!-- 프로젝트별 규칙/구조/네비게이션은 이 파일이 아니라 AGENTS.md 에. 여기는 얇게 유지. -->
