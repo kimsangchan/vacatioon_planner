@@ -151,6 +151,13 @@ export function CanvasBoard({
     if (place) created.provider.panTo({ lat: Number(place.lat), lng: Number(place.lng) })
   }
 
+  // FR-016 — '지도에서 찍기' 모드를 켠 동안만 그냥 누르기를 받는다.
+  // 평소 좌클릭은 지도 이동·핀 선택의 몫이라 여기서 가로채지 않는다.
+  function handleMapTap(latLng: LatLng) {
+    if (!pickHint) return
+    handleLongPress(latLng)
+  }
+
   // FR-016 — 길게 누른(우클릭한) 자리로 미니 폼을 연다
   function handleLongPress(latLng: LatLng) {
     setManualLatLng(latLng)
@@ -168,6 +175,7 @@ export function CanvasBoard({
           highlightedId={highlightedId}
           onPinEvent={handlePinEvent}
           onLongPress={handleLongPress}
+          onMapTap={handleMapTap}
         />
 
         {hoverPlace && (
@@ -226,9 +234,28 @@ export function CanvasBoard({
             }}
           />
 
+          {/* 롱프레스·우클릭은 숨은 동작이라 아무도 발견하지 못한다 — 보이는 문을 둔다.
+              강조색은 쓰지 않는다: 이 화면의 주 행동은 여전히 검색 입력이다 (L-09) */}
+          <button
+            type="button"
+            aria-pressed={pickHint}
+            onClick={() => {
+              setPickHint((on) => !on)
+              setManualLatLng(null)
+            }}
+            className={`flex min-h-9 items-center gap-1.5 self-start rounded-full border px-3 text-sm transition-colors ${
+              pickHint
+                ? 'border-foreground font-medium'
+                : 'border-black/15 hover:bg-black/[.04] dark:border-white/20 dark:hover:bg-white/[.06]'
+            }`}
+          >
+            <span aria-hidden>📍</span>
+            지도에서 찍기
+          </button>
+
           {pickHint && (
             <p role="status" className="text-sm text-black/60 dark:text-white/60">
-              지도에서 그 자리를 길게 눌러 주세요. 데스크톱은 오른쪽 클릭이에요.
+              지도에서 담고 싶은 자리를 눌러 주세요. 길게 누르기(데스크톱은 오른쪽 클릭)로도 돼요.
             </p>
           )}
 

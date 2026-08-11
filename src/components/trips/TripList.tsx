@@ -23,7 +23,7 @@ export function TripList({ trips, onCreateFirst, onDelete }: TripListProps) {
       <div className="flex flex-col items-start gap-4 rounded-2xl border border-dashed border-black/15 p-8 dark:border-white/20">
         <p className="text-lg font-medium">아직 만든 여행이 없어요.</p>
         <p className="text-base text-black/60 dark:text-white/60">
-          날짜만 정하면 하루씩 칸이 생겨요. 장소는 나중에 담아도 괜찮아요.
+          누르면 바로 지도가 열려요. 이름과 기간은 나중에 붙여도 괜찮아요.
         </p>
         <button
           type="button"

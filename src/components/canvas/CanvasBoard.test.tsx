@@ -379,6 +379,53 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
   })
 })
 
+// 롱프레스·우클릭은 숨은 동작이라 아무도 발견하지 못한다 — 보이는 문이 필요하다.
+// 그냥 탭에 바로 걸면 지도 이동·핀 선택과 부딪히므로, 모드를 켠 뒤 한 번만 받는다.
+describe('CanvasBoard — 지도에서 찍기 모드 (FR-016 발견성)', () => {
+  it('평소에는 지도 탭이 아무것도 열지 않는다', async () => {
+    await renderBoard()
+
+    await act(async () => provider.emitMapTap({ lat: 33.4, lng: 126.6 }))
+
+    expect(screen.queryByTestId('manual-place-form')).toBeNull()
+  })
+
+  it('버튼으로 모드를 켜면 다음 탭 자리에 미니 폼이 열린다', async () => {
+    await renderBoard()
+
+    fireEvent.click(screen.getByRole('button', { name: '지도에서 찍기' }))
+    // Fake 지도 배너도 role="status" 라 문구로 특정한다
+    expect(screen.getByText(/담고 싶은 자리를 눌러 주세요/)).toBeTruthy()
+
+    await act(async () => provider.emitMapTap({ lat: 33.4, lng: 126.6 }))
+
+    expect(screen.getByTestId('manual-place-form').textContent).toContain('33.4, 126.6')
+  })
+
+  it('한 번 찍으면 모드가 꺼진다 — 다음 탭은 다시 지도 조작이다', async () => {
+    await renderBoard()
+
+    fireEvent.click(screen.getByRole('button', { name: '지도에서 찍기' }))
+    await act(async () => provider.emitMapTap({ lat: 33.4, lng: 126.6 }))
+    fireEvent.click(screen.getByRole('button', { name: '그만두기' }))
+
+    await act(async () => provider.emitMapTap({ lat: 33.5, lng: 126.7 }))
+
+    expect(screen.queryByTestId('manual-place-form')).toBeNull()
+  })
+
+  it('모드를 켰다가 다시 누르면 끈다', async () => {
+    await renderBoard()
+
+    fireEvent.click(screen.getByRole('button', { name: '지도에서 찍기' }))
+    fireEvent.click(screen.getByRole('button', { name: '지도에서 찍기' }))
+
+    await act(async () => provider.emitMapTap({ lat: 33.4, lng: 126.6 }))
+
+    expect(screen.queryByTestId('manual-place-form')).toBeNull()
+  })
+})
+
 describe('CanvasBoard — 지도에서 직접 담기 (FR-016)', () => {
   it('지도를 길게 누르면 그 좌표로 미니 폼을 연다', async () => {
     await renderBoard()

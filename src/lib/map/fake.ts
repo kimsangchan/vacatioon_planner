@@ -21,6 +21,7 @@ export class FakeMapProvider implements MapProvider {
 
   private pinHandlers: PinEventHandler[] = []
   private longPressHandlers: LongPressHandler[] = []
+  private mapTapHandlers: LongPressHandler[] = []
 
   get highlightedIds(): string[] {
     return this.pins.filter((pin) => pin.selected).map((pin) => pin.id)
@@ -50,12 +51,17 @@ export class FakeMapProvider implements MapProvider {
     this.longPressHandlers.push(cb)
   }
 
+  onMapTap(cb: LongPressHandler): void {
+    this.mapTapHandlers.push(cb)
+  }
+
   destroy(): void {
     this.mounted = false
     this.element = null
     this.pins = []
     this.pinHandlers = []
     this.longPressHandlers = []
+    this.mapTapHandlers = []
   }
 
   // ── 테스트·개발용 조작구 (인터페이스 밖) ──────────────────────────────────
@@ -65,5 +71,9 @@ export class FakeMapProvider implements MapProvider {
 
   emitLongPress(latLng: LatLng): void {
     for (const handler of this.longPressHandlers) handler(latLng)
+  }
+
+  emitMapTap(latLng: LatLng): void {
+    for (const handler of this.mapTapHandlers) handler(latLng)
   }
 }

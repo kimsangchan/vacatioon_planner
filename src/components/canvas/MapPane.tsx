@@ -15,9 +15,18 @@ export interface MapPaneProps {
   onPinEvent: (id: string, ev: PinEventKind) => void
   /** FR-016 — 모바일 길게 누르기 / 데스크톱 우클릭 */
   onLongPress?: (latLng: LatLng) => void
+  /** '지도에서 찍기' 모드일 때만 의미가 있다 — 평소엔 구독자가 없어 아무 일도 안 한다 */
+  onMapTap?: (latLng: LatLng) => void
 }
 
-export function MapPane({ created, places, highlightedId, onPinEvent, onLongPress }: MapPaneProps) {
+export function MapPane({
+  created,
+  places,
+  highlightedId,
+  onPinEvent,
+  onLongPress,
+  onMapTap,
+}: MapPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -33,6 +42,11 @@ export function MapPane({ created, places, highlightedId, onPinEvent, onLongPres
     longPressHandlerRef.current = onLongPress
   }, [onLongPress])
 
+  const mapTapHandlerRef = useRef(onMapTap)
+  useEffect(() => {
+    mapTapHandlerRef.current = onMapTap
+  }, [onMapTap])
+
   // 초기 중심은 첫 렌더의 첫 장소로 고정한다 — 핀이 늘 때마다 지도가 튀면 안 된다
   const [initialCenter] = useState(() => {
     const first = places[0]
@@ -47,6 +61,7 @@ export function MapPane({ created, places, highlightedId, onPinEvent, onLongPres
     let alive = true
     provider.onPinEvent((id, ev) => pinHandlerRef.current(id, ev))
     provider.onLongPress((latLng) => longPressHandlerRef.current?.(latLng))
+    provider.onMapTap((latLng) => mapTapHandlerRef.current?.(latLng))
 
     provider
       .mount(element, initialCenter, DEFAULT_ZOOM)

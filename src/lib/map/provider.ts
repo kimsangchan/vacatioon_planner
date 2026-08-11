@@ -26,6 +26,8 @@ export interface MapProvider {
   panTo(latLng: LatLng): void
   onPinEvent(cb: PinEventHandler): void
   onLongPress(cb: LongPressHandler): void
+  /** 지도 빈자리를 그냥 눌렀을 때. 롱프레스가 숨은 동작이라 '찍기 모드'의 입구가 된다 (FR-016) */
+  onMapTap(cb: LongPressHandler): void
   destroy(): void
 }
 

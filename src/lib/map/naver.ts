@@ -146,6 +146,7 @@ export class NaverMapProvider implements MapProvider {
   private listeners: unknown[] = []
   private pinHandlers: PinEventHandler[] = []
   private longPressHandlers: LongPressHandler[] = []
+  private mapTapHandlers: LongPressHandler[] = []
 
   constructor(options: NaverMapProviderOptions) {
     this.clientId = options.clientId
@@ -168,6 +169,16 @@ export class NaverMapProvider implements MapProvider {
         }),
       )
     }
+
+    // 그냥 누르기는 평소엔 아무 일도 하지 않는다 — '찍기 모드'를 켠 화면만 이걸 받는다
+    this.listeners.push(
+      maps.Event.addListener(this.map, 'click', (event: NaverPointerEvent) => {
+        const coord = event?.coord
+        if (!coord) return
+        const latLng = { lat: coord.lat(), lng: coord.lng() }
+        for (const handler of this.mapTapHandlers) handler(latLng)
+      }),
+    )
   }
 
   setPins(pins: Pin[]): void {
@@ -212,6 +223,10 @@ export class NaverMapProvider implements MapProvider {
     this.longPressHandlers.push(cb)
   }
 
+  onMapTap(cb: LongPressHandler): void {
+    this.mapTapHandlers.push(cb)
+  }
+
   destroy(): void {
     try {
       for (const listener of this.listeners) this.maps?.Event.removeListener(listener)
@@ -223,6 +238,7 @@ export class NaverMapProvider implements MapProvider {
     this.markers = []
     this.pinHandlers = []
     this.longPressHandlers = []
+    this.mapTapHandlers = []
     this.map?.destroy()
     this.map = null
     this.maps = null
