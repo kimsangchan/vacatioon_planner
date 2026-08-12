@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { KAKAO_STATE_COOKIE, handleKakaoReturn, startKakaoAuth } from './kakao-flow'
+import { KAKAO_STATE_COOKIE, handleKakaoReturn, sha256Hex, startKakaoAuth } from './kakao-flow'
 
 const CREDS = { clientId: 'rest-key', clientSecret: 'secret', redirectUri: 'http://localhost:3010/auth/kakao' }
 
@@ -15,8 +15,8 @@ function fakeSupabase(signIn = vi.fn().mockResolvedValue({ error: null })): Supa
 }
 
 describe('startKakaoAuth — 카카오로 보낸다', () => {
-  it('카카오 인가 주소로 303 하고 state·nonce 를 쿠키에 감춘다', () => {
-    const response = startKakaoAuth(req('http://127.0.0.1:3010/auth/kakao/start'), CREDS)
+  it('카카오 인가 주소로 303 하고 state·nonce 를 쿠키에 감춘다', async () => {
+    const response = await startKakaoAuth(req('http://127.0.0.1:3010/auth/kakao/start'), CREDS)
 
     expect(response.status).toBe(303)
     const target = new URL(response.headers.get('location') ?? '')
@@ -30,20 +30,21 @@ describe('startKakaoAuth — 카카오로 보낸다', () => {
     expect(cookie).toContain('Path=/')
   })
 
-  it('보낸 state·nonce 가 주소와 쿠키에서 같다', () => {
-    const response = startKakaoAuth(req('http://127.0.0.1:3010/auth/kakao/start'), CREDS)
+  it('카카오에는 nonce 해시를, 쿠키에는 원문을 둔다', async () => {
+    const response = await startKakaoAuth(req('http://127.0.0.1:3010/auth/kakao/start'), CREDS)
     const target = new URL(response.headers.get('location') ?? '')
     const raw = response.headers.getSetCookie()[0].split(';')[0].split('=')[1]
     const saved = JSON.parse(decodeURIComponent(raw))
 
     expect(target.searchParams.get('state')).toBe(saved.state)
-    expect(target.searchParams.get('nonce')).toBe(saved.nonce)
-    expect(saved.state).not.toBe(saved.nonce)
+    // GoTrue 가 우리 nonce 를 해시해 토큰 값과 대조한다 — 평문을 보내면 "Nonces mismatch" (실측)
+    expect(target.searchParams.get('nonce')).toBe(await sha256Hex(saved.nonce))
+    expect(target.searchParams.get('nonce')).not.toBe(saved.nonce)
   })
 
-  it('매번 다른 값을 쓴다 — 재사용되면 위조를 막지 못한다', () => {
-    const a = new URL(startKakaoAuth(req('http://127.0.0.1:3010/auth/kakao/start'), CREDS).headers.get('location') ?? '')
-    const b = new URL(startKakaoAuth(req('http://127.0.0.1:3010/auth/kakao/start'), CREDS).headers.get('location') ?? '')
+  it('매번 다른 값을 쓴다 — 재사용되면 위조를 막지 못한다', async () => {
+    const a = new URL((await startKakaoAuth(req('http://127.0.0.1:3010/auth/kakao/start'), CREDS)).headers.get('location') ?? '')
+    const b = new URL((await startKakaoAuth(req('http://127.0.0.1:3010/auth/kakao/start'), CREDS)).headers.get('location') ?? '')
 
     expect(a.searchParams.get('state')).not.toBe(b.searchParams.get('state'))
   })

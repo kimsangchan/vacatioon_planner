@@ -9,7 +9,7 @@ import { appRedirectTarget } from '@/lib/supabase/redirect'
 
 export async function POST(request: NextRequest) {
   try {
-    return startKakaoAuth(request, kakaoCredentials(request))
+    return await startKakaoAuth(request, kakaoCredentials(request))
   } catch (failure) {
     console.error('[kakao] 시작 실패', (failure as Error).message)
     // 막다른 곳으로 보내지 않는다 — 로그인 화면에서 메일 코드로 이어 갈 수 있다 (L-06)

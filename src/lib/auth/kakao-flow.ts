@@ -34,7 +34,19 @@ export function kakaoCredentials(request: NextRequest): KakaoCredentials {
   return { clientId, clientSecret, redirectUri: appRedirectTarget(request, '/auth/kakao') }
 }
 
-export function startKakaoAuth(request: NextRequest, credentials: KakaoCredentials): NextResponse {
+/** GoTrue 는 우리가 준 nonce 를 SHA-256 해시해 토큰의 nonce 와 대조한다 — 그래서 인가 요청에는
+ *  해시를 싣고, 검증에는 원문을 넘긴다. 평문을 양쪽에 쓰면 "Nonces mismatch" 로 거절된다(실측). */
+export async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+export async function startKakaoAuth(
+  request: NextRequest,
+  credentials: KakaoCredentials,
+): Promise<NextResponse> {
   const state = crypto.randomUUID()
   const nonce = crypto.randomUUID()
 
@@ -45,7 +57,8 @@ export function startKakaoAuth(request: NextRequest, credentials: KakaoCredentia
       clientId: credentials.clientId,
       redirectUri: credentials.redirectUri,
       state,
-      nonce,
+      // 카카오에는 해시를 보낸다 (원문은 쿠키에만 둔다)
+      nonce: await sha256Hex(nonce),
     }),
     303,
   )
@@ -88,6 +101,7 @@ export async function handleKakaoReturn(
 
   try {
     const idToken = await exchange({ ...credentials, code }, fetchImpl)
+
     const { error } = await supabase.auth.signInWithIdToken({
       provider: 'kakao',
       token: idToken,
