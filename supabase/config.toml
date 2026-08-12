@@ -160,7 +160,9 @@ site_url = "http://localhost:3010"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["http://localhost:3010", "http://127.0.0.1:3010"]
+# OAuth 는 /auth/callback 으로 돌아온다 — 경로 와일드카드가 없으면 GoTrue 가 이 주소를 거부하고
+# SITE_URL(/) 로 떨어뜨려 code 교환이 조용히 실패한다 (실측으로 확인, 결정 #33)
+additional_redirect_urls = ["http://localhost:3010", "http://127.0.0.1:3010", "http://localhost:3010/**", "http://127.0.0.1:3010/**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -330,7 +332,7 @@ max_frequency = "5s"
 # 키 두 개(.env 참조)를 채운 뒤 enabled 를 true 로 올리고 `npx supabase stop && npx supabase start`.
 # 키 없이 true 로 두면 GoTrue 기동이 실패한다 — 그래서 기본값은 false 다.
 [auth.external.kakao]
-enabled = false
+enabled = true
 client_id = "env(KAKAO_REST_API_KEY)"
 secret = "env(KAKAO_CLIENT_SECRET)"
 
