@@ -335,6 +335,7 @@ max_frequency = "5s"
 enabled = true
 client_id = "env(KAKAO_REST_API_KEY)"
 secret = "env(KAKAO_CLIENT_SECRET)"
+email_optional = true
 
 [auth.external.apple]
 enabled = false
