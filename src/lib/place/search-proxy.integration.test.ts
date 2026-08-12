@@ -255,6 +255,28 @@ describe('E-03 GET /api/place-search', () => {
     expect(problem.detail).not.toContain('방금')
   }, 20_000)
 
+  // 운영에서 200 + body null 을 겪었다: 캐시 조회가 배열이 아닌 값을 돌려주면 그대로 응답이 되고,
+  // 클라이언트는 200 을 받아 놓고 places.slice 에서 터져 "검색 서버에 닿지 못했어요" 를 띄운다.
+  it('never serves a non-array as the cache answer', async () => {
+    const q = freshQuery('배열 아닌 캐시')
+    const qhash = await searchQueryHash(normalizeSearchQuery(q))
+
+    // jsonb 는 무엇이든 담는다 — 객체를 캐시에 넣어 둔다
+    await supabase.rpc('store_search_cache', { qhash, response: { oops: true } })
+
+    const fetchUpstream = vi.fn<typeof fetch>(async () => upstreamOk())
+    const response = await handlePlaceSearch(searchRequest(q), {
+      supabase,
+      fetchUpstream,
+      credentials: CREDENTIALS,
+    })
+
+    // 캐시 미스로 취급하고 업스트림으로 간다 — 이상한 값을 그대로 내주지 않는다
+    expect(fetchUpstream).toHaveBeenCalledTimes(1)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toBeInstanceOf(Array)
+  }, 20_000)
+
   it('rejects an unauthenticated caller with 401 before any upstream call', async () => {
     const fetchUpstream = vi.fn<typeof fetch>(async () => upstreamOk())
 

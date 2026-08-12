@@ -172,7 +172,10 @@ export async function handlePlaceSearch(
   const qhash = await searchQueryHash(query)
 
   const hit = await readCache(supabase, qhash)
-  if (hit) return Response.json(hit)
+  // **배열일 때만** 내보낸다. `if (hit)` 로 두면 배열이 아닌 값이 그대로 응답이 되고,
+  // 클라이언트는 200 을 받아 놓고 places.slice 에서 터진다("검색 서버에 닿지 못했어요").
+  // 운영에서 200 + body null 로 실제로 겪었다 — 캐시 조회가 무엇을 돌려주든 여기서 막는다.
+  if (Array.isArray(hit)) return Response.json(hit)
 
   // 설정 오류로 쿼터를 태우지 않도록 카운터 증가 전에 키를 확인한다
   let credentials: NaverSearchCredentials
@@ -282,7 +285,9 @@ async function callCacheRpc(
     console.error(`[place-search] 캐시 조회 실패 (${fn})`, error.message)
     return null
   }
-  return (data as NormalizedPlace[] | null) ?? null
+  // 배열이 아니면 캐시 미스로 본다 — jsonb 는 무엇이든 담을 수 있고,
+  // 그걸 그대로 응답에 실으면 계약(NormalizedPlace[])이 깨진다
+  return Array.isArray(data) ? (data as NormalizedPlace[]) : null
 }
 
 async function upstreamProblem(
