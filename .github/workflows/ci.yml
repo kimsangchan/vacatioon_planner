@@ -33,7 +33,18 @@ jobs:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      # 로그 전문은 저장소 admin 만 받을 수 있다(API 403). 실패 원인을 밖에서도 볼 수 있도록
+      # 마지막 줄들을 주석(annotation)으로 띄운다 — 주석은 권한 없이 읽힌다.
+      - name: 의존성 설치
+        run: |
+          set +e
+          npm ci 2>&1 | tee /tmp/step.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            body=$(tail -30 /tmp/step.log | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=npm ci 실패::$body"
+          fi
+          exit "$code"
 
       - name: 타입
         run: npx tsc --noEmit
