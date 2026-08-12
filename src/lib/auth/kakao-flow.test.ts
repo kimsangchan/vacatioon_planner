@@ -42,6 +42,23 @@ describe('startKakaoAuth — 카카오로 보낸다', () => {
     expect(target.searchParams.get('nonce')).not.toBe(saved.nonce)
   })
 
+  // 요청 위조를 막는 값이라 평문으로 새면 안 된다. 다만 로컬은 http 라 Secure 를 붙이면
+  // 브라우저가 저장하지 않는다 — 실제 스킴을 보고 정한다 (운영 응답에서 누락을 발견해 넣었다)
+  it('HTTPS 에서는 Secure 를 붙인다', async () => {
+    const request = new NextRequest('https://trip.example.com/auth/kakao/start', {
+      headers: { host: 'trip.example.com', 'x-forwarded-proto': 'https' },
+    })
+    const response = await startKakaoAuth(request, CREDS)
+
+    expect(response.headers.getSetCookie()[0]).toContain('Secure')
+  })
+
+  it('평문 로컬에서는 Secure 를 붙이지 않는다 — 붙이면 저장되지 않는다', async () => {
+    const response = await startKakaoAuth(req('http://127.0.0.1:3010/auth/kakao/start'), CREDS)
+
+    expect(response.headers.getSetCookie()[0]).not.toContain('Secure')
+  })
+
   it('매번 다른 값을 쓴다 — 재사용되면 위조를 막지 못한다', async () => {
     const a = new URL((await startKakaoAuth(req('http://127.0.0.1:3010/auth/kakao/start'), CREDS)).headers.get('location') ?? '')
     const b = new URL((await startKakaoAuth(req('http://127.0.0.1:3010/auth/kakao/start'), CREDS)).headers.get('location') ?? '')

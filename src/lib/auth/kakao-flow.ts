@@ -14,6 +14,14 @@ import { exchangeKakaoCode, kakaoAuthorizeUrl } from './kakao'
 
 export const KAKAO_STATE_COOKIE = 'kakao-auth-state'
 
+// 이 쿠키는 요청 위조를 막는 값이라 평문으로 샐 여지를 남기면 안 된다.
+// 로컬은 http 라 Secure 를 붙이면 브라우저가 저장하지 않으므로, 실제 스킴을 보고 정한다
+// (프록시 뒤에서는 x-forwarded-proto 가 원래 스킴을 알려준다 — Vercel 이 그렇다).
+function isHttps(request: NextRequest): boolean {
+  const forwarded = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim()
+  return (forwarded ?? new URL(request.url).protocol.replace(':', '')) === 'https'
+}
+
 export interface KakaoCredentials {
   clientId: string
   clientSecret: string
@@ -66,6 +74,7 @@ export async function startKakaoAuth(
   // 훔쳐가면 요청을 위조할 수 있는 값이다 — 스크립트가 읽을 이유가 없다
   response.cookies.set(KAKAO_STATE_COOKIE, JSON.stringify({ state, nonce }), {
     httpOnly: true,
+    secure: isHttps(request),
     sameSite: 'lax',
     path: '/',
     maxAge: 600, // 10분이면 충분하다. 남겨 두면 재사용될 수 있다
@@ -142,6 +151,7 @@ function done(request: NextRequest, path: string): NextResponse {
   const response = NextResponse.redirect(appRedirectTarget(request, path))
   response.cookies.set(KAKAO_STATE_COOKIE, '', {
     httpOnly: true,
+    secure: isHttps(request),
     sameSite: 'lax',
     path: '/',
     maxAge: 0,
