@@ -21,6 +21,11 @@
 - SC 어서션 기준: SC-001 스텝 카운트 · SC-002 400ms trace · SC-004 390×844 스크린샷
 - 실키(NCP 검색)에 의존하는 단언을 넣지 마라 — 쿼터·네트워크로 flaky해진다. `support/place-search.ts`로 통제
 - 임시·정찰용 스펙(`zz-*`)은 커밋 전에 지운다
+- **E2E 전에 dev 서버를 새로 띄워라.** 오래 떠 있던 dev 서버가 `/trip/[id]` 렌더 워커를 죽이는 일이
+  반복 관찰됐다(`Jest worker encountered 2 child process exceptions` → 500·307·요청 정지).
+  코드 문제로 착각하기 쉽다 — E2E 가 무더기로 깨지면 **먼저** dev 를 내리고 `.next` 를 지운 뒤
+  Playwright 가 직접 서버를 띄우게 하고(그게 `webServer` 설정이다) 다시 돌려라.
+  dev 를 켜 둔 채 `npm run build` 를 돌리면 같은 증상이 즉시 생긴다 — 절대 하지 마라
 
 ## 검증
 

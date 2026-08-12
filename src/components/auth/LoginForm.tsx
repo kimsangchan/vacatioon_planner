@@ -6,6 +6,7 @@
 import { useRouter } from 'next/navigation'
 import { useId, useState, type FormEvent } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
+import { KakaoLoginButton } from './KakaoLoginButton'
 
 export interface LoginFormProps {
   requestCode?: (email: string) => Promise<void>
@@ -139,6 +140,16 @@ export function LoginForm({ requestCode, verifyCode, onSignedIn }: LoginFormProp
 
   return (
     <form onSubmit={handleSendCode} className="flex w-full flex-col gap-4">
+      {/* 실사용은 카카오 한 번이 편하다. 메일 코드는 남겨 둔다 — E2E 가 이 경로로 자동화돼 있고,
+          카카오를 못 쓰는 상황(동의 취소·팀원 미등록)의 대안이기도 하다 (결정 #33) */}
+      <KakaoLoginButton />
+
+      <p className="flex items-center gap-3 text-sm text-black/45 dark:text-white/45">
+        <span aria-hidden className="h-px flex-1 bg-black/10 dark:bg-white/15" />
+        또는 메일로
+        <span aria-hidden className="h-px flex-1 bg-black/10 dark:bg-white/15" />
+      </p>
+
       <div className="flex flex-col gap-2">
         <label htmlFor={emailId} className="text-sm font-medium">
           이메일 주소

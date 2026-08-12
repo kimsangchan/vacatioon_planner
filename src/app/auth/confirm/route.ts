@@ -3,19 +3,20 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import type { EmailOtpType } from '@supabase/supabase-js'
+import { appRedirectTarget } from '@/lib/supabase/redirect'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = request.nextUrl
+  const { searchParams } = request.nextUrl
   const tokenHash = searchParams.get('token_hash')
   const type = searchParams.get('type') as EmailOtpType | null
 
   if (tokenHash && type) {
     const supabase = await createSupabaseServerClient()
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash })
-    if (!error) return NextResponse.redirect(new URL('/', origin))
+    if (!error) return NextResponse.redirect(appRedirectTarget(request, '/'))
   }
 
   // 실패해도 막다른 곳으로 보내지 않는다 — 로그인 화면에서 코드로 이어서 하면 된다
-  return NextResponse.redirect(new URL('/login', origin))
+  return NextResponse.redirect(appRedirectTarget(request, '/login'))
 }

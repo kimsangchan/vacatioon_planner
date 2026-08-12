@@ -1,0 +1,57 @@
+# 무료 티어 두 가지가 조용히 꺼지는 걸 막는다 (T9-2 의 일부 — CI·백업·90일 파기는 별도).
+#
+#  ① Supabase 무료 프로젝트는 **1주일간 API 요청이 없으면 자동 일시정지**된다.
+#     여행 계획은 몇 달에 한 번 쓰는 앱이라 그냥 두면 열 때마다 멈춰 있다.
+#  ② GitHub 는 **저장소 활동이 60일간 없으면 스케줄 워크플로를 비활성화**한다.
+#     공식 문서는 public 저장소라고 적고 있지만 private 에서도 겪었다는 보고가 섞여 있어,
+#     어느 쪽이든 안전하도록 월 1회 빈 커밋으로 활동을 남긴다(워크플로 실행 자체는 활동이 아니다).
+#
+# 필요한 secret 2개 (원격 Supabase 만든 뒤 등록): SUPABASE_URL · SUPABASE_ANON_KEY
+# anon key 는 클라이언트 번들에 어차피 실리는 값이다 — service role 키는 여기에도 넣지 않는다.
+
+name: keepalive
+
+on:
+  schedule:
+    - cron: '17 3 * * *' # 매일 12:17 KST — Supabase 일시정지 방지
+    - cron: '23 4 1 * *' # 매월 1일 13:23 KST — 저장소 활동 남기기
+  workflow_dispatch:
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Supabase 깨워 두기
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::notice::secret 이 아직 없어요 — 원격 Supabase 를 만든 뒤 등록하면 켜집니다 (tasks.md T0-3)"
+            exit 0
+          fi
+          # REST 루트를 한 번 찌르면 '요청 없음' 타이머가 초기화된다
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+            -H "apikey: $SUPABASE_ANON_KEY" "$SUPABASE_URL/rest/v1/")
+          echo "Supabase REST → $code"
+          # 4xx 도 '요청은 닿았다'는 뜻이라 통과시킨다. 5xx·연결 실패만 실패로 본다
+          case "$code" in 5*|000) echo "::error::Supabase 가 응답하지 않아요 ($code)"; exit 1 ;; esac
+
+      - name: 저장소 받아오기
+        if: github.event.schedule == '23 4 1 * *'
+        uses: actions/checkout@v4
+
+      - name: 저장소 활동 남기기 (스케줄 비활성화 방지)
+        if: github.event.schedule == '23 4 1 * *'
+        run: |
+          git config user.name 'trip-canvas keepalive'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit --allow-empty -m "chore: keepalive $(date -u +%Y-%m) — 스케줄 워크플로 비활성화 방지"
+          git push

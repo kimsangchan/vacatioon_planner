@@ -325,6 +325,13 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
+# 카카오 로그인 (결정 #33). 키 두 개는 .env.local 에 넣는다 — 콘솔 등록 주소는
+# 우리 앱(3010)이 아니라 **Supabase**(54321)다: Redirect URI = <이 URL>/auth/v1/callback
+[auth.external.kakao]
+enabled = true
+client_id = "env(KAKAO_REST_API_KEY)"
+secret = "env(KAKAO_CLIENT_SECRET)"
+
 [auth.external.apple]
 enabled = false
 client_id = ""

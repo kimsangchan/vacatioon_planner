@@ -8,6 +8,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseEnv } from './env'
+import { appRedirectTarget } from './redirect'
 import { expireAuthCookies, LOGIN_PATH } from './session'
 
 export interface SignOutDeps {
@@ -29,23 +30,6 @@ export function signOutClient(request: NextRequest): SupabaseClient {
   })
 }
 
-// Route Handler 의 request.nextUrl.origin 은 클라이언트가 접속한 호스트가 아니라 **Next 가
-// 바인드한 주소**다(next-server.js 의 attachRequestMeta — fetchHostname·port 가 있으면 Host 를
-// 아예 보지 않는다). 그대로 쓰면 폰에서 LAN IP 로 들어온 사용자를 localhost 로 보내 탈출구가
-// 연결 실패로 끝난다. 상대 경로도 답이 아니다 — Next 가 같은 바인드 주소로 다시 절대화한다(실측).
-// 그래서 Host 로 직접 짓는다. 목적지 경로는 우리가 고정하므로 열린 리다이렉트가 아니다.
-export function loginRedirectTarget(request: NextRequest, reason: string): string {
-  const path = `${LOGIN_PATH}?reason=${reason}`
-  const host = request.headers.get('host')
-  if (!host) return path
-
-  const proto =
-    request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() ??
-    new URL(request.url).protocol.replace(':', '')
-
-  return `${proto}://${host}${path}`
-}
-
 export async function handleSignOut(
   request: NextRequest,
   { supabase }: SignOutDeps,
@@ -65,7 +49,7 @@ export async function handleSignOut(
   const response = new NextResponse(null, {
     // 303 이어야 브라우저가 GET 으로 따라간다 — 307 이면 이 POST 가 /login 에서 재생된다
     status: 303,
-    headers: { Location: loginRedirectTarget(request, 'signed-out') },
+    headers: { Location: appRedirectTarget(request, `${LOGIN_PATH}?reason=signed-out`) },
   })
   expireAuthCookies(request, response)
 
