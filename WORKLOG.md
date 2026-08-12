@@ -5,13 +5,19 @@
 
 ## Current State
 
-- Status: blocked (사용자 작업 대기)
+- Status: 배포됨 (운영 검증 완료)
 - Focus: 사용자 피드백 반영 중(생성 흐름·달력). 남은 요청 = "지도에서 찍기" 버튼(FR-016 발견성). T9(배포)는 **T0-3**·**GitHub 저장소**가 선행 — 둘 다 사용자 작업
 - 검증 기준선: vitest 378(47파일) · pgTAP 147 · E2E 4테스트 · `tsc`/`lint` 종료코드 0
 - ⚠️ 이 저장소에 **git 원격이 없다** — 백업 0. T9-1(Vercel)·T9-2(Actions) 모두 GitHub 저장소가 전제
 - Last updated: 2026-08-11
 
 ## History (append; 최신이 위)
+
+- 2026-08-12 — **배포 완료·운영 검증** (T9-1). https://vacatioon-planner.vercel.app
+  원격 Supabase(스키마 7종 push·RLS 8/8) · Vercel env 7종 · 카카오 로그인 · 실지도 · 실키 검색 전부 운영에서 확인.
+  가는 길에 잡은 것: lockfile 리눅스 누락(컨테이너에서 재생성·검증) · CI 의 next typegen 누락 ·
+  anon 권한 드리프트(결정 #38) · state 쿠키 Secure 누락 · **검색 캐시가 배열 아닌 값을 응답으로 내보내던 버그**
+  (운영에서 200+null → 클라이언트가 네트워크 오류로 오인). CI 전체 초록
 
 - 2026-08-12 — **카카오 로그인 배선 + keepalive** (결정 #33·#34·#35). 카카오는 주 경로로 추가하되
   메일 OTP 는 남겼다(E2E 가 그 경로로 자동화돼 있다). `/auth/callback` 신설, 인증 왕복의 되돌아갈

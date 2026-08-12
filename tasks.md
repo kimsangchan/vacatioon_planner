@@ -6,7 +6,7 @@
 
 - [x] T0-1 **[정정 2026-08-06]** NCP 콘솔(ncloud.com) 가입 → **NAVER API HUB** 이용 신청 → 검색 API 키쌍(X-NCP-APIGW-API-KEY-ID/-KEY) 발급. **신청 화면의 요금·무료 제공량 확인 필수**(콘솔 확인: 일 25,000회 무료 제공). 개발자센터(developers.naver.com)에는 검색 API 신규 등록이 없음 — decision-log #19/#20 (2026-08-06)
 - [x] T0-2 NCP 콘솔 Maps(Web Dynamic Map) 등록 + `.env` 반영 — **실브라우저 인증 성공 검증** (2026-08-11): `localhost:3010`에서 실지도 렌더(SDK 네임스페이스·타일 56장·fake/실패 배너 0건). 무료 이용량은 공식 정책상 월 600만 건(대표 계정). **카카오 폴백 불필요 — docs/design/08 잔여 우려 1 해소** (결정 #25)
-- [ ] T0-3 Supabase 프로젝트 생성 + Auth 메일 템플릿 교체 — **형식은 `supabase/templates/magic_link.html`과 동일하게**: 본문에 `{{ .Token }}`(6자리 코드) + 링크는 `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email` (T4에서 로컬 실증 — 기본 템플릿엔 코드가 없어 FR-001 불성립)
+- [~] T0-3(구) Supabase 프로젝트 생성 + Auth 메일 템플릿 교체 — **형식은 `supabase/templates/magic_link.html`과 동일하게**: 본문에 `{{ .Token }}`(6자리 코드) + 링크는 `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email` (T4에서 로컬 실증 — 기본 템플릿엔 코드가 없어 FR-001 불성립)
 - [x] T0-4 검색 API(`GET /search/v1/local`) 실호출 1회로 base URL·`mapx/mapy` 형식(3형식 중 무엇인지) 실측 → 결과를 `docs/design/decision-log.md`에 기록 (변환기는 3형식 모두 지원 — GREEN 상태) (2026-08-06)
 - 완료 기준: `.env.local`에 5개 환경변수 채워짐 + T0-4 기록 존재
 - 참고: T1~T4·T6은 T0 없이 진행 가능 (로컬 Supabase + 목킹)
@@ -94,7 +94,8 @@
 
 ## T9. 배포·운영 (T8 후, T0 필수)
 
-- [ ] T9-1 Vercel 프로젝트 연결 + env 등록 + Preview 배포 → 실기기(아이폰) 육안 확인
+- [x] T9-1 Vercel 배포 완료 (2026-08-12) — https://vacatioon-planner.vercel.app · env 7종 등록(원격 Supabase 지향). **운영 실검증**: 카카오 로그인 → 여행 생성 → 실키 검색 결과 렌더 → 실지도 타일 34장·오류 0. 실기기(아이폰) 육안 확인만 남음
+- [x] T0-3 원격 Supabase 프로젝트 + 스키마 반영 (2026-08-12) — 마이그레이션 7종 push, 테이블 8·RLS 8/8·RPC 11·Storage. 카카오 provider 활성화. **메일 템플릿은 미등록**(카카오 로그인을 주 경로로 쓰므로 보류)
 - [~] T9-2 GitHub Actions — **CI 작성 완료**(`.github/workflows/ci.yml`: 타입→린트→pgTAP→vitest→빌드→E2E, 러너 안에 로컬 Supabase 기동, 비밀 불필요) + **keepalive 완료**(`keepalive.yml`: 무료 티어 일시정지·스케줄 비활성화 방지). **남은 것**: pg_dump 백업·90일 파기 워크플로. ⚠️ 저장소에 푸시되기 전에는 아무것도 실행되지 않는다 — 첫 실행 결과로 검증 필요
 - [ ] T9-3 SHIP: 증분 커밋 정리 + Production 승격 + smoke
 - 완료 기준: Production URL에서 여정 1 수동 통과 + 백업 아티팩트 1개 생성 확인
