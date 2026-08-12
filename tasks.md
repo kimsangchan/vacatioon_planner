@@ -95,7 +95,7 @@
 ## T9. 배포·운영 (T8 후, T0 필수)
 
 - [ ] T9-1 Vercel 프로젝트 연결 + env 등록 + Preview 배포 → 실기기(아이폰) 육안 확인
-- [ ] T9-2 GitHub Actions: CI(lint→test→build→pgTAP→E2E) + 일일 점검·pg_dump 백업·90일 파기 워크플로 (docs/design/07)
+- [~] T9-2 GitHub Actions — **CI 작성 완료**(`.github/workflows/ci.yml`: 타입→린트→pgTAP→vitest→빌드→E2E, 러너 안에 로컬 Supabase 기동, 비밀 불필요) + **keepalive 완료**(`keepalive.yml`: 무료 티어 일시정지·스케줄 비활성화 방지). **남은 것**: pg_dump 백업·90일 파기 워크플로. ⚠️ 저장소에 푸시되기 전에는 아무것도 실행되지 않는다 — 첫 실행 결과로 검증 필요
 - [ ] T9-3 SHIP: 증분 커밋 정리 + Production 승격 + smoke
 - 완료 기준: Production URL에서 여정 1 수동 통과 + 백업 아티팩트 1개 생성 확인
 

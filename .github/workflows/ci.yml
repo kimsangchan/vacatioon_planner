@@ -1,0 +1,89 @@
+# T9-2 CI — 푸시마다 tasks.md 의 완료 기준을 그대로 돌린다.
+#   타입 → 린트 → pgTAP → 단위·통합(vitest) → 빌드 → E2E(Playwright)
+#
+# 로컬 Supabase 를 러너 안에 띄운다. 통합 테스트(vitest)와 pgTAP·E2E 가 전부 실제 DB 를 쓰기
+# 때문이다 — 목으로 바꾸면 RLS·RPC 를 검증하지 못한다(이 프로젝트의 보안 경계가 거기 있다).
+#
+# 비밀은 필요 없다: 검색 업스트림은 테스트가 주입한 자격증명으로 목킹하고, 지도 키가 없으면
+# FakeMapProvider 로 떨어진다. 원격 Supabase·네이버 키는 CI 에 넣지 않는다 (결정 #11 의 연장 —
+# CI 가 유출 표면이 되지 않게).
+
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: 타입
+        run: npx tsc --noEmit
+
+      - name: 린트
+        run: npm run lint
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: 로컬 Supabase 기동
+        run: supabase start
+
+      # 러너의 키는 매번 다르다 — status 가 알려주는 값을 그대로 쓴다
+      - name: 테스트용 env 만들기
+        run: |
+          supabase status -o env | sed -E 's/^([A-Z_]+)="?([^"]*)"?$/\1=\2/' > /tmp/sb.env
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$(grep '^API_URL=' /tmp/sb.env | cut -d= -f2-)"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(grep '^ANON_KEY=' /tmp/sb.env | cut -d= -f2-)"
+            echo "MAILPIT_URL=$(grep '^MAILPIT_URL=' /tmp/sb.env | cut -d= -f2-)"
+          } | tee .env.local
+          # test-support 가 docker exec 로 붙는 컨테이너 이름.
+          # 저장소 이름이 아니라 config.toml 의 project_id 에서 나온다 (둘이 다르다)
+          echo "SUPABASE_DB_CONTAINER=supabase_db_$(grep -E '^project_id' supabase/config.toml | cut -d'"' -f2)" >> "$GITHUB_ENV"
+
+      - name: pgTAP (스키마·RLS·RPC·권한)
+        run: supabase test db
+
+      - name: 단위·통합
+        run: npm test
+
+      - name: 빌드
+        run: npm run build
+
+      - name: 브라우저 설치
+        run: npx playwright install --with-deps chromium
+
+      # Playwright 가 제 dev 서버를 띄운다 (playwright.config.ts 의 webServer).
+      # 켜 둔 dev 서버에 build 를 겹치면 .next 가 깨지므로 CI 에서도 순서를 지킨다
+      - name: E2E
+        run: npm run test:e2e
+
+      - name: 실패했을 때만 흔적 남기기
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
