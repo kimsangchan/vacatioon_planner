@@ -46,6 +46,12 @@ jobs:
           fi
           exit "$code"
 
+      # Next 는 라우트 타입(PageProps·LayoutProps)을 생성해 둔다. 그게 없으면 tsc 가
+      # "Cannot find name 'PageProps'" 로 죽는다 — 로컬은 dev·build 흔적이 있어 안 보이는 함정이다.
+      # typegen 은 전체 빌드 없이 타입만 만든다.
+      - name: 라우트 타입 생성
+        run: npx next typegen
+
       - name: 타입
         run: npx tsc --noEmit
 
