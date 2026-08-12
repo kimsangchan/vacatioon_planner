@@ -93,7 +93,15 @@ jobs:
       # Playwright 가 제 dev 서버를 띄운다 (playwright.config.ts 의 webServer).
       # 켜 둔 dev 서버에 build 를 겹치면 .next 가 깨지므로 CI 에서도 순서를 지킨다
       - name: E2E
-        run: npm run test:e2e
+        run: |
+          set +e
+          npm run test:e2e 2>&1 | tee /tmp/e2e.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            body=$(tail -60 /tmp/e2e.log | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=E2E 실패::$body"
+          fi
+          exit "$code"
 
       - name: 실패했을 때만 흔적 남기기
         if: failure()
