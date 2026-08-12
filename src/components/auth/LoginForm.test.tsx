@@ -13,6 +13,23 @@ function typeInto(label: string, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } })
 }
 
+// 카카오 버튼은 제 폼(POST /auth/kakao/start)을 갖는다. 메일 폼 안에 넣으면 폼 중첩이라
+// HTML 규격 위반이고 하이드레이션이 깨진다 — 실제로 그렇게 넣었다가 콘솔 오류로 드러났다.
+describe('LoginForm — 카카오와 메일 폼은 형제다 (폼 중첩 금지)', () => {
+  it('폼 안에 폼이 없다', () => {
+    const { container } = render(<LoginForm requestCode={vi.fn()} verifyCode={vi.fn()} />)
+
+    expect(container.querySelectorAll('form form')).toHaveLength(0)
+  })
+
+  it('두 경로가 모두 있다 — 카카오와 메일 코드', () => {
+    const { container } = render(<LoginForm requestCode={vi.fn()} verifyCode={vi.fn()} />)
+
+    expect(container.querySelector('form[action="/auth/kakao/start"]')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '인증 코드 받기' })).toBeTruthy()
+  })
+})
+
 describe('LoginForm — 6자리 코드 입력이 기본 플로우 (FR-001, 결정 #13)', () => {
   it('asks for the code right after sending it, and signs in with it', async () => {
     const requestCode = vi.fn().mockResolvedValue(undefined)

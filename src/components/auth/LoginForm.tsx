@@ -139,9 +139,11 @@ export function LoginForm({ requestCode, verifyCode, onSignedIn }: LoginFormProp
   }
 
   return (
-    <form onSubmit={handleSendCode} className="flex w-full flex-col gap-4">
+    // 카카오 버튼은 제 폼(POST /auth/kakao/start)을 갖는다. 메일 폼 **안에** 두면 폼 중첩이라
+    // HTML 규격 위반이고 하이드레이션이 깨진다 — 형제로 둔다
+    <div className="flex w-full flex-col gap-4">
       {/* 실사용은 카카오 한 번이 편하다. 메일 코드는 남겨 둔다 — E2E 가 이 경로로 자동화돼 있고,
-          카카오를 못 쓰는 상황(동의 취소·팀원 미등록)의 대안이기도 하다 (결정 #33) */}
+          카카오를 못 쓰는 상황(동의 취소·OIDC 미설정)의 대안이기도 하다 (결정 #33) */}
       <KakaoLoginButton />
 
       <p className="flex items-center gap-3 text-sm text-black/45 dark:text-white/45">
@@ -150,6 +152,7 @@ export function LoginForm({ requestCode, verifyCode, onSignedIn }: LoginFormProp
         <span aria-hidden className="h-px flex-1 bg-black/10 dark:bg-white/15" />
       </p>
 
+      <form onSubmit={handleSendCode} className="flex w-full flex-col gap-4">
       <div className="flex flex-col gap-2">
         <label htmlFor={emailId} className="text-sm font-medium">
           이메일 주소
@@ -179,9 +182,10 @@ export function LoginForm({ requestCode, verifyCode, onSignedIn }: LoginFormProp
         {pending ? '메일을 보내고 있어요' : '인증 코드 받기'}
       </button>
 
-      <p className="text-sm text-black/60 dark:text-white/60">
-        메일로 6자리 코드와 링크를 함께 보내요. 코드를 넣는 쪽이 어느 기기에서나 잘 열려요.
-      </p>
-    </form>
+        <p className="text-sm text-black/60 dark:text-white/60">
+          메일로 6자리 코드와 링크를 함께 보내요. 코드를 넣는 쪽이 어느 기기에서나 잘 열려요.
+        </p>
+      </form>
+    </div>
   )
 }

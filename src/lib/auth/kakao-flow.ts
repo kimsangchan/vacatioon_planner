@@ -95,8 +95,16 @@ export async function handleKakaoReturn(
     })
     if (error) throw error
   } catch (failure) {
-    // 원문을 화면에 싣지 않는다 (05 §규약). 로그에도 상태만 남긴다
-    console.error('[kakao] 로그인 실패', (failure as Error).name)
+    // 화면에는 원문을 싣지 않는다 (05 §규약). 서버 로그에는 진단에 필요한 만큼 남긴다 —
+    // 이름만 남기면 "누가 왜 거절했는지"를 알 수 없어 다시 시켜 봐야 한다(실제로 겪었다).
+    // 토큰·비밀은 담지 않는다: auth-js 의 message·status 는 사유만 담는다
+    const error = failure as Error & { status?: number; code?: string }
+    console.error(
+      `[kakao] 로그인 실패 ${error.name}` +
+        (error.status ? ` status=${error.status}` : '') +
+        (error.code ? ` code=${error.code}` : '') +
+        ` — ${error.message}`,
+    )
     return done(request, `${LOGIN_PATH}?reason=social-failed`)
   }
 
