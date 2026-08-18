@@ -34,6 +34,7 @@ const place = (id: string, name: string): PlaceRow => ({
   provider: 'naver',
   provider_link: null,
   memo: '',
+  estimated_cost: null,
   photos: [],
 })
 
@@ -68,6 +69,7 @@ function day(o: Partial<DayRow> = {}): DayRow {
     trip_id: 'trip-1',
     date: '2026-08-01',
     position: 0,
+    color: null,
     stops: [
       stop({ id: 's1', place_id: 'p1', position: 0, start_time: '09:30', cost_amount: 12000 }),
       stop({ id: 's2', place_id: 'p2', position: 2, start_time: '11:00' }),
@@ -90,6 +92,32 @@ function renderPane(props: Partial<Parameters<typeof TimelinePane>[0]> = {}) {
   render(<TimelinePane day={day()} label="1일차" places={PLACES} {...handlers} {...props} />)
   return handlers
 }
+
+describe('TimelinePane — 예상 금액 표시 (결정 #39)', () => {
+  // 실제와 예상이 같은 자리에 같은 모양으로 뜨면 "이미 쓴 돈"을 알 수 없다 — 말로 구분한다
+  it('금액을 안 적은 방문은 그 장소의 예상 단가를 예상이라고 밝혀 보여준다', () => {
+    renderPane({
+      places: [place('p1', '흑돼지집'), { ...place('p2', '호텔제주'), estimated_cost: 45000 }],
+    })
+
+    expect(screen.getByText('예상 45,000원')).toBeTruthy()
+  })
+
+  it('실제 지출이 적혀 있으면 예상을 쓰지 않는다 — 실제가 이긴다', () => {
+    renderPane({
+      places: [{ ...place('p1', '흑돼지집'), estimated_cost: 99000 }, place('p2', '호텔제주')],
+    })
+
+    expect(screen.getByText('12,000원')).toBeTruthy()
+    expect(screen.queryByText('예상 99,000원')).toBeNull()
+  })
+
+  it('예상도 실제도 없으면 아무 금액도 내지 않는다', () => {
+    renderPane()
+
+    expect(screen.queryByText(/예상/)).toBeNull()
+  })
+})
 
 const row = (id: string) => screen.getByTestId(`day-item-${id}`)
 

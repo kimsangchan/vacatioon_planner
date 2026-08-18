@@ -74,6 +74,8 @@ describe('인증 실패로 SDK 내부가 비어도 던지지 않는다', () => {
       latLng: { lat: 37.5, lng: 127 },
       category: 'spot' as const,
       selected: false,
+      dayNumber: null,
+      color: 'var(--pin-spot)',
     }
     expect(() => provider.setPins([pin])).not.toThrow()
     expect(() => provider.panTo({ lat: 35, lng: 129 })).not.toThrow()

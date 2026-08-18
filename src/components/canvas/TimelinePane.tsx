@@ -10,10 +10,12 @@
 import { useId, useMemo, useState } from 'react'
 import { ConfirmRow } from '@/components/common/ConfirmRow'
 import { PhotoError, photoErrorMessage, photoPublicUrl } from '@/lib/photo/upload'
+import { CATEGORY_COLOR_VAR } from '@/lib/map/provider'
 import { LEG_MODE_LABEL, type LegDraft } from '@/lib/timeline/api'
 import { dayTotal, mergeDayItems, movedItemIds } from '@/lib/timeline/merge'
 import { formatAmount, formatAmountInput, formatWon, parseAmountInput } from '@/lib/timeline/money'
 import type { DayRow, LegRow, PhotoRow, PlaceRow, StopRow } from '@/lib/trips/bundle'
+import { CategoryIcon } from './CategoryIcon'
 import { LegForm } from './LegForm'
 
 export interface TimelinePaneProps {
@@ -164,11 +166,16 @@ export function TimelinePane({
         }`}
       >
         <div className="flex items-center gap-2">
-          <span
-            aria-hidden
-            className="size-2.5 shrink-0 rounded-full"
-            style={{ background: place ? `var(--pin-${place.category})` : 'transparent' }}
-          />
+          {/* 색은 일차의 채널이 됐다 (결정 #41) — 여기서 카테고리는 모양으로 알린다 */}
+          {place ? (
+            <CategoryIcon
+              category={place.category}
+              color={CATEGORY_COLOR_VAR[place.category]}
+              size={14}
+            />
+          ) : (
+            <span aria-hidden className="size-3.5 shrink-0" />
+          )}
           <button
             type="button"
             ref={(node) => {
@@ -183,10 +190,18 @@ export function TimelinePane({
           >
             <span className="truncate text-base font-medium">{place?.name ?? '지운 장소'}</span>
             {time && <span className="shrink-0 text-sm text-black/60 dark:text-white/60">{time}</span>}
-            {stop.cost_amount !== null && (
+            {/* 실제가 적혀 있으면 그것만 보인다. 없을 때만 장소의 예상 단가를 대신 세우되
+                "예상"이라고 밝힌다 — 같은 모양으로 나가면 쓴 돈과 구분이 안 된다 (결정 #39) */}
+            {stop.cost_amount !== null ? (
               <span className="shrink-0 text-sm text-black/60 dark:text-white/60">
                 {formatWon(stop.cost_amount)}
               </span>
+            ) : (
+              place?.estimated_cost != null && (
+                <span className="shrink-0 text-sm text-black/45 dark:text-white/45">
+                  예상 {formatWon(place.estimated_cost)}
+                </span>
+              )
             )}
             {timeWarning && warningBadge}
           </button>

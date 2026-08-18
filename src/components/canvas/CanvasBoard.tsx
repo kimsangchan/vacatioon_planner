@@ -4,11 +4,13 @@
 // 한 화면에 묶는다. 레이아웃: 데스크톱 = 좌 리스트(360px) + 우 지도 / 모바일 = 지도 위 + 끌어올리는
 // 하단 시트 (docs/design/03 §UI 방향). 라이브러리 없이 CSS 만으로 — 장식 모션은 넣지 않는다.
 //
-// 미리보기는 라우트를 늘리지 않는다 — 호버는 지도 위 카드, 탭·클릭은 리스트 아래 시트다 (SC-003 뎁스 2).
+// 미리보기는 라우트를 늘리지 않는다 — 호버·클릭 모두 지도 위에 뜨는 카드다 (SC-003 뎁스 2).
+// 클릭 카드는 그 장소 핀에 붙어 지도를 따라 움직인다 — 화면 모서리 고정은 지도 위 카드가 아니다.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createMapProvider, type CreatedMapProvider } from '@/lib/map/create'
-import type { LatLng, PinEventKind } from '@/lib/map/provider'
+import type { DayColor } from '@/lib/map/day-color'
+import type { LatLng, PinEventKind, ScreenPoint } from '@/lib/map/provider'
 import { prefetchThumbnails } from '@/lib/photo/prefetch'
 import { photoPublicUrl } from '@/lib/photo/upload'
 import type { LegDraft } from '@/lib/timeline/api'
@@ -25,12 +27,22 @@ import { MapPane } from './MapPane'
 import { PlaceSearchBox, type PlaceDraft } from './PlaceSearchBox'
 import { PreviewCard } from './PreviewCard'
 
+// 카드 폭 (w-80). 가로 가두기 계산에 쓴다
+const CARD_WIDTH = 320
+// 핀 위에 이만큼 자리가 없으면 카드를 핀 아래로 뒤집는다. 실측(offsetHeight) 대신 상수인 이유:
+// 렌더 중에는 ref 를 읽을 수 없고(react-hooks/refs), 측정한 뒤 다시 그리면 카드가 한 번 튄다
+const CARD_FLIP_THRESHOLD = 260
+
 export interface CanvasBoardProps {
   bundle: TripBundle
   onSave: (draft: PlaceDraft) => Promise<void>
   onAddPhoto?: (placeId: string, file: File) => Promise<void>
   onSetCover?: (placeId: string, photoId: string) => Promise<void>
   onSaveMemo?: (placeId: string, memo: string) => Promise<void>
+  /** 예상 금액 (결정 #39) — 실제 지출(Stop)과 다른 값이다 */
+  onSaveEstimatedCost?: (placeId: string, estimatedCost: number | null) => Promise<void>
+  /** 일차 색 고르기 (결정 #41) — 지도 핀 색이 여기서 정해진다 */
+  onSetDayColor?: (dayId: string, color: DayColor) => Promise<void>
   // T7-3 — 사진 첨부·삭제·되돌리기 (FR-017·FR-018)
   onAddLegPhoto?: (legId: string, file: File) => Promise<void>
   onRemovePhoto?: (photo: PhotoRow) => Promise<void>
@@ -60,6 +72,8 @@ export function CanvasBoard({
   onAddPhoto,
   onSetCover,
   onSaveMemo,
+  onSaveEstimatedCost,
+  onSetDayColor,
   onAddLegPhoto,
   onRemovePhoto,
   onRemoveLeg,
@@ -75,6 +89,9 @@ export function CanvasBoard({
   const [created] = useState<CreatedMapProvider>(() => (createProvider ?? createMapProvider)())
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
+  // 어느 장소의 자리인지 함께 들고 있는다 — 다른 장소를 열었을 때 낡은 위치가 한 프레임 비치지 않게
+  const [anchor, setAnchor] = useState<{ id: string; point: ScreenPoint } | null>(null)
+  const mapBoxRef = useRef<HTMLDivElement | null>(null)
   const [scrollTarget, setScrollTarget] = useState<{ id: string; nonce: number } | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [manualLatLng, setManualLatLng] = useState<LatLng | null>(null)
@@ -104,6 +121,34 @@ export function CanvasBoard({
   const detailPlace = byId(detailId)
   // 카드와 시트는 같은 자리를 두고 다투지 않는다 — 시트가 열려 있으면 카드는 쉰다
   const hoverPlace = detailPlace ? null : byId(highlightedId)
+
+  // 카드가 붙을 자리 — 지도 컨테이너 기준 픽셀. 지도가 아직 안 떴으면 null 이고,
+  // 그때는 지도 아래쪽 가운데로 물러난다(좌표를 모른다고 카드를 감추지는 않는다)
+  useEffect(() => {
+    if (!detailPlace) return
+    const update = () => {
+      const point = created.provider.project({
+        lat: Number(detailPlace.lat),
+        lng: Number(detailPlace.lng),
+      })
+      const box = mapBoxRef.current
+      if (!point) {
+        setAnchor(null)
+        return
+      }
+      // 카드가 지도 밖으로 반쯤 걸치지 않게 가로만 가둔다. 폭이 0인 환경(jsdom)에서는 그대로 둔다
+      const width = box?.clientWidth ?? 0
+      const half = Math.min(CARD_WIDTH, Math.max(width - 16, 0)) / 2
+      const x = width > 0 ? Math.min(Math.max(point.x, half + 8), width - half - 8) : point.x
+      setAnchor({ id: detailPlace.id, point: { x, y: point.y } })
+    }
+    update()
+    return created.provider.onViewportChange(update)
+  }, [detailPlace, created])
+
+  // 이번에 연 장소의 자리일 때만 쓴다
+  const anchorPoint = anchor && anchor.id === detailId ? anchor.point : null
+  const flipBelow = anchorPoint !== null && anchorPoint.y < CARD_FLIP_THRESHOLD
 
   function revealInList(id: string) {
     setHighlightedId(id)
@@ -168,15 +213,72 @@ export function CanvasBoard({
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-      <div className="relative h-[48vh] w-full shrink-0 md:order-2 md:h-auto md:flex-1">
+      <div
+        ref={mapBoxRef}
+        className="relative h-[48vh] w-full shrink-0 md:order-2 md:h-auto md:flex-1"
+      >
         <MapPane
           created={created}
           places={bundle.places}
+          days={bundle.days}
           highlightedId={highlightedId}
           onPinEvent={handlePinEvent}
           onLongPress={handleLongPress}
           onMapTap={handleMapTap}
         />
+
+        {detailPlace && (
+          <div
+            data-testid="place-card-anchor"
+            // 핀 바로 위에 뜬다. 위쪽 공간이 모자라면 아래로 뒤집는다 —
+            // 지도 밖으로 나가 사라지느니 핀을 잠깐 가리는 편이 낫다
+            className="absolute z-30 w-80 max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-2xl shadow-xl"
+            style={
+              anchorPoint
+                ? {
+                    left: anchorPoint.x,
+                    top: anchorPoint.y,
+                    maxHeight: 'calc(100% - 1.5rem)',
+                    transform: flipBelow
+                      ? 'translate(-50%, 14px)'
+                      : 'translate(-50%, calc(-100% - 14px))',
+                  }
+                : { left: '50%', bottom: 12, maxHeight: 'calc(100% - 1.5rem)', transform: 'translateX(-50%)' }
+            }
+          >
+          <PreviewCard
+            key={detailPlace.id}
+            variant="sheet"
+            place={detailPlace}
+            placedCount={placedCount(detailPlace.id)}
+            onClose={() => {
+              setDetailId(null)
+              setHighlightedId(null)
+            }}
+            onAddPhoto={onAddPhoto ? (file) => onAddPhoto(detailPlace.id, file) : undefined}
+            onSetCover={
+              onSetCover ? (photoId) => onSetCover(detailPlace.id, photoId) : undefined
+            }
+            onRemovePhoto={onRemovePhoto}
+            onSaveMemo={onSaveMemo ? (memo) => onSaveMemo(detailPlace.id, memo) : undefined}
+            onSaveEstimatedCost={
+              onSaveEstimatedCost
+                ? (amount) => onSaveEstimatedCost(detailPlace.id, amount)
+                : undefined
+            }
+            onDeletePlace={
+              onDeletePlace
+                ? async () => {
+                    await onDeletePlace(detailPlace)
+                    // 뺀 자리를 계속 열어 둘 이유가 없다 — 시트를 닫고 리스트로 돌려보낸다
+                    setDetailId(null)
+                    setHighlightedId(null)
+                  }
+                : undefined
+            }
+          />
+          </div>
+        )}
 
         {hoverPlace && (
           <div
@@ -228,6 +330,11 @@ export function CanvasBoard({
             onShowExisting={revealInList}
             // 카테고리 확정 칩이 뜨는 순간이 그 화면의 주 결정이다 (L-09)
             onEditorOpen={closeDetail}
+            // 46% 시트에는 결과가 다 안 들어간다 — 찾은 게 있으면 올려서 목록을 통째로 보인다.
+            // 0건일 때는 올리지 않는다: 빈 화면으로 지도를 덮을 이유가 없다
+            onResults={(count) => {
+              if (count > 0) setSheetOpen(true)
+            }}
             onPickOnMap={() => {
               setPickHint(true)
               setManualLatLng(null)
@@ -273,44 +380,15 @@ export function CanvasBoard({
             onReorderDay={onReorderDay}
             onSaveLeg={onSaveLeg}
             onEditorOpen={closeDetail}
+            onSetDayColor={onSetDayColor}
             onAddLegPhoto={onAddLegPhoto}
             onRemovePhoto={onRemovePhoto}
             onRemoveLeg={onRemoveLeg}
           />
         </div>
 
-        {detailPlace && (
-          <div className="border-t border-black/10 px-4 py-3 dark:border-white/15">
-            {/* 다른 곳을 고르면 새로 시작한다 — 메모 초안이 옆 장소로 새지 않게 */}
-            <PreviewCard
-              key={detailPlace.id}
-              variant="sheet"
-              place={detailPlace}
-              placedCount={placedCount(detailPlace.id)}
-              onClose={() => {
-                setDetailId(null)
-                setHighlightedId(null)
-              }}
-              onAddPhoto={onAddPhoto ? (file) => onAddPhoto(detailPlace.id, file) : undefined}
-              onSetCover={
-                onSetCover ? (photoId) => onSetCover(detailPlace.id, photoId) : undefined
-              }
-              onRemovePhoto={onRemovePhoto}
-              onSaveMemo={onSaveMemo ? (memo) => onSaveMemo(detailPlace.id, memo) : undefined}
-              onDeletePlace={
-                onDeletePlace
-                  ? async () => {
-                      await onDeletePlace(detailPlace)
-                      // 뺀 자리를 계속 열어 둘 이유가 없다 — 시트를 닫고 리스트로 돌려보낸다
-                      setDetailId(null)
-                      setHighlightedId(null)
-                    }
-                  : undefined
-              }
-            />
-          </div>
-        )}
       </aside>
+
     </section>
   )
 }

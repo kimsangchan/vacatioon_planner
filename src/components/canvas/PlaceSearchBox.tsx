@@ -34,6 +34,8 @@ export interface PlaceSearchBoxProps {
   onPickOnMap?: () => void
   /** 카테고리 확정 칩(강조)을 펼친 순간 — 캔버스가 미리보기 시트를 닫는다 (L-09) */
   onEditorOpen?: () => void
+  /** 검색이 끝난 순간의 결과 건수 — 리스트가 잘려 보이지 않게 바깥(시트)이 높이를 정한다 */
+  onResults?: (count: number) => void
 }
 
 interface Failure {
@@ -49,6 +51,7 @@ export function PlaceSearchBox({
   onShowExisting,
   onPickOnMap,
   onEditorOpen,
+  onResults,
 }: PlaceSearchBoxProps) {
   const [query, setQuery] = useState('')
   const [attempt, setAttempt] = useState(0)
@@ -59,6 +62,12 @@ export function PlaceSearchBox({
   const [saving, setSaving] = useState(false)
   // 늦게 도착한 응답이 최신 결과를 덮지 않게 한다
   const runRef = useRef(0)
+  // 부모는 인라인 함수를 넘긴다 — 의존성에 넣으면 렌더마다 검색 effect 가 다시 돈다.
+  // 최신 참조만 붙들어 두고 effect 는 query·attempt 에만 반응하게 한다
+  const onResultsRef = useRef(onResults)
+  useEffect(() => {
+    onResultsRef.current = onResults
+  })
 
   // 두 글자 미만이면 서버를 부르지 않는다 — 400(validation/query-too-short)을 미리 막는다
   useEffect(() => {
@@ -90,7 +99,9 @@ export function PlaceSearchBox({
 
         setFailure(null)
         setPicked(null)
-        setResults(places.slice(0, MAX_RESULTS))
+        const shown = places.slice(0, MAX_RESULTS)
+        setResults(shown)
+        onResultsRef.current?.(shown.length)
         setNote(
           places.length === 0
             ? '찾은 곳이 없어요. 다른 이름으로 찾아보거나, 지도를 길게 눌러 직접 찍을 수 있어요.'

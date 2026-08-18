@@ -32,12 +32,89 @@ function place(overrides: Partial<PlaceRow> = {}): PlaceRow {
     provider: 'naver',
     provider_link: 'https://map.naver.com/p/1',
     memo: '',
+    estimated_cost: null,
     photos: [],
     ...overrides,
   }
 }
 
 afterEach(cleanup)
+
+describe('PreviewCard — 예상 금액 (결정 #39)', () => {
+  it('시트에서 예상 금액을 적어 원 단위 정수로 저장한다', async () => {
+    const onSaveEstimatedCost = vi.fn().mockResolvedValue(undefined)
+    render(
+      <PreviewCard
+        place={place()}
+        variant="sheet"
+        onSaveMemo={vi.fn()}
+        onSaveEstimatedCost={onSaveEstimatedCost}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('예상 금액'), { target: { value: '20000' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '저장하기' }))
+    })
+
+    expect(onSaveEstimatedCost).toHaveBeenCalledWith(20000)
+  })
+
+  it('치는 동안 천 단위가 보인다 — 0이 몇 개인지 눈으로 세지 않게', () => {
+    render(<PreviewCard place={place()} variant="sheet" onSaveEstimatedCost={vi.fn()} />)
+
+    const input = screen.getByLabelText('예상 금액') as HTMLInputElement
+    fireEvent.change(input, { target: { value: '20000' } })
+
+    expect(input.value).toBe('20,000')
+  })
+
+  it('비우면 null 로 되돌린다 — 0원과 다른 값이다', async () => {
+    const onSaveEstimatedCost = vi.fn().mockResolvedValue(undefined)
+    render(
+      <PreviewCard
+        place={place({ estimated_cost: 20000 })}
+        variant="sheet"
+        onSaveEstimatedCost={onSaveEstimatedCost}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('예상 금액'), { target: { value: '' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '저장하기' }))
+    })
+
+    expect(onSaveEstimatedCost).toHaveBeenCalledWith(null)
+  })
+
+  it('안 바꾼 값은 저장하지 않는다 — 누를 때마다 같은 값을 다시 쓰지 않는다', async () => {
+    const onSaveMemo = vi.fn().mockResolvedValue(undefined)
+    const onSaveEstimatedCost = vi.fn().mockResolvedValue(undefined)
+    render(
+      <PreviewCard
+        place={place({ estimated_cost: 20000 })}
+        variant="sheet"
+        onSaveMemo={onSaveMemo}
+        onSaveEstimatedCost={onSaveEstimatedCost}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('메모'), { target: { value: '9시 전에' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '저장하기' }))
+    })
+
+    expect(onSaveMemo).toHaveBeenCalledWith('9시 전에')
+    expect(onSaveEstimatedCost).not.toHaveBeenCalled()
+  })
+
+  it('호버 카드에는 입력이 없다 — 편집은 시트에서만 (FR-006)', () => {
+    render(<PreviewCard place={place()} variant="card" onSaveEstimatedCost={vi.fn()} />)
+
+    expect(screen.queryByLabelText('예상 금액')).toBeNull()
+  })
+})
+
 
 describe('PreviewCard — 데스크톱 호버 카드 (FR-006)', () => {
   it('대표 사진 썸네일·이름·카테고리·메모 첫 줄을 보여준다', () => {
@@ -97,7 +174,7 @@ describe('PreviewCard — 모바일 바텀시트 (FR-006 / 뎁스 2)', () => {
     expect(sheet.textContent).toContain('흑돼지집')
     expect(sheet.textContent).toContain('식당')
     expect((screen.getByLabelText('메모') as HTMLTextAreaElement).value).toBe('흑돼지 두 근')
-    expect(screen.getByRole('button', { name: '메모 저장하기' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '저장하기' })).toBeTruthy()
     expect(screen.getByLabelText('사진 담기')).toBeTruthy()
   })
 
@@ -107,11 +184,11 @@ describe('PreviewCard — 모바일 바텀시트 (FR-006 / 뎁스 2)', () => {
 
     fireEvent.change(screen.getByLabelText('메모'), { target: { value: '9시 전에 가기' } })
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '메모 저장하기' }))
+      fireEvent.click(screen.getByRole('button', { name: '저장하기' }))
     })
 
     expect(onSaveMemo).toHaveBeenCalledWith('9시 전에 가기')
-    expect(screen.getByRole('status').textContent).toContain('메모를 저장했어요')
+    expect(screen.getByRole('status').textContent).toContain('저장했어요')
   })
 
   it('제공자 링크가 있을 때만 새 탭으로 여는 "네이버에서 보기"를 준다 (FR-009)', () => {

@@ -2,7 +2,8 @@
 // places 임베드의 deleted_at IS NULL 필터는 필수다 — 지운 장소가 핀·보관함에 되살아나면 안 된다.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Pin } from '@/lib/map/provider'
+import { dayColorOf, dayColorVar } from '@/lib/map/day-color'
+import { CATEGORY_COLOR_VAR, type Pin } from '@/lib/map/provider'
 import type { PlaceCategory } from '@/lib/place/category'
 import type { PlaceProvider } from '@/lib/place/api'
 import type { LegMode } from '@/lib/timeline/api'
@@ -32,6 +33,8 @@ export interface PlaceRow {
   provider: PlaceProvider
   provider_link: string | null
   memo: string
+  /** 원 단위 정수 — 이 장소에서 쓸 것 같은 돈. 실제 지출(stops.cost_amount)과 다른 값이다 (결정 #39) */
+  estimated_cost: number | null
   photos: PhotoRow[]
 }
 
@@ -67,6 +70,8 @@ export interface DayRow {
   trip_id: string
   date: string
   position: number
+  /** 일차 색 토큰 (결정 #41). null 이면 앱이 position 으로 기본색을 준다 */
+  color: string | null
   stops: StopRow[]
   legs: LegRow[]
 }
@@ -160,12 +165,28 @@ export function thumbPaths(bundle: TripBundle): string[] {
   return [...fromPlaces, ...fromLegs]
 }
 
-// numeric(9,6) 은 PostgREST 에서 문자열로 올 수 있다 — 지도에 넘기기 전에 숫자로 고정한다
-export function toPins(places: PlaceRow[], highlightedId: string | null): Pin[] {
-  return places.map((place) => ({
-    id: place.id,
-    latLng: { lat: Number(place.lat), lng: Number(place.lng) },
-    category: place.category,
-    selected: place.id === highlightedId,
-  }))
+// numeric(9,6) 은 PostgREST 에서 문자열로 올 수 있다 — 지도에 넘기기 전에 숫자로 고정한다.
+//
+// 핀의 두 채널 (결정 #41): **색 = 몇 일차인가**, **모양 = 무엇을 하는 곳인가**.
+// 일차에 배치된 곳은 일차 색 + 일차 번호를, 보관함은 카테고리 색 + 카테고리 아이콘을 단다.
+// 한 장소가 여러 일차에 있으면 가장 이른 일차를 단다 — 좌표가 같아 핀은 하나뿐이다.
+export function toPins(places: PlaceRow[], highlightedId: string | null, days: DayRow[]): Pin[] {
+  const byPlace = new Map<string, DayRow>()
+  for (const day of [...days].sort((a, b) => a.position - b.position)) {
+    for (const stop of day.stops ?? []) {
+      if (!byPlace.has(stop.place_id)) byPlace.set(stop.place_id, day)
+    }
+  }
+
+  return places.map((place) => {
+    const day = byPlace.get(place.id)
+    return {
+      id: place.id,
+      latLng: { lat: Number(place.lat), lng: Number(place.lng) },
+      category: place.category,
+      selected: place.id === highlightedId,
+      dayNumber: day ? day.position + 1 : null,
+      color: day ? dayColorVar(dayColorOf(day)) : CATEGORY_COLOR_VAR[place.category],
+    }
+  })
 }

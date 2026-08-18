@@ -8,9 +8,13 @@
 // 아니다 — 아이폰 한 손 조작이 기준선이다 (FR-007 "드래그 또는 2탭").
 
 import { useEffect, useRef, useState } from 'react'
-import { CATEGORY_LABEL } from '@/lib/map/provider'
+import { DAY_COLORS, DAY_COLOR_LABEL, dayColorOf, dayColorVar, type DayColor } from '@/lib/map/day-color'
+import { CATEGORY_COLOR_VAR, CATEGORY_LABEL } from '@/lib/map/provider'
+import { formatWon } from '@/lib/timeline/money'
+import { storageEstimate, tripBudget } from '@/lib/trips/budget'
 import type { LegDraft } from '@/lib/timeline/api'
 import type { DayRow, PhotoRow, PlaceRow } from '@/lib/trips/bundle'
+import { CategoryIcon } from './CategoryIcon'
 import { TimelinePane } from './TimelinePane'
 
 export interface ListPaneProps {
@@ -35,6 +39,8 @@ export interface ListPaneProps {
   onAddLegPhoto?: (legId: string, file: File) => Promise<void> | void
   onRemovePhoto?: (photo: PhotoRow) => Promise<void> | void
   onRemoveLeg?: (legId: string) => Promise<void> | void
+  /** 일차 색 고르기 (결정 #41) — 지도 핀 색이 여기서 정해진다 */
+  onSetDayColor?: (dayId: string, color: DayColor) => Promise<void> | void
 }
 
 const STORAGE_TAB = 'storage'
@@ -60,6 +66,7 @@ export function ListPane({
   onAddLegPhoto,
   onRemovePhoto,
   onRemoveLeg,
+  onSetDayColor,
 }: ListPaneProps) {
   const itemsRef = useRef(new Map<string, HTMLElement>())
   const [tab, setTab] = useState<string>(STORAGE_TAB)
@@ -90,6 +97,9 @@ export function ListPane({
   }
 
   const activeDay = days.find((day) => day.id === tab) ?? null
+  // 여행 전체는 일차에 배치된 것만 센다 — 보관함은 갈지 안 갈지 모르는 후보다 (결정 #39)
+  const budget = tripBudget(days, places)
+  const storage = storageEstimate(unassigned)
 
   function renderStorageItem(place: PlaceRow) {
     const highlighted = place.id === highlightedId
@@ -114,11 +124,7 @@ export function ListPane({
               highlighted ? 'bg-black/8 dark:bg-white/12' : 'hover:bg-black/5 dark:hover:bg-white/10'
             }`}
           >
-            <span
-              aria-hidden
-              className="size-3 shrink-0 rounded-full"
-              style={{ background: `var(--pin-${place.category})` }}
-            />
+            <CategoryIcon category={place.category} color={CATEGORY_COLOR_VAR[place.category]} />
             <span className="flex min-w-0 flex-col">
               <span className="truncate text-base font-medium">{place.name}</span>
               <span className="truncate text-sm text-black/55 dark:text-white/55">
@@ -192,12 +198,64 @@ export function ListPane({
             type="button"
             aria-pressed={tab === day.id}
             onClick={() => setTab(day.id)}
-            className={tabClass(tab === day.id)}
+            className={`${tabClass(tab === day.id)} gap-1.5`}
           >
+            <span
+              data-testid={`day-color-${day.id}`}
+              aria-hidden
+              className="size-2.5 shrink-0 rounded-full"
+              style={{ background: dayColorVar(dayColorOf(day)) }}
+            />
             {dayLabel(day)}
           </button>
         ))}
       </div>
+
+      {/* 확정(이미 쓴 돈)과 예상을 한 숫자로 합치지 않는다 — 합치면 화면에서 되찾을 수 없다.
+          둘의 차이가 곧 "아직 안 정해진 돈"이라 나란히 둘 때 읽힌다 */}
+      {budget.hasAny && (
+        <dl
+          data-testid="trip-budget"
+          className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-black/10 pb-2 text-sm dark:border-white/15"
+        >
+          <div className="flex items-baseline gap-1.5">
+            <dt className="text-black/55 dark:text-white/55">확정</dt>
+            <dd className="font-medium">{formatWon(budget.confirmed)}</dd>
+          </div>
+          {budget.withEstimate !== budget.confirmed && (
+            <div className="flex items-baseline gap-1.5">
+              <dt className="text-black/55 dark:text-white/55">예상 포함</dt>
+              <dd className="font-medium">{formatWon(budget.withEstimate)}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+
+      {activeDay && onSetDayColor && (
+        <div
+          role="group"
+          aria-label={`${dayLabel(activeDay)} 색 고르기`}
+          className="flex flex-wrap gap-1.5"
+        >
+          {DAY_COLORS.map((color) => {
+            const current = dayColorOf(activeDay) === color
+            return (
+              <button
+                key={color}
+                type="button"
+                aria-label={`${dayLabel(activeDay)} 색 ${DAY_COLOR_LABEL[color]}로 바꾸기`}
+                aria-pressed={current}
+                onClick={() => void onSetDayColor(activeDay.id, color)}
+                // 고른 색만 테두리로 표시한다 — 강조색은 화면당 하나라 여기에 쓰지 않는다 (L-09)
+                className={`size-7 rounded-full transition-transform duration-[120ms] ${
+                  current ? 'ring-2 ring-foreground ring-offset-2 ring-offset-background' : ''
+                }`}
+                style={{ background: dayColorVar(color) }}
+              />
+            )
+          })}
+        </div>
+      )}
 
       {activeDay ? (
         <TimelinePane
@@ -219,6 +277,16 @@ export function ListPane({
         />
       ) : (
         <section aria-label={`보관함 ${unassigned.length}곳`} className="flex flex-col gap-2">
+          {/* 보관함 소계는 여행 총액과 섞지 않는다 — 아직 일정에 없는 후보들이다 */}
+          {storage.hasAny && (
+            <p
+              data-testid="storage-estimate"
+              className="text-sm text-black/55 dark:text-white/55"
+            >
+              후보 {storage.count}곳 · 예상 {formatWon(storage.total)}
+            </p>
+          )}
+
           {unassigned.length === 0 ? (
             <p className="text-sm text-black/60 dark:text-white/60">
               아직 담아둔 곳이 없어요. 위에서 장소를 찾아 보관함에 담아 보세요.

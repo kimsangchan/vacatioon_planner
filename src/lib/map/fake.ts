@@ -9,6 +9,7 @@ import type {
   Pin,
   PinEventHandler,
   PinEventKind,
+  ScreenPoint,
 } from './provider'
 
 export class FakeMapProvider implements MapProvider {
@@ -22,6 +23,12 @@ export class FakeMapProvider implements MapProvider {
   private pinHandlers: PinEventHandler[] = []
   private longPressHandlers: LongPressHandler[] = []
   private mapTapHandlers: LongPressHandler[] = []
+  private viewportHandlers: Array<() => void> = []
+  /** 테스트가 갈아끼우는 투영. 기본값은 좌표를 그대로 픽셀로 읽는 단순 사상 */
+  projection: (latLng: LatLng) => ScreenPoint | null = (latLng) => ({
+    x: Math.round(latLng.lng * 10),
+    y: Math.round(latLng.lat * 10),
+  })
 
   get highlightedIds(): string[] {
     return this.pins.filter((pin) => pin.selected).map((pin) => pin.id)
@@ -55,6 +62,17 @@ export class FakeMapProvider implements MapProvider {
     this.mapTapHandlers.push(cb)
   }
 
+  project(latLng: LatLng): ScreenPoint | null {
+    return this.mounted ? this.projection(latLng) : null
+  }
+
+  onViewportChange(cb: () => void): () => void {
+    this.viewportHandlers.push(cb)
+    return () => {
+      this.viewportHandlers = this.viewportHandlers.filter((handler) => handler !== cb)
+    }
+  }
+
   destroy(): void {
     this.mounted = false
     this.element = null
@@ -62,6 +80,7 @@ export class FakeMapProvider implements MapProvider {
     this.pinHandlers = []
     this.longPressHandlers = []
     this.mapTapHandlers = []
+    this.viewportHandlers = []
   }
 
   // ── 테스트·개발용 조작구 (인터페이스 밖) ──────────────────────────────────
@@ -75,5 +94,14 @@ export class FakeMapProvider implements MapProvider {
 
   emitMapTap(latLng: LatLng): void {
     for (const handler of this.mapTapHandlers) handler(latLng)
+  }
+
+  /** 지도를 옮기거나 확대축소한 셈 치고 구독자를 깨운다 */
+  emitViewportChange(): void {
+    for (const handler of this.viewportHandlers) handler()
+  }
+
+  get viewportSubscriberCount(): number {
+    return this.viewportHandlers.length
   }
 }

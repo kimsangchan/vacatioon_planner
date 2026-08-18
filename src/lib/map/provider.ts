@@ -15,6 +15,16 @@ export interface Pin {
   latLng: LatLng
   category: PlaceCategory
   selected: boolean
+  /** 배치된 곳이면 일차 번호(1부터), 보관함이면 null — 숫자를 낼지 아이콘을 낼지 가른다 (결정 #41) */
+  dayNumber: number | null
+  /** 핀 배경. 배치된 곳은 일차 색, 보관함은 카테고리 색. CSS 변수 참조다 */
+  color: string
+}
+
+/** 지도 컨테이너 기준 픽셀 좌표 */
+export interface ScreenPoint {
+  x: number
+  y: number
 }
 
 export type PinEventHandler = (id: string, ev: PinEventKind) => void
@@ -28,6 +38,13 @@ export interface MapProvider {
   onLongPress(cb: LongPressHandler): void
   /** 지도 빈자리를 그냥 눌렀을 때. 롱프레스가 숨은 동작이라 '찍기 모드'의 입구가 된다 (FR-016) */
   onMapTap(cb: LongPressHandler): void
+  /**
+   * 좌표 → 지도 컨테이너 왼쪽 위 기준 픽셀. 지도가 아직 안 떴으면 null.
+   * 핀에 붙어 따라다니는 표면(장소 카드)이 이걸 쓴다 — 화면 모서리 고정은 지도 위 카드가 아니다.
+   */
+  project(latLng: LatLng): ScreenPoint | null
+  /** 지도가 움직여(이동·확대축소) 투영이 달라질 때. 구독 해제 함수를 돌려준다 */
+  onViewportChange(cb: () => void): () => void
   destroy(): void
 }
 
@@ -36,6 +53,18 @@ export const CATEGORY_COLOR_VAR: Record<PlaceCategory, string> = {
   restaurant: 'var(--pin-restaurant)',
   lodging: 'var(--pin-lodging)',
   spot: 'var(--pin-spot)',
+}
+
+// 카테고리 아이콘 (결정 #41) — 24x24 뷰박스의 선 아이콘. 색은 여기서 정하지 않는다:
+// 핀에서는 흰 선으로, 리스트에서는 현재 글자색으로 쓰인다. 지도 SDK 는 HTML 문자열을 받으므로
+// React 컴포넌트가 아니라 path 데이터로 둔다 — 지도와 화면이 같은 모양을 쓰게 하는 유일한 방법이다
+export const CATEGORY_ICON_PATH: Record<PlaceCategory, string> = {
+  // 포크와 나이프
+  restaurant: 'M6 3v7a2 2 0 0 0 4 0V3M8 10v11M17 3c-1.4 0-2.2 1.9-2.2 4.2 0 1.9.8 2.8 2.2 2.8s2.2-.9 2.2-2.8C19.2 4.9 18.4 3 17 3zM17 10v11',
+  // 침대
+  lodging: 'M3 19v-7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7M3 16h18M3 19v2M21 19v2M7 10V7h6v3',
+  // 별
+  spot: 'M12 3.5l2.6 5.4 5.9.9-4.2 4.1 1 5.9-5.3-2.8-5.3 2.8 1-5.9L3.5 9.8l5.9-.9z',
 }
 
 export const CATEGORY_LABEL: Record<PlaceCategory, string> = {

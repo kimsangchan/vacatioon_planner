@@ -25,9 +25,9 @@ const stop = (id: string): StopRow => ({
 })
 
 const DAYS: DayRow[] = [
-  { id: 'd1', trip_id: 't1', date: '2026-08-11', position: 0, stops: [], legs: [] },
-  { id: 'd2', trip_id: 't1', date: '2026-08-12', position: 1, stops: [], legs: [] },
-  { id: 'd3', trip_id: 't1', date: '2026-08-13', position: 2, stops: [stop('s1'), stop('s2')], legs: [] },
+  { id: 'd1', trip_id: 't1', date: '2026-08-11', position: 0, color: null, stops: [], legs: [] },
+  { id: 'd2', trip_id: 't1', date: '2026-08-12', position: 1, color: null, stops: [], legs: [] },
+  { id: 'd3', trip_id: 't1', date: '2026-08-13', position: 2, color: null, stops: [stop('s1'), stop('s2')], legs: [] },
 ]
 
 function renderForm(props: Partial<Parameters<typeof TripDatesForm>[0]> = {}) {

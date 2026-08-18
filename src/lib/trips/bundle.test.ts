@@ -24,6 +24,7 @@ function place(id: string, category: PlaceRow['category']): PlaceRow {
     provider: 'naver',
     provider_link: null,
     memo: '',
+    estimated_cost: null,
     photos: [],
   }
 }
@@ -39,6 +40,7 @@ const bundle: TripBundle = {
     {
       id: 'd1',
       trip_id: 'trip-1',
+      color: null,
       date: '2026-08-01',
       position: 0,
       stops: [
@@ -54,7 +56,15 @@ const bundle: TripBundle = {
       ],
       legs: [],
     },
-    { id: 'd2', trip_id: 'trip-1', date: '2026-08-02', position: 1, stops: [], legs: [] },
+    {
+      id: 'd2',
+      trip_id: 'trip-1',
+      date: '2026-08-02',
+      position: 1,
+      color: null,
+      stops: [],
+      legs: [],
+    },
   ],
 }
 
@@ -82,19 +92,52 @@ describe('보관함 분류 (FR-005)', () => {
   })
 })
 
-describe('toPins — 카테고리 3색 핀의 입력 (FR-005)', () => {
+describe('toPins — 핀의 입력 (FR-005 · 결정 #41)', () => {
   it('Place 를 카테고리·좌표가 붙은 핀으로 바꾸고, 강조 대상만 selected 로 만든다', () => {
-    const pins = toPins(bundle.places, 'p3')
+    const pins = toPins(bundle.places, 'p3', bundle.days)
 
-    expect(pins).toEqual([
-      { id: 'p1', latLng: { lat: 33.5, lng: 126.5 }, category: 'restaurant', selected: false },
-      { id: 'p2', latLng: { lat: 33.5, lng: 126.5 }, category: 'lodging', selected: false },
-      { id: 'p3', latLng: { lat: 33.5, lng: 126.5 }, category: 'spot', selected: true },
-    ])
+    expect(pins.map((pin) => pin.id)).toEqual(['p1', 'p2', 'p3'])
+    expect(pins.map((pin) => pin.selected)).toEqual([false, false, true])
+    expect(pins[0].latLng).toEqual({ lat: 33.5, lng: 126.5 })
+    expect(pins[0].category).toBe('restaurant')
+  })
+
+  // 색은 "몇 일차인가"만 나른다. 모양(숫자/아이콘)이 "무엇을 하는 곳인가"를 맡는다 (결정 #41)
+  it('일차에 배치된 곳은 그 일차 번호와 일차 색을 단다', () => {
+    const pins = toPins(bundle.places, null, bundle.days)
+    const placed = pins.find((pin) => pin.id === 'p2')
+
+    expect(placed?.dayNumber).toBe(1)
+    expect(placed?.color).toBe('var(--day-rose)')
+  })
+
+  it('보관함(미배치)은 숫자 없이 카테고리 색을 쓴다 — 아이콘으로 보인다', () => {
+    const pins = toPins(bundle.places, null, bundle.days)
+    const stored = pins.find((pin) => pin.id === 'p1')
+
+    expect(stored?.dayNumber).toBeNull()
+    expect(stored?.color).toBe('var(--pin-restaurant)')
+  })
+
+  it('일차가 색을 골랐으면 그 색을 쓴다', () => {
+    const days = [{ ...bundle.days[0], color: 'sky' }, bundle.days[1]]
+    const pins = toPins(bundle.places, null, days)
+
+    expect(pins.find((pin) => pin.id === 'p2')?.color).toBe('var(--day-sky)')
+  })
+
+  it('같은 장소가 여러 일차에 있으면 가장 이른 일차를 단다 — 핀은 하나뿐이다', () => {
+    const days = [
+      bundle.days[1] && { ...bundle.days[1], position: 1, stops: bundle.days[0].stops },
+      { ...bundle.days[0], position: 0, stops: [] },
+    ].filter(Boolean) as typeof bundle.days
+    const pins = toPins(bundle.places, null, [...days].reverse())
+
+    expect(pins.find((pin) => pin.id === 'p2')?.dayNumber).toBe(2)
   })
 
   it('lat·lng 가 문자열(numeric)로 와도 숫자로 바꾼다', () => {
     const numericAsText = { ...place('p9', 'spot'), lat: '33.458100' as unknown as number }
-    expect(toPins([numericAsText], null)[0].latLng.lat).toBe(33.4581)
+    expect(toPins([numericAsText], null, [])[0].latLng.lat).toBe(33.4581)
   })
 })

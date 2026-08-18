@@ -1,7 +1,13 @@
 // T6-2 — E-04 저장 시 PostgREST 오류를 계약 코드로 정규화한다 (trips/api.ts 와 같은 어휘).
 
 import { describe, expect, it } from 'vitest'
-import { placeErrorMessage, PlaceError, toPlaceError, updatePlaceMemo } from './api'
+import {
+  placeErrorMessage,
+  PlaceError,
+  toPlaceError,
+  updatePlaceEstimatedCost,
+  updatePlaceMemo,
+} from './api'
 
 describe('toPlaceError — E-04 오류 정규화', () => {
   it('부분 유니크 위반(23505)은 중복이다', () => {
@@ -61,6 +67,65 @@ describe('updatePlaceMemo — E-09 부분 갱신 (FR-009)', () => {
     const { client } = fakeClient({ error: { message: 'no rows', code: 'PGRST116' } })
 
     await expect(updatePlaceMemo(client as never, 'p1', '메모')).rejects.toMatchObject({
+      code: 'not-found',
+    })
+  })
+})
+
+describe('updatePlaceEstimatedCost — 예상 금액 (결정 #39)', () => {
+  function fakeClient(result: { data?: unknown; error?: { message: string; code?: string } }) {
+    const calls: { patch: Record<string, unknown>; id: unknown }[] = []
+    const client = {
+      from(table: string) {
+        expect(table).toBe('places')
+        return {
+          update(patch: Record<string, unknown>) {
+            return {
+              eq(column: string, value: unknown) {
+                calls.push({ patch, id: value })
+                return {
+                  select: () => ({
+                    single: async () => ({ data: result.data ?? null, error: result.error ?? null }),
+                  }),
+                }
+              },
+            }
+          },
+        }
+      },
+    }
+    return { client, calls }
+  }
+
+  it('예상 금액만 보낸다 — 실제 지출(stops.cost_amount)은 건드리지 않는다', async () => {
+    const { client, calls } = fakeClient({ data: { id: 'p1', estimated_cost: 20000 } })
+
+    const place = await updatePlaceEstimatedCost(client as never, 'p1', 20000)
+
+    expect(calls).toEqual([{ patch: { estimated_cost: 20000 }, id: 'p1' }])
+    expect(place.estimated_cost).toBe(20000)
+  })
+
+  it('지우면 null 로 되돌린다 — 0원과 다른 값이다', async () => {
+    const { client, calls } = fakeClient({ data: { id: 'p1', estimated_cost: null } })
+
+    await updatePlaceEstimatedCost(client as never, 'p1', null)
+
+    expect(calls[0].patch).toEqual({ estimated_cost: null })
+  })
+
+  it('0원도 그대로 보낸다 — 무료인 곳을 적을 수 있어야 한다', async () => {
+    const { client, calls } = fakeClient({ data: { id: 'p1', estimated_cost: 0 } })
+
+    await updatePlaceEstimatedCost(client as never, 'p1', 0)
+
+    expect(calls[0].patch).toEqual({ estimated_cost: 0 })
+  })
+
+  it('없는 장소는 계약 코드로 알린다', async () => {
+    const { client } = fakeClient({ error: { message: 'no rows', code: 'PGRST116' } })
+
+    await expect(updatePlaceEstimatedCost(client as never, 'p1', 100)).rejects.toMatchObject({
       code: 'not-found',
     })
   })

@@ -2,6 +2,7 @@
 // UI 가 항상 "다음 행동"을 붙일 수 있게 한다 (05 §규약 — Problem JSON 과 같은 어휘).
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { isDayColor, type DayColor } from '@/lib/map/day-color'
 import type { TripDateChange } from './dates'
 
 export interface TripSummary {
@@ -40,6 +41,7 @@ export interface NewTrip {
 export type TripErrorCode =
   | 'validation/date-range'
   | 'validation/name-empty'
+  | 'validation/day-color'
   | 'conflict/duplicate'
   | 'not-found'
   | 'unknown'
@@ -57,6 +59,7 @@ export class TripError extends Error {
 const MESSAGES: Record<TripErrorCode, string> = {
   'validation/date-range': '끝나는 날이 시작하는 날보다 빨라요. 날짜를 다시 골라 주세요.',
   'validation/name-empty': '여행 이름을 적어 주세요.',
+  'validation/day-color': '고를 수 있는 색이 아니에요. 팔레트에서 골라 주세요.',
   'conflict/duplicate': '방금 만든 여행이에요. 목록에서 확인해 주세요.',
   'not-found': '그 여행을 찾지 못했어요. 목록에서 다시 골라 주세요.',
   // toTripError 는 생성·이름변경·삭제·되돌리기·기간변경의 모든 미분류 실패를 여기로 떨어뜨린다.
@@ -156,6 +159,19 @@ export async function renameTrip(
   if (trimmed === '') throw new TripError('validation/name-empty')
 
   const { error } = await client.from('trips').update({ name: trimmed }).eq('id', tripId)
+  if (error) throw toTripError(error)
+}
+
+// 일차 색 (결정 #41). 팔레트 밖의 값은 여기서 막는다 — DB CHECK 는 마지막 방어선이지
+// 입력 검증의 자리가 아니고, 거기까지 가면 사용자는 원인을 알 수 없는 실패만 본다.
+export async function updateDayColor(
+  client: SupabaseClient,
+  dayId: string,
+  color: DayColor | null,
+): Promise<void> {
+  if (color !== null && !isDayColor(color)) throw new TripError('validation/day-color')
+
+  const { error } = await client.from('days').update({ color }).eq('id', dayId)
   if (error) throw toTripError(error)
 }
 

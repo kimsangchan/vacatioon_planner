@@ -28,6 +28,7 @@ function place(
     provider: 'naver',
     provider_link: null,
     memo: '',
+    estimated_cost: null,
     photos,
   }
 }
@@ -57,6 +58,7 @@ const bundle: TripBundle = {
       trip_id: 'trip-1',
       date: '2026-08-01',
       position: 0,
+      color: null,
       stops: [
         {
           id: 's1',
@@ -70,7 +72,15 @@ const bundle: TripBundle = {
       ],
       legs: [],
     },
-    { id: 'd2', trip_id: 'trip-1', date: '2026-08-02', position: 1, stops: [], legs: [] },
+    {
+      id: 'd2',
+      trip_id: 'trip-1',
+      date: '2026-08-02',
+      position: 1,
+      color: null,
+      stops: [],
+      legs: [],
+    },
   ],
 }
 
@@ -105,6 +115,97 @@ async function renderBoard(props: Partial<Parameters<typeof CanvasBoard>[0]> = {
   await act(async () => {})
   return view
 }
+
+describe('CanvasBoard — 일차 색 (결정 #41)', () => {
+  it('일차 탭에 그 일차 색을 함께 낸다 — 지도 핀 색과 같은 색이어야 짝이 지어진다', async () => {
+    await renderBoard()
+
+    const swatch = screen.getByTestId('day-color-d1')
+    // 고른 색이 없으면 순서대로 팔레트를 돈다 (position 0 → 첫 색)
+    expect(swatch.style.background).toContain('--day-rose')
+  })
+
+  it('고른 색이 있으면 그 색을 낸다', async () => {
+    const days = [{ ...bundle.days[0], color: 'sky' }, bundle.days[1]]
+    await renderBoard({ bundle: { ...bundle, days } })
+
+    expect(screen.getByTestId('day-color-d1').style.background).toContain('--day-sky')
+  })
+
+  it('일차를 열고 색을 고르면 그 일차에만 저장한다', async () => {
+    const onSetDayColor = vi.fn().mockResolvedValue(undefined)
+    await renderBoard({ onSetDayColor })
+
+    fireEvent.click(screen.getByRole('button', { name: '1일차' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '1일차 색 하늘로 바꾸기' }))
+    })
+
+    expect(onSetDayColor).toHaveBeenCalledWith('d1', 'sky')
+  })
+
+  it('보관함 항목은 카테고리를 아이콘으로 낸다', async () => {
+    await renderBoard()
+
+    expect(screen.getByTestId('place-item-p1').querySelector('svg')).toBeTruthy()
+  })
+})
+
+describe('CanvasBoard — 여행 경비 요약 (결정 #39)', () => {
+  // 확정(이미 쓴 돈)과 예상을 한 숫자로 합치면 화면에서 되찾을 수 없다 — 두 줄로 나눈다
+  function budgetBundle(over: {
+    stopCost?: number | null
+    placedEstimate?: number | null
+    storageEstimate?: number | null
+  }) {
+    const day = bundle.days[0]
+    return {
+      ...bundle,
+      places: bundle.places.map((place) =>
+        place.id === 'p2'
+          ? { ...place, estimated_cost: over.placedEstimate ?? null }
+          : place.id === 'p3'
+            ? { ...place, estimated_cost: over.storageEstimate ?? null }
+            : place,
+      ),
+      days: [
+        { ...day, stops: [{ ...day.stops[0], cost_amount: over.stopCost ?? null }] },
+        bundle.days[1],
+      ],
+    }
+  }
+
+  it('적어 둔 금액이 하나도 없으면 요약을 내지 않는다', async () => {
+    await renderBoard({ bundle: budgetBundle({}) })
+
+    expect(screen.queryByTestId('trip-budget')).toBeNull()
+  })
+
+  it('확정과 예상 포함을 두 줄로 나눠 보여준다', async () => {
+    await renderBoard({ bundle: budgetBundle({ stopCost: 15000 }) })
+
+    const budget = screen.getByTestId('trip-budget')
+    expect(budget.textContent).toContain('확정')
+    expect(budget.textContent).toContain('15,000원')
+  })
+
+  it('금액을 안 적은 방문은 그 장소 예상으로 채워 "예상 포함"에만 더한다', async () => {
+    await renderBoard({ bundle: budgetBundle({ placedEstimate: 45000 }) })
+
+    const budget = screen.getByTestId('trip-budget')
+    expect(budget.textContent).toContain('예상 포함')
+    expect(budget.textContent).toContain('45,000원')
+  })
+
+  it('보관함 예상은 여행 총액에 안 섞고 보관함 안에서만 센다', async () => {
+    await renderBoard({ bundle: budgetBundle({ stopCost: 15000, storageEstimate: 70000 }) })
+
+    // 총액 줄에는 보관함 몫이 들어가지 않는다
+    expect(screen.getByTestId('trip-budget').textContent).not.toContain('70,000원')
+    // 보관함 탭 안에는 소계가 뜬다
+    expect(screen.getByTestId('storage-estimate').textContent).toContain('70,000원')
+  })
+})
 
 function item(placeId: string): HTMLElement {
   return screen.getByTestId(`place-item-${placeId}`)
@@ -243,7 +344,7 @@ describe('CanvasBoard — 미리보기 (FR-006 / SC-002)', () => {
     await act(async () => provider.emitPinEvent('p1', 'tap'))
     fireEvent.change(screen.getByLabelText('메모'), { target: { value: '예약 필요' } })
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '메모 저장하기' }))
+      fireEvent.click(screen.getByRole('button', { name: '저장하기' }))
     })
 
     expect(onSaveMemo).toHaveBeenCalledWith('p1', '예약 필요')
@@ -297,12 +398,64 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
     }
   })
 
+  // 사용자 보고: "스팟으로 지정하고 난 다음에 스팟 클릭하면 카드형으로 떠서 수정" 이 안 된다.
+  // 보관함에서든 일차에 배치된 뒤든, 그 장소를 누르면 같은 카드가 떠야 한다.
+  it('일차에 배치된 Stop 을 눌러도 그 장소 카드가 시트로 열린다', async () => {
+    await renderBoard({ onSaveMemo: vi.fn() })
+
+    fireEvent.click(screen.getByRole('button', { name: '1일차' }))
+    fireEvent.click(screen.getByRole('button', { name: /호텔제주/ }))
+
+    expectFloatingCard()
+  })
+
+  // 사용자 지적: "스팟 위에 마우스 이동을 하든 화면 확대축소를 하든 따라오게 해줘야 하는 거 아니야?
+  // 화면 우측 하단에 고정인 거 같은데" — 화면 모서리에 붙박인 것은 지도 위 카드가 아니다.
+  it('카드는 그 장소 핀에 붙어 뜨고, 지도를 움직이면 따라온다', async () => {
+    await renderBoard({ onSaveMemo: vi.fn() })
+
+    fireEvent.click(item('p3'))
+
+    const at = () => screen.getByTestId('place-card-anchor').style
+    const projected = provider.project({ lat: 33.46, lng: 126.5 })
+    expect(projected).not.toBeNull()
+    expect(at().left).toBe(`${projected?.x}px`)
+    expect(at().top).toBe(`${projected?.y}px`)
+
+    // 지도를 끌거나 확대축소하면 같은 좌표의 화면 위치가 달라진다 — 카드도 따라와야 한다
+    await act(async () => {
+      provider.projection = () => ({ x: 40, y: 90 })
+      provider.emitViewportChange()
+    })
+
+    expect(at().left).toBe('40px')
+    expect(at().top).toBe('90px')
+  })
+
+  it('카드를 닫으면 지도 구독도 거둔다 — 열고 닫을수록 쌓이면 안 된다', async () => {
+    await renderBoard({ onSaveMemo: vi.fn() })
+
+    fireEvent.click(item('p3'))
+    expect(provider.viewportSubscriberCount).toBe(1)
+
+    fireEvent.click(screen.getByRole('button', { name: '미리보기 닫기' }))
+    expect(provider.viewportSubscriberCount).toBe(0)
+  })
+
+  it('보관함의 장소를 눌러도 같은 카드가 떠오른다', async () => {
+    await renderBoard({ onSaveMemo: vi.fn() })
+
+    fireEvent.click(item('p3'))
+
+    expectFloatingCard()
+  })
+
   it('이동 폼을 펼치면 열려 있던 미리보기 시트를 닫는다', async () => {
     await renderBoard({ onSaveLeg: vi.fn(), onSaveMemo: vi.fn() })
 
     // 배치된 곳의 핀 → 1일차 타임라인 + 미리보기 시트("메모 저장하기" 강조)
     await act(async () => provider.emitPinEvent('p2', 'tap'))
-    expect(screen.getByRole('button', { name: '메모 저장하기' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '저장하기' })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: '이동 적기' }))
 
@@ -314,7 +467,7 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
     await renderBoard({ onUpdateStop: vi.fn(), onSaveMemo: vi.fn() })
 
     await act(async () => provider.emitPinEvent('p2', 'tap'))
-    expect(screen.getByRole('button', { name: '메모 저장하기' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '저장하기' })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: '시각·가격 적기' }))
 
@@ -349,7 +502,7 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
       await renderBoard({ onSaveMemo: vi.fn() })
 
       fireEvent.click(item('p3'))
-      expect(screen.getByRole('button', { name: '메모 저장하기' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: '저장하기' })).toBeTruthy()
 
       fireEvent.change(screen.getByLabelText('장소 검색'), { target: { value: '흑돼지' } })
       await act(async () => {
@@ -361,6 +514,81 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
 
       expect(screen.getByRole('button', { name: '식당으로 담기' })).toBeTruthy()
       expect(screen.queryByTestId('preview-card')).toBeNull()
+    } finally {
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    }
+  })
+
+  // 검색 결과가 와도 시트가 46% 에 머무르면 뒤쪽 결과가 화면 밖으로 잘린다.
+  // 스크롤은 되지만 잘린 티가 나지 않아 "결과가 없는 것"으로 읽힌다 (사용자 보고).
+  function searchResponse(count: number) {
+    return new Response(
+      JSON.stringify(
+        Array.from({ length: count }, (_, i) => ({
+          name: `흑돼지 명가 ${i + 1}호점`,
+          address: `제주특별자치도 제주시 연동 ${i + 1}`,
+          roadAddress: `제주특별자치도 제주시 노형로 ${i + 1}`,
+          lat: 33.49 + i / 1000,
+          lng: 126.53,
+          categoryHint: 'restaurant',
+          providerLink: null,
+          provider: 'naver',
+        })),
+      ),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    )
+  }
+
+  const sheetHandle = () => screen.getByRole('button', { name: /리스트 (올리기|내리기)/ })
+
+  // 사용자 보고: "카드 팝업 안되고 왼쪽 패널에 여전히 있는데".
+  // 카드가 DOM 에 있는 것만으로는 부족하다 — 리스트 패널 바깥, 캔버스 위에 떠 있어야 한다.
+  // jsdom 에는 레이아웃이 없으므로 위치 대신 "어느 부모 아래에 있는가"로 못 박는다.
+  function expectFloatingCard() {
+    const card = screen.getByTestId('preview-card')
+    expect(card.dataset.variant).toBe('sheet')
+    expect(screen.getByRole('button', { name: '저장하기' })).toBeTruthy()
+    expect(document.querySelector('aside')?.contains(card)).toBe(false)
+  }
+
+  it('검색 결과가 도착하면 리스트 시트를 올린다 — 뒤쪽 결과가 잘리지 않게', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(searchResponse(5)))
+
+    try {
+      await renderBoard({ onSaveMemo: vi.fn() })
+      expect(sheetHandle().getAttribute('aria-expanded')).toBe('false')
+
+      fireEvent.change(screen.getByLabelText('장소 검색'), { target: { value: '흑돼지' } })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS + 10)
+      })
+
+      expect(sheetHandle().getAttribute('aria-expanded')).toBe('true')
+      // 받은 5건이 하나도 빠지지 않고 목록에 있다
+      for (let i = 1; i <= 5; i += 1) {
+        expect(screen.getByRole('button', { name: new RegExp(`흑돼지 명가 ${i}호점`) })).toBeTruthy()
+      }
+    } finally {
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    }
+  })
+
+  it('결과가 0건이면 시트를 올리지 않는다 — 빈 화면으로 지도를 덮지 않는다', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(searchResponse(0)))
+
+    try {
+      await renderBoard({ onSaveMemo: vi.fn() })
+
+      fireEvent.change(screen.getByLabelText('장소 검색'), { target: { value: '없는곳' } })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS + 10)
+      })
+
+      expect(sheetHandle().getAttribute('aria-expanded')).toBe('false')
     } finally {
       vi.unstubAllGlobals()
       vi.useRealTimers()

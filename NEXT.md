@@ -1,41 +1,52 @@
 <!-- NEXT-ACTION:START -->
 ## ▶ 지금 할 일 (새 세션은 이 블록부터 — SessionStart 훅이 자동 주입)
 
-**MVP 완성·배포됨**: https://vacatioon-planner.vercel.app (카카오 로그인·실지도·실키 검색 운영 검증 완료)
-검증 기준선: vitest 400 · pgTAP 158 · E2E 4 · CI 전체 초록 · 커밋은 `origin/master`에 동기화됨
+**MVP 배포됨**: https://vacatioon-planner.vercel.app
+검증 기준선: vitest **404** · pgTAP **185** · E2E 4 · tsc 0 · lint 0
 
-사용자가 정한 다음 순서는 **B → A → C → D**다.
+**주의: 2026-08-18 작업분은 아직 커밋 전이다** (`git status` 로 확인). 운영에는 반영돼 있지 않다.
+원격 Supabase 에 `0008_place_estimated_cost.sql`·`0009_day_color.sql` 을 아직 안 올렸다 —
+앱 코드를 배포하기 **전에** 올려야 한다.
 
-- **[다음] B. 예상 금액 + 여행 전체 경비 요약**
-  ① 보관함 단계(Place)에도 예상 금액 — **결정 #24를 다시 여는 것**이다. 그때는 "보관함 가격은
-  확정 전 추정치라 memo가 적절"이라 뺐는데, 사용자가 "식당 예상 금액을 저장해 경비 계산에 쓰고 싶다"고
-  요청했다. 실제 지출(`stops.cost_amount`)과 **구분**해야 한다(예상 vs 실제).
-  ② 여행 전체 합계 — 지금은 일차별 합계만 있다(`lib/timeline/merge.ts`, TimelinePane 하단).
-  새 마이그레이션(0008)으로 컬럼 추가 · pgTAP 먼저 · 금액은 원 단위 정수(#17).
-- **[그다음] A. 검색이 주는데 버리는 값 저장** — 네이버 지역검색 응답의 `telephone`·`description`을
-  `toNormalizedPlaces`가 버린다(`lib/place/search-proxy.ts`). places 테이블에 컬럼 추가 + 미리보기 카드 표시.
-- **[그다음] C. 지도에서 찍기 → 주변 업체 목록** — 지금 네이버 지역검색 API는 **키워드 전용**이라
-  좌표·반경 검색이 안 된다. **카카오 Local API**가 좌표+반경+카테고리를 지원하고 카카오 REST 키는 이미 있다.
-- **[그다음] D. 경유지 포함 이동경로** — NCP Directions 5/15가 경유지 5·15개, 거리·시간·**통행료·유류비**를 준다.
-  단 **무료 이용량 없음**(무료는 Web Dynamic Map·Static Map·Geocoding·Reverse Geocoding까지).
-  대안은 카카오모빌리티 길찾기(별도 신청, 무료 쿼터 있음). B의 경비 계산과 이어진다.
+### 방금 끝낸 것 (사용자 피드백, tasks.md T10)
+- T10-1 검색 결과 잘림 — 결과 도착 시 시트 확장
+- T10-2 장소 카드를 **핀에 붙는 팝업**으로 (결정 #40). 지도 이동·확대축소를 따라간다
+- T10-3 **예상 금액 + 경비 요약** (결정 #39). 확정/예상 포함 두 줄, 보관함은 소계만
+- T10-4 **일차별 색상** (결정 #41). 색=일차 / 모양=카테고리 로 채널을 갈랐다
+
+### 다음 (사용자가 준 순서)
+- **[다음] T10-5 이동시간(자동차·도보)** — 카카오모빌리티 Directions.
+  **사용자 작업 선행**: 카카오 개발자 콘솔 → Vacation Planner → 카카오맵 활성화 ON
+  (지금은 `403 disabled OPEN_MAP_AND_LOCAL service`). 도보는 외부 API 없이 좌표 거리로 추정.
+  대중교통은 공개 API 가 없어 ODsay 등 별도 가입이 필요 — 사용자가 원하면 그때
+- **[그다음] T10-6 검색 결과 5건 상한** — 네이버 지역검색은 `display` 최대 5·`start` 무시(실호출 확정).
+  더 긴 목록·좌표 반경 검색·전화번호 저장(구 A·C)은 **카카오 Local 전환**이 유일한 길.
+  **지도는 네이버 그대로 두고 검색 백엔드만** 바꾸는 것이다(`places.provider` 에 'kakao' 이미 있음, #16)
+- **[버그] T10-7** 로그인 직후 홈이 500 — `JWT issued at future`. 컨테이너 시계 1초 차로
+  `getUser()` 는 통과하고 PostgREST 만 거부해서 결정 #31 의 그물에 안 걸린다. L-06 위반(막다른 화면)
 
 ### 사용자 몫으로 남은 것
+- 카카오 개발자 콘솔에서 **카카오맵 활성화** (T10-5·T10-6 이 여기서 막혀 있다)
 - 실기기(아이폰)에서 배포본 육안 확인
-- GitHub Secrets에 `SUPABASE_URL`·`SUPABASE_ANON_KEY` 등록 → keepalive 가동(무료 티어 일시정지 방지)
-- 메일 템플릿(`{{ .Token }}`)은 **보류** — 카카오를 주 경로로 쓰기로 함
+- GitHub Secrets 에 `SUPABASE_URL`·`SUPABASE_ANON_KEY` 등록 → keepalive 가동
 
 ### 함정 (여기서 시간을 크게 잃었다)
-- **dev 서버를 켜 둔 채 `npm run build` 금지.** `.next`가 깨져 "코드 문제처럼 보이는" 증상이 난다(세션 중 4회).
-  E2E가 무더기로 깨지면 먼저 dev를 내리고 `.next` 지운 뒤 Playwright가 서버를 띄우게 하라 (`e2e/CLAUDE.md`).
-- **`supabase db reset`은 로컬 데이터를 지운다.** 실제 기록은 로컬에 만들지 말 것.
-- E2E는 검색 API를 **스텁**한다 — 브라우저의 진짜 검색 경로는 덮이지 않는다. 그 틈으로 버그가 운영까지 나갔다.
-- lockfile은 **리눅스에서** 만들어야 CI가 통과한다(Windows 생성본은 리눅스용 optional 의존성을 빠뜨린다).
+- **jsdom 에는 레이아웃이 없다.** "DOM 에 있다"만 단언하면 화면 밖으로 잘린 결함이 그대로 통과한다.
+  실제로 카드가 안 보인다는 신고를 테스트 3번이 연속으로 놓쳤다 — 위치·부모·시트 높이로 단언하라.
+- **지도 SDK 의 `fromCoordToOffset` 은 월드 픽셀이다**(화면 좌표 아님). 뷰포트 북서 모서리를 빼야 한다.
+  유닛 테스트로는 절대 못 잡는다 — 브라우저에서 실제로 끌어 봐야 나온다.
+- **dev 서버를 켜 둔 채 `npm run build` 금지.** `.next` 가 깨져 "코드 문제처럼 보이는" 증상이 난다.
+- dev 서버·사용자 사용과 vitest integration 이 **같은 로컬 Supabase 를 두고 경합**한다.
+  5초 타임아웃으로 우수수 깨지면 코드 문제가 아니다 — 단독으로 다시 돌려 보라.
+- **오래 떠 있던 dev 서버는 `/trip/[id]` 를 `Rendering…` 에서 멈춰 세운다.** 코드 문제로 착각하기 쉽다 —
+  포트를 잡은 프로세스를 죽이고 `.next` 를 지운 뒤 Playwright 가 직접 띄우게 하라 (실제로 또 겪었다).
+- **`supabase db reset` 은 로컬 데이터를 지운다.** 실제 기록은 로컬에 만들지 말 것.
+- lockfile 은 **리눅스에서** 만들어야 CI 가 통과한다.
 <!-- NEXT-ACTION:END -->
 
 <!--
 규칙:
 - 이 마커 사이는 "지금/다음 할 일"만. 완료분은 WORKLOG.md 의 ## History 로.
-- 전체 작업 목록의 원본은 tasks.md, 결정 근거는 docs/design/decision-log.md (#38까지).
+- 전체 작업 목록의 원본은 tasks.md, 결정 근거는 docs/design/decision-log.md (#41까지).
 - 훅(tools/hooks/print_next_action.py)은 이 마커 사이만 세션에 주입한다.
 -->

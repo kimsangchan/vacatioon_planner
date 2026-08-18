@@ -9,7 +9,7 @@
 //
 // 이 파일 바깥에서는 SDK 전역을 만지지 않는다 — 컴포넌트는 MapProvider 만 소비한다 (CLAUDE.md).
 
-import { CATEGORY_COLOR_VAR } from './provider'
+import { CATEGORY_ICON_PATH } from './provider'
 import type {
   LatLng,
   LongPressHandler,
@@ -17,6 +17,7 @@ import type {
   Pin,
   PinEventHandler,
   PinEventKind,
+  ScreenPoint,
 } from './provider'
 
 const SDK_ORIGIN = 'https://oapi.map.naver.com/openapi/v3/maps.js'
@@ -37,8 +38,28 @@ export interface NaverPointerEvent {
   coord?: NaverCoord
 }
 
+export interface NaverPoint {
+  x: number
+  y: number
+}
+
+export interface NaverProjection {
+  /**
+   * 좌표 → **현재 줌의 월드 픽셀**. 화면 기준이 아니다 — 지도를 옮겨도 값이 그대로다.
+   * (실측으로 확인: 끌어도 1058.999/441.96 고정) 화면 좌표는 뷰포트 북서 모서리를 빼서 얻는다.
+   */
+  fromCoordToOffset(coord: unknown): NaverPoint
+}
+
+export interface NaverBounds {
+  getNE(): NaverCoord
+  getSW(): NaverCoord
+}
+
 export interface NaverMap {
   panTo(coord: unknown): void
+  getProjection(): NaverProjection | null
+  getBounds(): NaverBounds | null
   destroy(): void
 }
 
@@ -147,6 +168,7 @@ export class NaverMapProvider implements MapProvider {
   private pinHandlers: PinEventHandler[] = []
   private longPressHandlers: LongPressHandler[] = []
   private mapTapHandlers: LongPressHandler[] = []
+  private viewportHandlers: Array<() => void> = []
 
   constructor(options: NaverMapProviderOptions) {
     this.clientId = options.clientId
@@ -179,6 +201,16 @@ export class NaverMapProvider implements MapProvider {
         for (const handler of this.mapTapHandlers) handler(latLng)
       }),
     )
+
+    // 핀에 붙어 있는 표면이 지도를 따라가려면 이동 중에도 다시 투영해야 한다.
+    // 'idle' 만 듣지 않는 이유: 그건 멈춘 뒤에 온다 — 끄는 동안 카드가 뒤처져 따로 논다.
+    for (const type of ['drag', 'bounds_changed', 'zoom_changed', 'center_changed', 'idle']) {
+      this.listeners.push(
+        maps.Event.addListener(this.map, type, () => {
+          for (const handler of this.viewportHandlers) handler()
+        }),
+      )
+    }
   }
 
   setPins(pins: Pin[]): void {
@@ -195,7 +227,11 @@ export class NaverMapProvider implements MapProvider {
         const marker = new maps.Marker({
           position: new maps.LatLng(pin.latLng.lat, pin.latLng.lng),
           map: this.map,
-          icon: { content: pinContent(pin), anchor: new maps.Point(11, 11) },
+          // 앵커는 원의 중심 — 크기가 바뀌면 같이 움직여야 핀이 좌표에서 떨어지지 않는다
+          icon: {
+            content: pinContent(pin),
+            anchor: new maps.Point(pinSize(pin.selected) / 2, pinSize(pin.selected) / 2),
+          },
           zIndex: pin.selected ? 100 : 1,
         })
         this.markers.push(marker)
@@ -203,6 +239,35 @@ export class NaverMapProvider implements MapProvider {
       }
     } catch {
       this.markers = []
+    }
+  }
+
+  project(latLng: LatLng): ScreenPoint | null {
+    if (!this.maps || !this.map) return null
+    try {
+      // 인증 실패로 네임스페이스가 비면 여기도 null 을 만진다 — 던지지 않고 물러난다
+      const projection = this.map.getProjection()
+      const bounds = this.map.getBounds()
+      if (!projection || !bounds) return null
+
+      // 월드 픽셀에서 뷰포트 북서 모서리(위=NE.lat, 왼쪽=SW.lng)를 빼면 컨테이너 기준이 된다
+      const origin = projection.fromCoordToOffset(
+        new this.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng()),
+      )
+      const point = projection.fromCoordToOffset(new this.maps.LatLng(latLng.lat, latLng.lng))
+      const x = point.x - origin.x
+      const y = point.y - origin.y
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+      return { x, y }
+    } catch {
+      return null
+    }
+  }
+
+  onViewportChange(cb: () => void): () => void {
+    this.viewportHandlers.push(cb)
+    return () => {
+      this.viewportHandlers = this.viewportHandlers.filter((handler) => handler !== cb)
     }
   }
 
@@ -239,6 +304,7 @@ export class NaverMapProvider implements MapProvider {
     this.pinHandlers = []
     this.longPressHandlers = []
     this.mapTapHandlers = []
+    this.viewportHandlers = []
     this.map?.destroy()
     this.map = null
     this.maps = null
@@ -258,12 +324,28 @@ export class NaverMapProvider implements MapProvider {
 }
 
 // 핀은 카테고리 3색만으로 구분한다 — 색은 globals.css 의 --pin-* 이 유일한 출처다
+// 핀의 두 채널 (결정 #41): 색 = 몇 일차인가, 안에 든 글리프 = 무엇인가.
+// 배치된 곳은 일차 번호를, 보관함은 카테고리 아이콘을 낸다 — 둘 다 넣으면 이 크기에서 둘 다 안 읽힌다.
+export function pinSize(selected: boolean): number {
+  return selected ? 26 : 20
+}
+
 function pinContent(pin: Pin): string {
-  const size = pin.selected ? 22 : 16
+  const size = pinSize(pin.selected)
   const ring = pin.selected ? '3px solid var(--background)' : '2px solid var(--background)'
+  const glyph =
+    pin.dayNumber !== null
+      ? `<span style="color:#fff;font-size:${pin.selected ? 13 : 11}px;` +
+        `font-weight:700;line-height:1;font-variant-numeric:tabular-nums">${pin.dayNumber}</span>`
+      : `<svg viewBox="0 0 24 24" width="${pin.selected ? 15 : 12}" ` +
+        `height="${pin.selected ? 15 : 12}" fill="none" stroke="#fff" stroke-width="2.4" ` +
+        `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
+        `<path d="${CATEGORY_ICON_PATH[pin.category]}"/></svg>`
+
   return (
     `<div style="width:${size}px;height:${size}px;border-radius:9999px;` +
-    `background:${CATEGORY_COLOR_VAR[pin.category]};border:${ring};` +
-    `box-shadow:0 1px 4px rgba(0,0,0,.35);transition:width 120ms,height 120ms"></div>`
+    `background:${pin.color};border:${ring};display:flex;align-items:center;` +
+    `justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.35);` +
+    `transition:width 120ms,height 120ms">${glyph}</div>`
   )
 }

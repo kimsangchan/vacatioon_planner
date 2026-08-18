@@ -10,6 +10,7 @@ import { useId, useState } from 'react'
 import { ConfirmRow } from '@/components/common/ConfirmRow'
 import { CATEGORY_LABEL } from '@/lib/map/provider'
 import { PhotoError, photoErrorMessage, photoPublicUrl } from '@/lib/photo/upload'
+import { formatAmount, formatAmountInput, parseAmountInput } from '@/lib/timeline/money'
 import { coverPhoto, type PhotoRow, type PlaceRow } from '@/lib/trips/bundle'
 
 export interface PreviewCardProps {
@@ -21,6 +22,8 @@ export interface PreviewCardProps {
   onSetCover?: (photoId: string) => Promise<void> | void
   onRemovePhoto?: (photo: PhotoRow) => Promise<void> | void
   onSaveMemo?: (memo: string) => Promise<void> | void
+  /** 예상 금액 (결정 #39). 원 단위 정수, 비우면 null — 실제 지출(Stop)과 다른 값이다 */
+  onSaveEstimatedCost?: (estimatedCost: number | null) => Promise<void> | void
   onDeletePlace?: () => Promise<void> | void
   onClose?: () => void
 }
@@ -43,12 +46,18 @@ export function PreviewCard({
   onSetCover,
   onRemovePhoto,
   onSaveMemo,
+  onSaveEstimatedCost,
   onDeletePlace,
   onClose,
 }: PreviewCardProps) {
   const fileInputId = useId()
   const memoInputId = useId()
+  const amountInputId = useId()
   const [memo, setMemo] = useState(place.memo)
+  // 화면에는 콤마가 붙은 문자열로 두고, 저장할 때만 정수로 되돌린다 (#17)
+  const [amount, setAmount] = useState(
+    place.estimated_cost === null ? '' : formatAmount(place.estimated_cost),
+  )
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
@@ -225,26 +234,61 @@ export function PreviewCard({
         </ul>
       )}
 
-      {sheet && onSaveMemo && (
+      {/* 메모와 예상 금액은 한 폼·한 버튼이다 — 카드에서 다 고친다는 게 이 표면의 쓸모이고,
+          강조 CTA 는 화면당 하나여야 한다 (L-09). 안 바꾼 값은 보내지 않는다 */}
+      {sheet && (onSaveMemo || onSaveEstimatedCost) && (
         <div className="flex flex-col gap-2">
-          <label htmlFor={memoInputId} className="text-sm font-medium">
-            메모
-          </label>
-          <textarea
-            id={memoInputId}
-            rows={2}
-            value={memo}
-            onChange={(event) => setMemo(event.target.value)}
-            placeholder="가서 뭘 할지 적어 두세요"
-            className="rounded-xl border border-black/15 bg-transparent px-3 py-2 text-base outline-none focus:border-foreground dark:border-white/20"
-          />
+          {onSaveMemo && (
+            <>
+              <label htmlFor={memoInputId} className="text-sm font-medium">
+                메모
+              </label>
+              <textarea
+                id={memoInputId}
+                rows={2}
+                value={memo}
+                onChange={(event) => setMemo(event.target.value)}
+                placeholder="가서 뭘 할지 적어 두세요"
+                className="rounded-xl border border-black/15 bg-transparent px-3 py-2 text-base outline-none focus:border-foreground dark:border-white/20"
+              />
+            </>
+          )}
+
+          {onSaveEstimatedCost && (
+            <>
+              <label htmlFor={amountInputId} className="text-sm font-medium">
+                예상 금액
+              </label>
+              <input
+                id={amountInputId}
+                // 모바일에서 숫자 키패드가 뜨게 한다. type=number 는 콤마를 못 쓴다
+                inputMode="numeric"
+                value={amount}
+                onChange={(event) => setAmount(formatAmountInput(event.target.value))}
+                placeholder="여기서 얼마쯤 쓸까요"
+                className="rounded-xl border border-black/15 bg-transparent px-3 py-2 text-base outline-none focus:border-foreground dark:border-white/20"
+              />
+              <p className="text-xs text-black/55 dark:text-white/55">
+                실제로 쓴 돈은 일정에 넣은 뒤 그 방문에 적어요.
+              </p>
+            </>
+          )}
+
           <button
             type="button"
             disabled={busy}
-            onClick={() => void run(() => onSaveMemo(memo), '메모를 저장했어요.')}
+            onClick={() =>
+              void run(async () => {
+                if (onSaveMemo && memo !== place.memo) await onSaveMemo(memo)
+                const next = parseAmountInput(amount)
+                if (onSaveEstimatedCost && next !== place.estimated_cost) {
+                  await onSaveEstimatedCost(next)
+                }
+              }, '저장했어요.')
+            }
             className="flex min-h-11 w-fit items-center rounded-full bg-foreground px-4 text-sm font-medium text-background transition-opacity duration-[120ms] hover:opacity-90"
           >
-            메모 저장하기
+            저장하기
           </button>
         </div>
       )}

@@ -20,6 +20,7 @@ const day = (date: string, stops: StopRow[] = []): DayRow => ({
   trip_id: 'trip-1',
   date,
   position: 0,
+  color: null,
   stops,
   legs: [],
 })

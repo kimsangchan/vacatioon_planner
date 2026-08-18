@@ -33,6 +33,8 @@ export interface SavedPlace {
   provider: PlaceProvider
   provider_link: string | null
   memo: string
+  /** 원 단위 정수 — 이 장소에서 쓸 것 같은 돈 (결정 #39). 실제 지출은 stops.cost_amount */
+  estimated_cost: number | null
 }
 
 export type PlaceErrorCode = 'conflict/duplicate' | 'validation/coords' | 'not-found' | 'unknown'
@@ -80,7 +82,7 @@ export function toPlaceError(error: DataLayerError, existingPlaceId?: string): P
 }
 
 const SAVED_COLUMNS =
-  'id,trip_id,category,name,address,road_address,lat,lng,provider,provider_link,memo'
+  'id,trip_id,category,name,address,road_address,lat,lng,provider,provider_link,memo,estimated_cost'
 
 export async function savePlace(client: SupabaseClient, input: NewPlace): Promise<SavedPlace> {
   const { data, error } = await client
@@ -107,6 +109,25 @@ export async function updatePlaceMemo(
   const { data, error } = await client
     .from('places')
     .update({ memo: memo.trim() })
+    .eq('id', placeId)
+    .select(SAVED_COLUMNS)
+    .single()
+
+  if (error) throw toPlaceError(error)
+  return data as SavedPlace
+}
+
+// 예상 금액 (결정 #39). 메모와 같은 부분 갱신 경로다 — 카드에서 바로 고친다.
+// null 은 "안 적었다"이고 0 은 "무료"다. 둘을 뭉개면 경비 합계가 거짓말을 한다.
+// 실제 지출은 여기서 손대지 않는다 — 그건 stops.cost_amount 이고 방문에 귀속된다 (#24).
+export async function updatePlaceEstimatedCost(
+  client: SupabaseClient,
+  placeId: string,
+  estimatedCost: number | null,
+): Promise<SavedPlace> {
+  const { data, error } = await client
+    .from('places')
+    .update({ estimated_cost: estimatedCost })
     .eq('id', placeId)
     .select(SAVED_COLUMNS)
     .single()

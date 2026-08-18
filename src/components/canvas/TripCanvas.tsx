@@ -13,7 +13,13 @@ import {
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { deletePhoto, setCoverPhoto, uploadTripPhoto } from '@/lib/photo/upload'
-import { restorePlace, savePlace, softDeletePlace, updatePlaceMemo } from '@/lib/place/api'
+import {
+  restorePlace,
+  savePlace,
+  softDeletePlace,
+  updatePlaceEstimatedCost,
+  updatePlaceMemo,
+} from '@/lib/place/api'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import {
   TimelineError,
@@ -27,7 +33,14 @@ import {
   type LegDraft,
 } from '@/lib/timeline/api'
 import { nextPosition } from '@/lib/timeline/merge'
-import { TripError, renameTrip, tripErrorMessage, updateTripDates } from '@/lib/trips/api'
+import type { DayColor } from '@/lib/map/day-color'
+import {
+  TripError,
+  renameTrip,
+  tripErrorMessage,
+  updateDayColor,
+  updateTripDates,
+} from '@/lib/trips/api'
 import {
   fetchTripBundle,
   tripBundleKey,
@@ -157,6 +170,20 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
   const saveMemo = useMutation({
     mutationFn: ({ placeId, memo }: { placeId: string; memo: string }) =>
       updatePlaceMemo(supabase, placeId, memo),
+    onSuccess: refetchBundle,
+  })
+
+  // 예상 금액도 같은 카드에서 고친다 (결정 #39)
+  const saveEstimatedCost = useMutation({
+    mutationFn: ({ placeId, estimatedCost }: { placeId: string; estimatedCost: number | null }) =>
+      updatePlaceEstimatedCost(supabase, placeId, estimatedCost),
+    onSuccess: refetchBundle,
+  })
+
+  // 일차 색 (결정 #41) — 지도 핀 색이 여기서 정해진다
+  const setDayColor = useMutation({
+    mutationFn: ({ dayId, color }: { dayId: string; color: DayColor }) =>
+      updateDayColor(supabase, dayId, color),
     onSuccess: refetchBundle,
   })
 
@@ -394,6 +421,12 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
         }}
         onSaveMemo={async (placeId, memo) => {
           await saveMemo.mutateAsync({ placeId, memo })
+        }}
+        onSaveEstimatedCost={async (placeId, estimatedCost) => {
+          await saveEstimatedCost.mutateAsync({ placeId, estimatedCost })
+        }}
+        onSetDayColor={async (dayId, color) => {
+          await setDayColor.mutateAsync({ dayId, color })
         }}
       />
     </div>

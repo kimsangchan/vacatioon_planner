@@ -9,6 +9,18 @@
   --pin-restaurant: #e8590c;
   --pin-lodging: #1c7ed6;
   --pin-spot: #2f9e44;
+
+  /* 일차 색 팔레트 (결정 #41) — 핀 안 흰 숫자가 읽히는 값만 담았다.
+     라이트/다크 변형을 두지 않는 이유: 이 색이 놓이는 바닥은 테마를 따르지 않는 지도 타일이고,
+     테마마다 값이 갈리면 같은 일차가 두 가지 색으로 기억된다 */
+  --day-rose: #e11d48;
+  --day-amber: #b45309;
+  --day-emerald: #047857;
+  --day-teal: #0f766e;
+  --day-sky: #0369a1;
+  --day-indigo: #4338ca;
+  --day-violet: #6d28d9;
+  --day-slate: #475569;
 }
 
 @theme inline {
