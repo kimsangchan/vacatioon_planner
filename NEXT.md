@@ -2,7 +2,7 @@
 ## ▶ 지금 할 일 (새 세션은 이 블록부터 — SessionStart 훅이 자동 주입)
 
 **MVP 배포됨**: https://vacatioon-planner.vercel.app
-검증 기준선: vitest **452 passed · 4 skipped** · pgTAP **185** · E2E 4 · tsc 0 · lint 0
+검증 기준선: vitest **456 passed** · pgTAP **185** · E2E 4 · tsc 0 · lint 0
 
 **2026-08-18 작업분 운영 반영 완료** (`3a88c8d`). 원격 Supabase 에
 `0008_place_estimated_cost.sql`·`0009_day_color.sql` 을 먼저 적용한 뒤 Vercel Production 배포 성공.

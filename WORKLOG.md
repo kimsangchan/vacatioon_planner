@@ -7,7 +7,7 @@
 
 - Status: 배포됨·운영 검증 완료 — https://vacatioon-planner.vercel.app
 - Focus: 다음 할 일은 `NEXT.md`가 단일 출처 (현재 순서 B → A → C → D)
-- 검증 기준선: vitest 452 passed·4 skipped · pgTAP 185 · E2E 4테스트 · tsc 0 · lint 0
+- 검증 기준선: vitest 456 passed · pgTAP 185 · E2E 4테스트 · tsc 0 · lint 0
 - 원격: `origin` = github.com/kimsangchan/vacatioon_planner — `master` 동기화됨
   (2026-08-11 의 "원격 없음·백업 0" 경고는 해소됨)
 - Last updated: 2026-08-18 (T10 사용자 피드백 4건 운영 반영, `3a88c8d`)
