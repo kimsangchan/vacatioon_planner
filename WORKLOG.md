@@ -7,14 +7,15 @@
 
 - Status: 배포됨·운영 검증 완료 — https://vacatioon-planner.vercel.app
 - Focus: 다음 할 일은 `NEXT.md`가 단일 출처 (현재 순서 B → A → C → D)
-- 검증 기준선: vitest 404(단위·컴포넌트) · pgTAP 185 · E2E 4테스트 · tsc 0 · lint 0
+- 검증 기준선: vitest 452 passed·4 skipped · pgTAP 185 · E2E 4테스트 · tsc 0 · lint 0
 - 원격: `origin` = github.com/kimsangchan/vacatioon_planner — `master` 동기화됨
   (2026-08-11 의 "원격 없음·백업 0" 경고는 해소됨)
-- Last updated: 2026-08-18 (T10 사용자 피드백 4건 반영, **커밋 전**)
+- Last updated: 2026-08-18 (T10 사용자 피드백 4건 운영 반영, `3a88c8d`)
 
 ## History (append; 최신이 위)
 
-- 2026-08-18 — **사용자 피드백 4건** (T10-1·2·3·4, 결정 #39·#40·#41). 전부 **커밋 전**.
+- 2026-08-18 — **사용자 피드백 4건 배포 완료** (T10-1·2·3·4, 결정 #39·#40·#41, `3a88c8d`).
+  원격 Supabase 에 `0008_place_estimated_cost.sql`·`0009_day_color.sql` 을 선적용하고 Vercel Production 배포 성공.
   ① 검색 결과가 잘려 보이던 것: 모바일 시트가 46% 고정인데 결과 도착 시 확장이 없었다.
   ② 장소 카드를 **핀에 붙는 팝업**으로. 처음엔 패널 안에 렌더해 "왼쪽 패널에 여전히 있다"는 지적을 받았고,
   이어 "확대축소를 하든 따라와야" 지적을 받아 `MapProvider.project`·`onViewportChange` 를 신설했다.
