@@ -73,6 +73,33 @@ function type(value: string) {
   fireEvent.change(screen.getByLabelText('장소 검색'), { target: { value } })
 }
 
+describe('PlaceSearchBox — 검색어 지우기 (사용자 요청)', () => {
+  it('적은 게 없으면 지우는 버튼도 없다 — 누를 것이 없는데 자리를 차지하지 않는다', () => {
+    render(<PlaceSearchBox onSave={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: '검색어 지우기' })).toBeNull()
+  })
+
+  it('한 글자만 적어도 지우는 버튼이 나온다', () => {
+    render(<PlaceSearchBox onSave={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('장소 검색'), { target: { value: '목' } })
+
+    expect(screen.getByRole('button', { name: '검색어 지우기' })).toBeTruthy()
+  })
+
+  it('누르면 입력이 비고, 버튼도 같이 사라진다', () => {
+    render(<PlaceSearchBox onSave={vi.fn()} />)
+    const input = screen.getByLabelText('장소 검색') as HTMLInputElement
+
+    fireEvent.change(input, { target: { value: '목포 맛집' } })
+    fireEvent.click(screen.getByRole('button', { name: '검색어 지우기' }))
+
+    expect(input.value).toBe('')
+    expect(screen.queryByRole('button', { name: '검색어 지우기' })).toBeNull()
+  })
+})
+
 describe('PlaceSearchBox — 디바운스 (T6-2)', () => {
   it('입력이 멈추고 300ms 뒤에 딱 한 번 검색한다', async () => {
     fetchMock.mockResolvedValue(jsonOnce([SEONGSAN]))

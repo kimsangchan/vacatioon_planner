@@ -38,6 +38,8 @@
   유닛 테스트로는 절대 못 잡는다 — 브라우저에서 실제로 끌어 봐야 나온다.
 - **`h-full` 은 flex 아이템 안에서 퍼센트 기준이 확정되지 않는다** — 지도 컨테이너가 0px 이 되어
   지도가 **백지**로 뜬다. 부모를 `relative` 로 두고 `absolute inset-0` 로 채워라 (두 번 겪었다).
+- **끌기를 받을 땐 `setPointerCapture`.** 없으면 요소 밖으로 나가는 순간 `pointermove` 가 끊긴다 —
+  유닛 테스트는 좌표를 직접 쏘므로 통과하고, 실제 손가락에서만 안 먹는다.
 - 같은 컴포넌트를 반응형으로 두 벌 두지 마라 — `id` 하드코딩이 있으면 문서에 같은 id 가 둘 생겨
   라벨이 엉뚱한 입력에 붙는다 (`PlaceSearchBox` 의 `id="place-search"`).
 - **dev 서버를 켜 둔 채 `npm run build` 금지.** `.next` 가 깨져 "코드 문제처럼 보이는" 증상이 난다.
@@ -52,6 +54,6 @@
 <!--
 규칙:
 - 이 마커 사이는 "지금/다음 할 일"만. 완료분은 WORKLOG.md 의 ## History 로.
-- 전체 작업 목록의 원본은 tasks.md, 결정 근거는 docs/design/decision-log.md (#41까지).
+- 전체 작업 목록의 원본은 tasks.md, 결정 근거는 docs/design/decision-log.md (#44까지).
 - 훅(tools/hooks/print_next_action.py)은 이 마커 사이만 세션에 주입한다.
 -->

@@ -170,6 +170,58 @@ describe('CanvasBoard — 모바일 하단 메뉴 (결정 #42)', () => {
   })
 })
 
+describe('CanvasBoard — 패널을 아래로 쓸어 내린다 (사용자 요청)', () => {
+  const open = async () => {
+    await renderBoard()
+    fireEvent.click(screen.getByRole('button', { name: '보관함' }))
+    expect(sheetHandle().getAttribute('aria-expanded')).toBe('true')
+    return sheetHandle()
+  }
+
+  it('손잡이를 아래로 끌면 패널이 내려가고 지도가 보인다', async () => {
+    const handle = await open()
+
+    fireEvent.pointerDown(handle, { clientY: 100 })
+    fireEvent.pointerMove(handle, { clientY: 180 })
+    fireEvent.pointerUp(handle, { clientY: 180 })
+
+    expect(sheetHandle().getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('조금 흔들린 것은 끌기가 아니다 — 탭으로 읽어 그대로 토글한다', async () => {
+    const handle = await open()
+
+    fireEvent.pointerDown(handle, { clientY: 100 })
+    fireEvent.pointerMove(handle, { clientY: 104 })
+    fireEvent.pointerUp(handle, { clientY: 104 })
+    fireEvent.click(handle)
+
+    // 탭이므로 토글 — 열려 있었으니 닫힌다
+    expect(sheetHandle().getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('끌어서 닫은 뒤 따라오는 click 은 삼킨다 — 닫자마자 다시 열리면 안 된다', async () => {
+    const handle = await open()
+
+    fireEvent.pointerDown(handle, { clientY: 100 })
+    fireEvent.pointerMove(handle, { clientY: 200 })
+    fireEvent.pointerUp(handle, { clientY: 200 })
+    fireEvent.click(handle)
+
+    expect(sheetHandle().getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('위로 끄는 것은 닫지 않는다 — 내리는 동작만 받는다', async () => {
+    const handle = await open()
+
+    fireEvent.pointerDown(handle, { clientY: 200 })
+    fireEvent.pointerMove(handle, { clientY: 100 })
+    fireEvent.pointerUp(handle, { clientY: 100 })
+
+    expect(sheetHandle().getAttribute('aria-expanded')).toBe('true')
+  })
+})
+
 describe('CanvasBoard — 일차 색 (결정 #41)', () => {
   it('일차 탭에 그 일차 색을 함께 낸다 — 지도 핀 색과 같은 색이어야 짝이 지어진다', async () => {
     await renderBoard()

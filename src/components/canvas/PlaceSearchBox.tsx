@@ -168,15 +168,34 @@ export function PlaceSearchBox({
       <label htmlFor="place-search" className="text-sm font-medium">
         장소 검색
       </label>
-      <input
-        id="place-search"
-        type="search"
-        value={query}
-        autoComplete="off"
-        placeholder="가고 싶은 곳 이름을 적어 주세요"
-        onChange={(event) => changeQuery(event.target.value)}
-        className="min-h-11 rounded-xl border border-black/15 bg-transparent px-4 text-base outline-none focus:border-foreground dark:border-white/20"
-      />
+      {/* 지우는 버튼은 입력 안에 얹는다. type=search 의 네이티브 X 는 브라우저마다 있거나 없어서
+          모바일에서는 기대할 수 없다 — 직접 둔다. 적은 게 없으면 내지 않는다 */}
+      <div className="relative flex">
+        <input
+          id="place-search"
+          type="search"
+          value={query}
+          autoComplete="off"
+          placeholder="가고 싶은 곳 이름을 적어 주세요"
+          onChange={(event) => changeQuery(event.target.value)}
+          className="min-h-11 w-full rounded-xl border border-black/15 bg-transparent pr-12 pl-4 text-base outline-none focus:border-foreground [&::-webkit-search-cancel-button]:hidden dark:border-white/20"
+        />
+        {query !== '' && (
+          <button
+            type="button"
+            aria-label="검색어 지우기"
+            onClick={() => {
+              changeQuery('')
+              setNote(null)
+              setFailure(null)
+              document.getElementById('place-search')?.focus()
+            }}
+            className="absolute inset-y-0 right-1 flex w-10 items-center justify-center text-black/45 dark:text-white/45"
+          >
+            <span aria-hidden>✕</span>
+          </button>
+        )}
+      </div>
 
       {results && results.length > 0 && (
         <ul className="flex flex-col gap-1">

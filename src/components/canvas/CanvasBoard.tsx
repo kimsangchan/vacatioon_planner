@@ -46,6 +46,9 @@ const CARD_BOTTOM_INSET = 64
 // 렌더 중에는 ref 를 읽을 수 없고(react-hooks/refs), 재고 다시 그리면 카드가 한 번 튄다.
 // 대신 **쓸 수 있는 공간을 max-height 로 넘겨** 카드가 그 안에서 스스로 접히게 한다
 const CARD_MIN_SPACE = 200
+// 손잡이를 이만큼 아래로 끌면 패널을 내린다. 그 아래는 손 떨림이지 의사표시가 아니다
+const SWIPE_CLOSE_PX = 60
+const SWIPE_SLOP_PX = 8
 
 export interface CanvasBoardProps {
   bundle: TripBundle
@@ -106,6 +109,10 @@ export function CanvasBoard({
   // 어느 장소의 자리인지 함께 들고 있는다 — 다른 장소를 열었을 때 낡은 위치가 한 프레임 비치지 않게
   const [anchor, setAnchor] = useState<{ id: string; point: ScreenPoint } | null>(null)
   const mapBoxRef = useRef<HTMLDivElement | null>(null)
+  // 손잡이 끌기. 끌기로 판정되면 뒤따라오는 click 을 삼킨다 —
+  // 안 그러면 내리자마자 토글이 다시 열어 버린다 (결정 #28 에서 배운 순서 문제와 같은 계열)
+  const dragStartY = useRef<number | null>(null)
+  const draggedRef = useRef(false)
   const [scrollTarget, setScrollTarget] = useState<{ id: string; nonce: number } | null>(null)
   // 모바일은 하단 메뉴로 화면을 갈아탄다 (결정 #42 — 네이버 지도식).
   // 기본은 지도지만, 아직 담아둔 곳이 없으면 보관함으로 시작한다:
@@ -357,9 +364,43 @@ export function CanvasBoard({
       >
         <button
           type="button"
-          onClick={() => setMobileView(sheetOpen ? 'map' : 'storage')}
+          onPointerDown={(event) => {
+            dragStartY.current = event.clientY
+            draggedRef.current = false
+            // 손잡이 밖으로 나가도 끌기를 계속 받는다 — 캡처가 없으면 손잡이 높이(약 44px)를
+            // 벗어나는 순간 pointermove 가 끊겨 60px 임계값에 영영 닿지 못한다 (실측)
+            try {
+              event.currentTarget.setPointerCapture(event.pointerId)
+            } catch {
+              // jsdom 등 포인터 캡처가 없는 환경 — 끌기 판정은 그대로 동작한다
+            }
+          }}
+          onPointerMove={(event) => {
+            if (dragStartY.current === null) return
+            const moved = event.clientY - dragStartY.current
+            if (moved > SWIPE_SLOP_PX) draggedRef.current = true
+            // 아래로만 받는다 — 위로 끄는 건 다른 뜻이다(더 올릴 자리도 없다)
+            if (moved > SWIPE_CLOSE_PX) {
+              dragStartY.current = null
+              setMobileView('map')
+            }
+          }}
+          onPointerUp={() => {
+            dragStartY.current = null
+          }}
+          onPointerCancel={() => {
+            dragStartY.current = null
+            draggedRef.current = false
+          }}
+          onClick={() => {
+            if (draggedRef.current) {
+              draggedRef.current = false
+              return
+            }
+            setMobileView(sheetOpen ? 'map' : 'storage')
+          }}
           aria-expanded={sheetOpen}
-          className="flex min-h-8 w-full items-center justify-center py-2 md:hidden"
+          className="flex min-h-11 w-full touch-none items-center justify-center py-2 md:hidden"
         >
           <span className="sr-only">{sheetOpen ? '리스트 내리기' : '리스트 올리기'}</span>
           <span aria-hidden className="block h-1 w-10 rounded-full bg-black/25 dark:bg-white/30" />
