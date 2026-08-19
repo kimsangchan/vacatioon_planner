@@ -24,6 +24,10 @@ export interface PreviewCardProps {
   onSaveMemo?: (memo: string) => Promise<void> | void
   /** 예상 금액 (결정 #39). 원 단위 정수, 비우면 null — 실제 지출(Stop)과 다른 값이다 */
   onSaveEstimatedCost?: (estimatedCost: number | null) => Promise<void> | void
+  /** 일정에 넣고 빼는 일도 이 카드에서 한다 (결정 #43) — 장소를 보는 자리가 곧 정하는 자리다 */
+  days?: { id: string; label: string }[]
+  onAssign?: (dayId: string) => Promise<void> | void
+  onUnassign?: () => Promise<void> | void
   onDeletePlace?: () => Promise<void> | void
   onClose?: () => void
 }
@@ -47,6 +51,9 @@ export function PreviewCard({
   onRemovePhoto,
   onSaveMemo,
   onSaveEstimatedCost,
+  days = [],
+  onAssign,
+  onUnassign,
   onDeletePlace,
   onClose,
 }: PreviewCardProps) {
@@ -62,6 +69,7 @@ export function PreviewCard({
   const [note, setNote] = useState<string | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const [pending, setPending] = useState<PendingConfirm | null>(null)
+  const [picking, setPicking] = useState(false)
 
   const cover = coverPhoto(place)
   const sheet = variant === 'sheet'
@@ -164,7 +172,9 @@ export function PreviewCard({
           <h3 className="truncate text-base font-semibold">{place.name}</h3>
           <p className="flex items-center gap-2 text-sm text-black/60 dark:text-white/60">
             <span
-              className="rounded-full px-2 py-0.5 text-xs text-background"
+              // 옆의 truncate 형제가 자리를 다 가져가면 이 배지가 최소 너비까지 눌려
+              // "스팟" 같은 두 글자가 세로로 접힌다 — 줄이지도 말고 접지도 마라
+              className="shrink-0 rounded-full px-2 py-0.5 text-xs whitespace-nowrap text-background"
               style={{ background: `var(--pin-${place.category})` }}
             >
               {CATEGORY_LABEL[place.category]}
@@ -232,6 +242,53 @@ export function PreviewCard({
             </li>
           ))}
         </ul>
+      )}
+
+      {/* 일정에 넣고 빼기 — 장소를 들여다보는 자리에서 바로 정한다 (결정 #43).
+          강조색은 쓰지 않는다: 이 카드의 주 행동은 내용을 채우는 것이다 (L-09) */}
+      {sheet && onUnassign && placedCount > 0 && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void run(() => onUnassign(), '일정에서 뺐어요.')}
+          className={SMALL_BUTTON}
+        >
+          일정에서 빼기
+        </button>
+      )}
+
+      {sheet && onAssign && placedCount === 0 && days.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            aria-expanded={picking}
+            onClick={() => setPicking((open) => !open)}
+            className={SMALL_BUTTON}
+          >
+            일정에 넣기
+          </button>
+          {picking && (
+            <ul className="flex flex-wrap gap-1">
+              {days.map((day) => (
+                <li key={day.id}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        setPicking(false)
+                        await onAssign(day.id)
+                      }, `${day.label}에 넣었어요.`)
+                    }
+                    className={SMALL_BUTTON}
+                  >
+                    {day.label}에 넣기
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {/* 메모와 예상 금액은 한 폼·한 버튼이다 — 카드에서 다 고친다는 게 이 표면의 쓸모이고,

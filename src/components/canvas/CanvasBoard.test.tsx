@@ -116,6 +116,60 @@ async function renderBoard(props: Partial<Parameters<typeof CanvasBoard>[0]> = {
   return view
 }
 
+describe('CanvasBoard — 모바일 하단 메뉴 (결정 #42)', () => {
+  // 사용자 방향: "네이버 지도처럼 하단에 메뉴를 만들어서 분리". 지도가 기본 화면이고,
+  // 보관함·일정은 하단 메뉴로 갈아탄다 — 패널이 지도를 상시로 덮지 않는다.
+  const nav = (name: string) => screen.getByRole('button', { name })
+
+  it('담아둔 곳이 있으면 지도로 시작한다 — 패널이 지도를 덮지 않는다', async () => {
+    await renderBoard()
+
+    expect(nav('지도').getAttribute('aria-current')).toBe('page')
+    expect(sheetHandle().getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('아직 담아둔 곳이 없으면 보관함으로 시작한다 — 지도에 볼 것도 담을 문도 없으면 막힌다', async () => {
+    await renderBoard({ bundle: { ...bundle, places: [], days: [] } })
+
+    expect(nav('보관함').getAttribute('aria-current')).toBe('page')
+    expect(sheetHandle().getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('하단 메뉴로 보관함·일정·지도를 갈아탄다', async () => {
+    await renderBoard()
+
+    fireEvent.click(nav('보관함'))
+    expect(sheetHandle().getAttribute('aria-expanded')).toBe('true')
+    expect(nav('보관함').getAttribute('aria-current')).toBe('page')
+
+    fireEvent.click(nav('일정'))
+    expect(nav('일정').getAttribute('aria-current')).toBe('page')
+
+    fireEvent.click(nav('지도'))
+    expect(sheetHandle().getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('핀을 눌러 카드를 띄워도 패널이 따라 열리지 않는다', async () => {
+    await renderBoard({ onSaveMemo: vi.fn() })
+
+    await act(async () => provider.emitPinEvent('p3', 'tap'))
+
+    expect(screen.getByTestId('preview-card')).toBeTruthy()
+    expect(sheetHandle().getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('보관함에서 장소를 누르면 지도로 넘어가며 카드가 뜬다 — 카드는 지도 위에 산다', async () => {
+    await renderBoard({ onSaveMemo: vi.fn() })
+
+    fireEvent.click(nav('보관함'))
+    fireEvent.click(item('p3'))
+
+    expect(screen.getByTestId('preview-card')).toBeTruthy()
+    expect(nav('지도').getAttribute('aria-current')).toBe('page')
+    expect(sheetHandle().getAttribute('aria-expanded')).toBe('false')
+  })
+})
+
 describe('CanvasBoard — 일차 색 (결정 #41)', () => {
   it('일차 탭에 그 일차 색을 함께 낸다 — 지도 핀 색과 같은 색이어야 짝이 지어진다', async () => {
     await renderBoard()
@@ -206,6 +260,8 @@ describe('CanvasBoard — 여행 경비 요약 (결정 #39)', () => {
     expect(screen.getByTestId('storage-estimate').textContent).toContain('70,000원')
   })
 })
+
+const sheetHandle = () => screen.getByRole('button', { name: /리스트 (올리기|내리기)/ })
 
 function item(placeId: string): HTMLElement {
   return screen.getByTestId(`place-item-${placeId}`)
@@ -420,7 +476,8 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
     const projected = provider.project({ lat: 33.46, lng: 126.5 })
     expect(projected).not.toBeNull()
     expect(at().left).toBe(`${projected?.x}px`)
-    expect(at().top).toBe(`${projected?.y}px`)
+    // 핀 위에 자리가 넉넉하면 핀 위에 얹는다 — 아래쪽 끝을 핀에 붙인다
+    expect(at().bottom).toBe(`calc(100% - ${(projected?.y ?? 0) - 14}px)`)
 
     // 지도를 끌거나 확대축소하면 같은 좌표의 화면 위치가 달라진다 — 카드도 따라와야 한다
     await act(async () => {
@@ -429,7 +486,9 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
     })
 
     expect(at().left).toBe('40px')
-    expect(at().top).toBe('90px')
+    // 이제 핀이 위쪽에 있어 얹을 자리가 없다 — 아래로 뒤집고 위쪽 끝을 핀에 붙인다
+    expect(at().top).toBe('104px')
+    expect(at().bottom).toBe('')
   })
 
   it('카드를 닫으면 지도 구독도 거둔다 — 열고 닫을수록 쌓이면 안 된다', async () => {
@@ -540,8 +599,6 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
     )
   }
 
-  const sheetHandle = () => screen.getByRole('button', { name: /리스트 (올리기|내리기)/ })
-
   // 사용자 보고: "카드 팝업 안되고 왼쪽 패널에 여전히 있는데".
   // 카드가 DOM 에 있는 것만으로는 부족하다 — 리스트 패널 바깥, 캔버스 위에 떠 있어야 한다.
   // jsdom 에는 레이아웃이 없으므로 위치 대신 "어느 부모 아래에 있는가"로 못 박는다.
@@ -552,43 +609,27 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
     expect(document.querySelector('aside')?.contains(card)).toBe(false)
   }
 
-  it('검색 결과가 도착하면 리스트 시트를 올린다 — 뒤쪽 결과가 잘리지 않게', async () => {
+  // 결정 #42 이후 패널은 사용자가 열고 닫는다 — 검색이 끝났다고 앱이 여닫지 않는다.
+  // (닫은 뒤 늦게 도착한 응답이 패널을 되살리면 사용자가 내린 결정을 뒤집는 셈이다)
+  it('검색 결과가 도착해도 패널을 임의로 여닫지 않는다', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(searchResponse(5)))
 
     try {
       await renderBoard({ onSaveMemo: vi.fn() })
-      expect(sheetHandle().getAttribute('aria-expanded')).toBe('false')
+      fireEvent.click(screen.getByRole('button', { name: '보관함' }))
+      expect(sheetHandle().getAttribute('aria-expanded')).toBe('true')
 
       fireEvent.change(screen.getByLabelText('장소 검색'), { target: { value: '흑돼지' } })
       await act(async () => {
         await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS + 10)
       })
 
-      expect(sheetHandle().getAttribute('aria-expanded')).toBe('true')
       // 받은 5건이 하나도 빠지지 않고 목록에 있다
       for (let i = 1; i <= 5; i += 1) {
         expect(screen.getByRole('button', { name: new RegExp(`흑돼지 명가 ${i}호점`) })).toBeTruthy()
       }
-    } finally {
-      vi.unstubAllGlobals()
-      vi.useRealTimers()
-    }
-  })
-
-  it('결과가 0건이면 시트를 올리지 않는다 — 빈 화면으로 지도를 덮지 않는다', async () => {
-    vi.useFakeTimers()
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(searchResponse(0)))
-
-    try {
-      await renderBoard({ onSaveMemo: vi.fn() })
-
-      fireEvent.change(screen.getByLabelText('장소 검색'), { target: { value: '없는곳' } })
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS + 10)
-      })
-
-      expect(sheetHandle().getAttribute('aria-expanded')).toBe('false')
+      expect(sheetHandle().getAttribute('aria-expanded')).toBe('true')
     } finally {
       vi.unstubAllGlobals()
       vi.useRealTimers()

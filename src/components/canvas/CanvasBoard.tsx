@@ -7,7 +7,7 @@
 // 미리보기는 라우트를 늘리지 않는다 — 호버·클릭 모두 지도 위에 뜨는 카드다 (SC-003 뎁스 2).
 // 클릭 카드는 그 장소 핀에 붙어 지도를 따라 움직인다 — 화면 모서리 고정은 지도 위 카드가 아니다.
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createMapProvider, type CreatedMapProvider } from '@/lib/map/create'
 import type { DayColor } from '@/lib/map/day-color'
 import type { LatLng, PinEventKind, ScreenPoint } from '@/lib/map/provider'
@@ -21,17 +21,31 @@ import {
   type PlaceRow,
   type TripBundle,
 } from '@/lib/trips/bundle'
-import { ListPane } from './ListPane'
+import { ListPane, dayLabel } from './ListPane'
 import { ManualPlaceForm } from './ManualPlaceForm'
 import { MapPane } from './MapPane'
 import { PlaceSearchBox, type PlaceDraft } from './PlaceSearchBox'
 import { PreviewCard } from './PreviewCard'
 
+/** 모바일 하단 메뉴가 고르는 화면 */
+type MobileView = 'map' | 'storage' | 'days'
+
+const MOBILE_VIEWS: { view: MobileView; label: string; icon: string }[] = [
+  { view: 'map', label: '지도', icon: '🗺' },
+  { view: 'storage', label: '보관함', icon: '🔖' },
+  { view: 'days', label: '일정', icon: '🗓' },
+]
+
 // 카드 폭 (w-80). 가로 가두기 계산에 쓴다
 const CARD_WIDTH = 320
-// 핀 위에 이만큼 자리가 없으면 카드를 핀 아래로 뒤집는다. 실측(offsetHeight) 대신 상수인 이유:
-// 렌더 중에는 ref 를 읽을 수 없고(react-hooks/refs), 측정한 뒤 다시 그리면 카드가 한 번 튄다
-const CARD_FLIP_THRESHOLD = 260
+// 핀과 카드 사이 간격, 그리고 위아래로 남겨 둘 여백(아래는 하단 메뉴 자리다)
+const CARD_GAP = 14
+const CARD_TOP_INSET = 8
+const CARD_BOTTOM_INSET = 64
+// 핀 위에 이만큼도 없으면 아래로 뒤집는다. 카드 높이를 재지 않는 이유:
+// 렌더 중에는 ref 를 읽을 수 없고(react-hooks/refs), 재고 다시 그리면 카드가 한 번 튄다.
+// 대신 **쓸 수 있는 공간을 max-height 로 넘겨** 카드가 그 안에서 스스로 접히게 한다
+const CARD_MIN_SPACE = 200
 
 export interface CanvasBoardProps {
   bundle: TripBundle
@@ -93,7 +107,14 @@ export function CanvasBoard({
   const [anchor, setAnchor] = useState<{ id: string; point: ScreenPoint } | null>(null)
   const mapBoxRef = useRef<HTMLDivElement | null>(null)
   const [scrollTarget, setScrollTarget] = useState<{ id: string; nonce: number } | null>(null)
-  const [sheetOpen, setSheetOpen] = useState(false)
+  // 모바일은 하단 메뉴로 화면을 갈아탄다 (결정 #42 — 네이버 지도식).
+  // 기본은 지도지만, 아직 담아둔 곳이 없으면 보관함으로 시작한다:
+  // 지도에 볼 것도 없는데 담는 문까지 숨기면 새 여행이 막다른 화면이 된다
+  const [mobileView, setMobileView] = useState<MobileView>(() =>
+    (bundle.places?.length ?? 0) === 0 ? 'storage' : 'map',
+  )
+  const sheetOpen = mobileView !== 'map'
+  const setSheetOpen = (open: boolean) => setMobileView(open ? 'storage' : 'map')
   const [manualLatLng, setManualLatLng] = useState<LatLng | null>(null)
   const [pickHint, setPickHint] = useState(false)
   const [seenSignal, setSeenSignal] = useState(editorSignal)
@@ -148,7 +169,28 @@ export function CanvasBoard({
 
   // 이번에 연 장소의 자리일 때만 쓴다
   const anchorPoint = anchor && anchor.id === detailId ? anchor.point : null
-  const flipBelow = anchorPoint !== null && anchorPoint.y < CARD_FLIP_THRESHOLD
+  // 위에 놓을지 아래에 놓을지, 그리고 그때 쓸 수 있는 높이가 얼마인지를 함께 정한다.
+  // 높이를 안 넘기면 카드가 핀 위 공간보다 커질 때 화면 위로 밀려 나가 제목이 잘린다 (실측)
+  const cardStyle = ((): CSSProperties => {
+    if (!anchorPoint) {
+      return { left: '50%', bottom: CARD_BOTTOM_INSET, transform: 'translateX(-50%)', maxHeight: '70%' }
+    }
+    const above = anchorPoint.y - CARD_GAP - CARD_TOP_INSET
+    if (above >= CARD_MIN_SPACE) {
+      return {
+        left: anchorPoint.x,
+        bottom: `calc(100% - ${anchorPoint.y - CARD_GAP}px)`,
+        maxHeight: above,
+        transform: 'translateX(-50%)',
+      }
+    }
+    return {
+      left: anchorPoint.x,
+      top: anchorPoint.y + CARD_GAP,
+      maxHeight: `calc(100% - ${anchorPoint.y + CARD_GAP + CARD_BOTTOM_INSET}px)`,
+      transform: 'translateX(-50%)',
+    }
+  })()
 
   function revealInList(id: string) {
     setHighlightedId(id)
@@ -175,6 +217,9 @@ export function CanvasBoard({
     setDetailId(id)
     setManualLatLng(null)
     setPickHint(false)
+    // 카드는 지도 위에 산다 — 목록에서 눌렀다면 지도로 넘어가야 카드가 보인다.
+    // 데스크톱은 사이드바와 지도가 함께 보이므로 이 전환이 눈에 띄지 않는다
+    setMobileView('map')
   }
 
   function handlePinEvent(id: string, ev: PinEventKind) {
@@ -184,7 +229,6 @@ export function CanvasBoard({
     }
     if (ev === 'tap') {
       openDetail(id)
-      setSheetOpen(true)
       return
     }
     setHighlightedId(id)
@@ -213,9 +257,11 @@ export function CanvasBoard({
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+      {/* 모바일에서는 세로 flex 의 남은 자리를 전부 먹는다 — h-full 로는 부모 높이가
+          확정되지 않아 지도 컨테이너가 0px 이 되고 지도가 백지로 뜬다(실측). 데스크톱은 가로 flex */}
       <div
         ref={mapBoxRef}
-        className="relative h-[48vh] w-full shrink-0 md:order-2 md:h-auto md:flex-1"
+        className="relative min-h-0 w-full flex-1 md:order-2 md:h-auto md:flex-1"
       >
         <MapPane
           created={created}
@@ -232,19 +278,8 @@ export function CanvasBoard({
             data-testid="place-card-anchor"
             // 핀 바로 위에 뜬다. 위쪽 공간이 모자라면 아래로 뒤집는다 —
             // 지도 밖으로 나가 사라지느니 핀을 잠깐 가리는 편이 낫다
-            className="absolute z-30 w-80 max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-2xl shadow-xl"
-            style={
-              anchorPoint
-                ? {
-                    left: anchorPoint.x,
-                    top: anchorPoint.y,
-                    maxHeight: 'calc(100% - 1.5rem)',
-                    transform: flipBelow
-                      ? 'translate(-50%, 14px)'
-                      : 'translate(-50%, calc(-100% - 14px))',
-                  }
-                : { left: '50%', bottom: 12, maxHeight: 'calc(100% - 1.5rem)', transform: 'translateX(-50%)' }
-            }
+            className="absolute z-40 w-80 max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-2xl shadow-xl"
+            style={cardStyle}
           >
           <PreviewCard
             key={detailPlace.id}
@@ -264,6 +299,21 @@ export function CanvasBoard({
             onSaveEstimatedCost={
               onSaveEstimatedCost
                 ? (amount) => onSaveEstimatedCost(detailPlace.id, amount)
+                : undefined
+            }
+            days={bundle.days.map((day) => ({ id: day.id, label: dayLabel(day) }))}
+            onAssign={
+              onAssignPlace ? (dayId) => onAssignPlace(detailPlace.id, dayId) : undefined
+            }
+            onUnassign={
+              onUnassignStop
+                ? async () => {
+                    // 같은 장소를 두 번 넣었을 수 있다 (#21) — 먼저 만나는 방문 하나만 뺀다
+                    const stop = bundle.days
+                      .flatMap((day) => day.stops)
+                      .find((item) => item.place_id === detailPlace.id)
+                    if (stop) await onUnassignStop(stop.id)
+                  }
                 : undefined
             }
             onDeletePlace={
@@ -299,13 +349,15 @@ export function CanvasBoard({
       </div>
 
       <aside
-        className={`absolute inset-x-0 bottom-0 z-10 flex flex-col rounded-t-2xl border-t border-black/10 bg-background transition-[height] duration-200 md:static md:order-1 md:z-0 md:h-auto md:w-[360px] md:shrink-0 md:rounded-none md:border-t-0 md:border-r dark:border-white/15 ${
-          sheetOpen ? 'h-[82%]' : 'h-[46%]'
+        // 모바일에서 주인공은 지도다 — 일정 패널은 접혀 있다가 눌러야 나온다 (결정 #42).
+        // 데스크톱은 그대로 왼쪽 사이드바다 (md:h-auto 가 아래 높이를 무효로 만든다)
+        className={`absolute inset-x-0 bottom-0 z-20 flex flex-col rounded-t-2xl border-t border-black/10 bg-background transition-[height] duration-200 md:static md:order-1 md:z-0 md:h-auto md:w-[360px] md:shrink-0 md:rounded-none md:border-t-0 md:border-r dark:border-white/15 ${
+          sheetOpen ? 'h-[82%]' : 'h-0 overflow-hidden md:overflow-visible'
         }`}
       >
         <button
           type="button"
-          onClick={() => setSheetOpen((open) => !open)}
+          onClick={() => setMobileView(sheetOpen ? 'map' : 'storage')}
           aria-expanded={sheetOpen}
           className="flex min-h-8 w-full items-center justify-center py-2 md:hidden"
         >
@@ -313,7 +365,7 @@ export function CanvasBoard({
           <span aria-hidden className="block h-1 w-10 rounded-full bg-black/25 dark:bg-white/30" />
         </button>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-6 md:pt-5">
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-20 md:pt-28 md:pb-6">
           {manualLatLng && (
             <ManualPlaceForm
               latLng={manualLatLng}
@@ -324,22 +376,6 @@ export function CanvasBoard({
               onCancel={() => setManualLatLng(null)}
             />
           )}
-
-          <PlaceSearchBox
-            onSave={onSave}
-            onShowExisting={revealInList}
-            // 카테고리 확정 칩이 뜨는 순간이 그 화면의 주 결정이다 (L-09)
-            onEditorOpen={closeDetail}
-            // 46% 시트에는 결과가 다 안 들어간다 — 찾은 게 있으면 올려서 목록을 통째로 보인다.
-            // 0건일 때는 올리지 않는다: 빈 화면으로 지도를 덮을 이유가 없다
-            onResults={(count) => {
-              if (count > 0) setSheetOpen(true)
-            }}
-            onPickOnMap={() => {
-              setPickHint(true)
-              setManualLatLng(null)
-            }}
-          />
 
           {/* 롱프레스·우클릭은 숨은 동작이라 아무도 발견하지 못한다 — 보이는 문을 둔다.
               강조색은 쓰지 않는다: 이 화면의 주 행동은 여전히 검색 입력이다 (L-09) */}
@@ -381,6 +417,7 @@ export function CanvasBoard({
             onSaveLeg={onSaveLeg}
             onEditorOpen={closeDetail}
             onSetDayColor={onSetDayColor}
+            focusSection={mobileView === 'map' ? undefined : mobileView}
             onAddLegPhoto={onAddLegPhoto}
             onRemovePhoto={onRemovePhoto}
             onRemoveLeg={onRemoveLeg}
@@ -389,6 +426,45 @@ export function CanvasBoard({
 
       </aside>
 
+      {/* 검색은 화면 맨 위에 상주한다 (결정 #42 — 네이버 지도처럼). 인스턴스는 **하나**다:
+          둘을 두면 `id="place-search"` 가 문서에 두 번 생겨 라벨이 엉뚱한 입력에 붙는다(실측).
+          모바일은 지도 위에 띄우고, 데스크톱은 사이드바 위쪽 자리에 얹는다 */}
+      <div className="absolute inset-x-3 top-3 z-30 rounded-2xl bg-background/95 p-2 shadow-lg backdrop-blur md:inset-x-auto md:top-4 md:left-4 md:w-[328px] md:bg-background md:shadow-none md:backdrop-blur-none">
+        <PlaceSearchBox
+          onSave={onSave}
+          onShowExisting={revealInList}
+          onEditorOpen={closeDetail}
+          onPickOnMap={() => {
+            setPickHint(true)
+            setManualLatLng(null)
+            setMobileView('map')
+          }}
+        />
+      </div>
+
+      {/* 하단 메뉴 — 지도가 기본 화면이고 보관함·일정은 갈아타는 곳이다 (결정 #42).
+          데스크톱은 사이드바가 셋을 한 화면에 담으므로 내지 않는다 */}
+      <nav
+        aria-label="화면 고르기"
+        className="absolute inset-x-0 bottom-0 z-50 flex border-t border-black/10 bg-background md:hidden dark:border-white/15"
+      >
+        {MOBILE_VIEWS.map(({ view, label, icon }) => (
+          <button
+            key={view}
+            type="button"
+            aria-current={mobileView === view ? 'page' : undefined}
+            onClick={() => setMobileView(view)}
+            className={`flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-xs ${
+              mobileView === view ? 'font-medium' : 'text-black/55 dark:text-white/55'
+            }`}
+          >
+            <span aria-hidden className="text-base leading-none">
+              {icon}
+            </span>
+            {label}
+          </button>
+        ))}
+      </nav>
     </section>
   )
 }

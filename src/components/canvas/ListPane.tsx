@@ -41,6 +41,8 @@ export interface ListPaneProps {
   onRemoveLeg?: (legId: string) => Promise<void> | void
   /** 일차 색 고르기 (결정 #41) — 지도 핀 색이 여기서 정해진다 */
   onSetDayColor?: (dayId: string, color: DayColor) => Promise<void> | void
+  /** 모바일 하단 메뉴가 고른 구역 (결정 #42). 데스크톱은 넘기지 않는다 — 탭이 이미 다 보인다 */
+  focusSection?: 'storage' | 'days'
 }
 
 const STORAGE_TAB = 'storage'
@@ -67,6 +69,7 @@ export function ListPane({
   onRemovePhoto,
   onRemoveLeg,
   onSetDayColor,
+  focusSection,
 }: ListPaneProps) {
   const itemsRef = useRef(new Map<string, HTMLElement>())
   const [tab, setTab] = useState<string>(STORAGE_TAB)
@@ -84,6 +87,15 @@ export function ListPane({
       : days.find((d) => d.stops.some((stop) => stop.place_id === scrollTarget.id))
     setTab(day ? day.id : STORAGE_TAB)
   }, [scrollTarget, unassigned, days])
+
+  // 하단 메뉴가 구역을 고르면 그 구역의 탭으로 옮긴다. 같은 구역을 다시 고르면 건드리지 않는다 —
+  // 일차를 골라 둔 사람이 '일정'을 다시 눌렀다고 1일차로 튕기면 안 된다
+  const lastSection = useRef<string | null>(null)
+  useEffect(() => {
+    if (!focusSection || lastSection.current === focusSection) return
+    lastSection.current = focusSection
+    setTab(focusSection === 'storage' ? STORAGE_TAB : (days[0]?.id ?? STORAGE_TAB))
+  }, [focusSection, days])
 
   // 탭이 바뀐 뒤에야 그 항목이 DOM 에 있다 — 두 값 모두를 의존성으로 둔 이유
   useEffect(() => {
@@ -188,7 +200,7 @@ export function ListPane({
           type="button"
           aria-pressed={tab === STORAGE_TAB}
           onClick={() => setTab(STORAGE_TAB)}
-          className={tabClass(tab === STORAGE_TAB)}
+          className={`${tabClass(tab === STORAGE_TAB)} hidden md:flex`}
         >
           보관함 {unassigned.length}
         </button>

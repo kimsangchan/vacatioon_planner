@@ -86,7 +86,9 @@ export function MapPane({
   }, [created, ready, failed, places, highlightedId, days])
 
   return (
-    <div className="relative h-full w-full bg-black/5 dark:bg-white/5">
+    // 부모(relative)를 절대 채움으로 덮는다 — h-full 은 flex 아이템 안에서 퍼센트 기준이
+    // 확정되지 않아 지도 컨테이너가 0px 이 되고 지도가 백지로 뜬다 (실측, 결정 #42)
+    <div className="absolute inset-0 bg-black/5 dark:bg-white/5">
       <div ref={containerRef} className="h-full w-full" data-testid="map-container" />
 
       {created.kind === 'fake' && (

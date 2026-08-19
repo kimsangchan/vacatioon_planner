@@ -40,6 +40,56 @@ function place(overrides: Partial<PlaceRow> = {}): PlaceRow {
 
 afterEach(cleanup)
 
+describe('PreviewCard — 카드에서 일정에 넣고 뺀다 (결정 #43)', () => {
+  const DAYS = [
+    { id: 'd1', label: '1일차' },
+    { id: 'd2', label: '2일차' },
+  ]
+
+  it('아직 안 넣은 곳은 일차를 골라 넣는다', async () => {
+    const onAssign = vi.fn().mockResolvedValue(undefined)
+    render(<PreviewCard place={place()} variant="sheet" days={DAYS} onAssign={onAssign} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '일정에 넣기' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '2일차에 넣기' }))
+    })
+
+    expect(onAssign).toHaveBeenCalledWith('d2')
+  })
+
+  it('이미 넣은 곳은 빼는 문을 낸다', async () => {
+    const onUnassign = vi.fn().mockResolvedValue(undefined)
+    render(
+      <PreviewCard
+        place={place()}
+        variant="sheet"
+        placedCount={1}
+        days={DAYS}
+        onUnassign={onUnassign}
+      />,
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '일정에서 빼기' }))
+    })
+
+    expect(onUnassign).toHaveBeenCalled()
+  })
+
+  it('일차가 하나도 없으면 넣는 문을 내지 않는다 — 누를 곳이 없다', () => {
+    render(<PreviewCard place={place()} variant="sheet" days={[]} onAssign={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: '일정에 넣기' })).toBeNull()
+  })
+
+  it('호버 카드에는 넣고 빼는 문이 없다 — 편집은 시트에서만 (FR-006)', () => {
+    render(<PreviewCard place={place()} variant="card" days={DAYS} onAssign={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: '일정에 넣기' })).toBeNull()
+  })
+})
+
 describe('PreviewCard — 예상 금액 (결정 #39)', () => {
   it('시트에서 예상 금액을 적어 원 단위 정수로 저장한다', async () => {
     const onSaveEstimatedCost = vi.fn().mockResolvedValue(undefined)
