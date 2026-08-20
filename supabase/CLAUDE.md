@@ -28,6 +28,12 @@
   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email` —
   기본 템플릿엔 코드가 없어 FR-001이 불성립한다
 
+## 함정
+
+- **`npx supabase db reset` 은 로컬 데이터를 지운다.** 실제 여행 기록을 로컬에 만들지 마라
+- dev 서버·사용자 사용과 vitest integration 이 **같은 로컬 Supabase 를 두고 경합**한다.
+  5초 타임아웃으로 우수수 깨지면 코드 문제가 아니다 — 단독으로 다시 돌려 보라
+
 ## 검증
 
 `npx supabase db reset` → `npx supabase test db` 전체 green (현재 136 어서션).

@@ -6,13 +6,28 @@
 ## Current State
 
 - Status: 배포됨·운영 검증 완료 — https://vacatioon-planner.vercel.app
-- Focus: 다음 할 일은 `NEXT.md`가 단일 출처 (현재 순서 B → A → C → D)
-- 검증 기준선: vitest 456 passed · pgTAP 185 · E2E 4테스트 · tsc 0 · lint 0
+- Focus: 다음 할 일은 `NEXT.md`가 단일 출처. 지금은 **T10-5 이동시간이 작업 트리에 미커밋**
+- 검증 기준선: vitest **490 passed**(54 파일) · pgTAP 185 · E2E 4테스트 · tsc 0 · lint 0
+  (2026-08-20 실측 — 미커밋 T10-5 포함)
 - 원격: `origin` = github.com/kimsangchan/vacatioon_planner — `master` 동기화됨
   (2026-08-11 의 "원격 없음·백업 0" 경고는 해소됨)
-- Last updated: 2026-08-18 (T10 사용자 피드백 4건 운영 반영, `3a88c8d`)
+- Last updated: 2026-08-20 (문서 정합화 — NEXT.md를 실제 트리 상태로, 결정 #45 기록)
 
 ## History (append; 최신이 위)
+
+- 2026-08-20 — **문서 정합화(catch-up 재실행)**. 구조(CLAUDE/AGENTS/NEXT/WORKLOG/훅/스코프)는 이미
+  멀쩡했고 **내용이 트리보다 뒤처져 있었다**: NEXT.md 가 T10-9 완료를 빠뜨렸고, T10-5 를 아직
+  "[다음]·사용자 작업 선행"으로 적어 둔 채였는데 **실제로는 구현이 작업 트리에 들어와 있었다**
+  (`api/directions` · `lib/route/*` · `lib/timeline/route.ts` + 테스트, 미커밋). 새 세션이 그 블록만
+  믿으면 있는 코드를 다시 짤 자리였다. 기준선도 세 곳이 서로 달라(NEXT 456 / WORKLOG 419) 실측해
+  **490 passed(54 파일)** 로 통일했다.
+  **끊긴 근거 하나를 이었다**: 미커밋 코드가 10곳에서 `결정 #45` 를 참조하는데 decision-log 는 #44 에서
+  끝나 있었다 — 주석에 흩어져 있던 근거(경유지 1회 호출 · 서버 전용 키 · Leg 구간은 추정 안 함 ·
+  React Query 미사용)를 #45 한 줄로 모았다.
+  함정 10줄은 매 세션 주입되던 자리에서 **읽힐 자리로** 내렸다 — `src/components/`(jsdom 레이아웃·
+  지도 투영·`h-full`·포인터 캡처·id 중복) · `supabase/`(db reset·테스트 경합) · AGENTS.md 전역(build·lockfile).
+  `e2e/CLAUDE.md` 는 dev 서버 함정을 이미 더 자세히 갖고 있어 건드리지 않았다.
+  주입 컨텍스트 4848B → 2951B.
 
 - 2026-08-19 — **검색 지우기 + 패널 스와이프** (T10-9, 결정 #44). 끌기는 포인터 캡처 없이는
   손잡이 밖으로 나가는 순간 끊긴다 — 유닛 테스트로는 안 보이고 브라우저에서 끌어 봐야 나온다.

@@ -53,6 +53,9 @@ Supabase(Postgres + Auth + Storage) / vitest · pgTAP · Playwright
 - dev 서버 포트 **3010 고정**(`npm run dev`) — 3000은 사용자의 다른 앱이 사용.
   지도(NCP)는 콘솔 등록 Web 서비스 URL과 **포트까지** 일치해야 인증됨.
   `supabase/config.toml`의 site_url도 3010
+- **dev 서버를 켜 둔 채 `npm run build` 금지** — `.next`가 깨져 "코드 문제처럼 보이는" 증상이 난다
+- `package-lock.json`은 **리눅스에서** 만들어야 CI가 통과한다
+- 폴더별 함정은 그 폴더의 `CLAUDE.md`에 있다 (`src/components/` · `supabase/` · `e2e/`)
 
 ## 관례
 
