@@ -10,5 +10,7 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
+  // manifest·아이콘은 세션 검사에서 뺀다 (결정 #1) — iOS 는 이 주소들을 쿠키 없이 받아 가는데,
+  // 여기서 로그인으로 307 을 주면 설치 정보를 못 읽어 홈 화면 추가가 그냥 북마크가 된다 (실측: 307)
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icon|apple-icon|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
 }
