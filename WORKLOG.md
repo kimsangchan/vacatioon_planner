@@ -5,13 +5,16 @@
 
 ## Current State
 
-- Status: 배포됨·운영 검증 완료 — https://vacatioon-planner.vercel.app
+- Status: 배포됨 — https://vacatioon-planner.vercel.app
+  (2026-08-20 배포: 원격 Supabase `0010`·`0011`·`0012` 선적용 → Vercel 에 `NCP_MAP_CLIENT_SECRET`
+  등록(Production·Preview) → master 푸시. 배포본 스모크: `/api/directions` 401 Problem JSON ·
+  `/s/<hex>` 200 · `/s/nope` 404)
 - Focus: 다음 할 일은 `NEXT.md`가 단일 출처. 지금은 **T10-5·47·46·48 이 작업 트리에 미커밋**
 - 검증 기준선: vitest **536**(`--no-file-parallelism`) · pgTAP **209** · **E2E 4 통과** · tsc 0 · lint 0
   (2026-08-20 실측 — 미커밋분 포함. dev 서버를 켜 두면 SC-008 이 경합으로 깨진다)
 - 원격: `origin` = github.com/kimsangchan/vacatioon_planner — `master` 동기화됨
   (2026-08-11 의 "원격 없음·백업 0" 경고는 해소됨)
-- Last updated: 2026-08-20 (길찾기 NCP · 확정 · 별표+공유뷰 · TDS 적용)
+- Last updated: 2026-08-20 (길찾기 NCP · 확정 · 별표+공유뷰 · TDS 적용 — **운영 반영 완료**)
 
 ## History (append; 최신이 위)
 
