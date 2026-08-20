@@ -565,17 +565,13 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
     expect(provider.viewportSubscriberCount).toBe(idle)
   })
 
-  it('장소 카드를 열면 하단 메뉴가 물러난다 — 지도를 넓게 쓴다 (결정 #48)', async () => {
+  it('카드를 열어도 하단 메뉴는 남는다 — 카드는 머무는 상태라 그동안 갇히면 안 된다 (사용자 지적)', async () => {
     await renderBoard({ onSaveMemo: vi.fn() })
     const nav = screen.getByRole('navigation', { name: '화면 고르기' })
 
-    expect(nav.getAttribute('data-hidden')).toBeNull()
-
     fireEvent.click(item('p3'))
 
-    // jsdom 에는 레이아웃이 없어 "안 보인다"를 못 잰다 — 밀어 내린 상태를 표식과 클래스로 단언한다
-    expect(nav.getAttribute('data-hidden')).not.toBeNull()
-    expect(nav.className).toContain('translate-y-full')
+    expect(nav.getAttribute('data-hidden')).toBeNull()
   })
 
   it('지도를 만지는 동안 하단 메뉴가 물러났다가, 멎으면 돌아온다 (결정 #48)', async () => {
@@ -926,5 +922,69 @@ describe('CanvasBoard — 일차 경로를 지도에 그린다 (결정 #49)', ()
     await renderBoard({ onSaveMemo: vi.fn() })
 
     expect(provider.routeColor).toBeNull()
+  })
+})
+
+describe('CanvasBoard — 저장하면 지도에서 이어 간다 (결정 #50, 사용자 요청)', () => {
+  it('모바일에서 담자마자 그 장소 카드가 지도 위에 뜬다 — 실제 저장 경로로 확인한다', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify([
+            {
+              name: '새로 담은 곳',
+              address: '제주특별자치도 제주시',
+              roadAddress: '제주특별자치도 제주시 노형로 1',
+              lat: 33.47,
+              lng: 126.55,
+              categoryHint: 'restaurant',
+              providerLink: null,
+            },
+          ]),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    )
+    // 저장은 이미 번들에 있는 장소의 id 를 돌려준 셈 친다 —
+    // 여기서 보려는 것은 "id 를 받으면 그 카드를 연다"이지 저장 자체가 아니다
+    const onSave = vi.fn().mockResolvedValue('p3')
+
+    try {
+      await renderBoard({ onSave, onSaveMemo: vi.fn() })
+      fireEvent.change(screen.getByLabelText('장소 검색'), { target: { value: '흑돼지' } })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS + 10)
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: /새로 담은 곳/ }))
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: '식당으로 담기' }))
+      })
+
+      expect(onSave).toHaveBeenCalled()
+      expect(screen.getByTestId('preview-card')).toBeTruthy()
+    } finally {
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    }
+  })
+
+it('데스크톱에서는 카드를 열지 않는다 — 목록이 상세로 갈아타면 연달아 담지 못한다', async () => {
+    installMatchMedia(1280)
+    const onSave = vi.fn().mockResolvedValue('p3')
+    await renderBoard({ onSave, onSaveMemo: vi.fn() })
+
+    // 목록과 지도가 함께 보이는 화면에서는 담긴 것이 바로 눈에 든다 — 가로챌 이유가 없다
+    expect(screen.queryByTestId('preview-card')).toBeNull()
+    expect(screen.queryByRole('button', { name: '목록으로' })).toBeNull()
+  })
+
+  it('저장이 id 를 안 돌려주면 카드를 열지 않는다 — 열 곳을 모르는데 열 수 없다', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    await renderBoard({ onSave, onSaveMemo: vi.fn() })
+
+    expect(screen.queryByTestId('preview-card')).toBeNull()
   })
 })

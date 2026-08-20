@@ -81,7 +81,8 @@ const SWIPE_SLOP_PX = 8
 
 export interface CanvasBoardProps {
   bundle: TripBundle
-  onSave: (draft: PlaceDraft) => Promise<void>
+  /** 저장한 장소의 id 를 돌려준다 — 저장 직후 그 곳을 지도에 띄운다 (결정 #50) */
+  onSave: (draft: PlaceDraft) => Promise<string>
   onAddPhoto?: (placeId: string, file: File) => Promise<void>
   onSetCover?: (placeId: string, photoId: string) => Promise<void>
   onSaveMemo?: (placeId: string, memo: string) => Promise<void>
@@ -210,7 +211,9 @@ export function CanvasBoard({
     )
 
   // 지도 화면에서만 물러난다 — 보관함·일정 화면에서 탭이 사라지면 돌아갈 문이 없어진다
-  const navHidden = mobileView === 'map' && (detailId !== null || mapBusy)
+  // 지도를 만지는 **동안만** 물러난다. 카드가 열린 것으로는 숨기지 않는다 —
+  // 조작은 순간이지만 카드는 머무는 상태라, 그동안 메뉴를 못 누르면 갇힌다 (사용자 지적)
+  const navHidden = mobileView === 'map' && mapBusy
 
   const detailPlace = byId(detailId)
   // 카드와 시트는 같은 자리를 두고 다투지 않는다 — 시트가 열려 있으면 카드는 쉰다
@@ -306,6 +309,17 @@ export function CanvasBoard({
     // 카드는 지도 위에 산다 — 목록에서 눌렀다면 지도로 넘어가야 카드가 보인다.
     // 데스크톱은 사이드바와 지도가 함께 보이므로 이 전환이 눈에 띄지 않는다
     setMobileView('map')
+  }
+
+  // 저장한 곳은 보관함에만 두지 않는다 — 후보지도 지도에 있어야 어디쯤인지 읽히고,
+  // 그 자리에서 바로 일차를 정할 수 있다 (사용자 요청, 결정 #50).
+  //
+  // **모바일에서만** 카드를 연다. 거기서는 보관함이 탭 뒤에 있어 저장해도 아무 답이 없지만,
+  // 데스크톱은 목록과 지도가 함께 보여 담긴 것이 바로 눈에 든다 — 거기서 카드를 열면
+  // 패널이 상세로 갈아타 **여러 곳을 연달아 담지 못한다**(E2E 가 이걸 잡았다).
+  async function saveAndOpen(draft: PlaceDraft): Promise<void> {
+    const id = await onSave(draft)
+    if (id && !isDesktop) openDetail(id)
   }
 
   function handlePinEvent(id: string, ev: PinEventKind) {
@@ -567,7 +581,7 @@ export function CanvasBoard({
             <ManualPlaceForm
               latLng={manualLatLng}
               onSubmit={async (draft) => {
-                await onSave(draft)
+                await saveAndOpen(draft)
                 setManualLatLng(null)
               }}
               onCancel={() => setManualLatLng(null)}
@@ -637,7 +651,7 @@ export function CanvasBoard({
             아래는 하단 메뉴 자리를 비워 둔다 */}
         <div className="absolute inset-x-3 top-3 z-30 max-h-[calc(100%-5.5rem)] overflow-y-auto overscroll-contain rounded-2xl bg-background/95 p-2 shadow-3 backdrop-blur md:inset-x-auto md:top-4 md:left-4 md:max-h-[calc(100%-3rem)] md:w-[328px] md:bg-background md:shadow-none md:backdrop-blur-none">
         <PlaceSearchBox
-          onSave={onSave}
+          onSave={saveAndOpen}
           onShowExisting={revealInList}
           onEditorOpen={closeDetail}
           onPickOnMap={() => {

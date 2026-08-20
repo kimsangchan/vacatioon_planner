@@ -99,7 +99,10 @@ export function MapPane({
   return (
     // 부모(relative)를 절대 채움으로 덮는다 — h-full 은 flex 아이템 안에서 퍼센트 기준이
     // 확정되지 않아 지도 컨테이너가 0px 이 되고 지도가 백지로 뜬다 (실측, 결정 #42)
-    <div className="absolute inset-0 bg-surface-2">
+    // 모바일에서는 하단 메뉴 위에서 끝난다 — 안 그러면 SDK 가 컨테이너 맨 아래에 붙이는
+    // 네이버 로고·저작권이 탭에 가린다 (사용자 지적). 탭이 불투명해 가려진 지도는 어차피 안 보이고,
+    // 컨테이너가 보이는 영역과 같아져 핀에 붙는 카드의 좌표 계산도 정확해진다
+    <div className="absolute inset-x-0 top-0 bottom-[var(--mobile-nav-h)] bg-surface-2 md:bottom-0">
       <div ref={containerRef} className="h-full w-full" data-testid="map-container" />
 
       {created.kind === 'fake' && (

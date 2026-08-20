@@ -416,7 +416,9 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
         bundle={bundle}
         editorSignal={editorSignal}
         onSave={async (draft) => {
-          await save.mutateAsync(draft)
+          // 새 장소 id 를 돌려준다 — 캔버스가 저장 직후 그 곳을 지도에 띄우는 데 쓴다 (결정 #50)
+          const saved = await save.mutateAsync(draft)
+          return saved.id
         }}
         onAssignPlace={(placeId, dayId) => guard(() => assignPlace.mutateAsync({ placeId, dayId }))}
         onVotePlace={(placeId, stars) => guard(() => votePlace.mutateAsync({ placeId, stars }))}
