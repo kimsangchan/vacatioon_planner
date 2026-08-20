@@ -523,8 +523,8 @@ select is(
      join pg_class c on c.oid = t.tgrelid
      join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and not t.tgisinternal and t.tgname = 'set_updated_at'),
-  6,
-  'updated_at 컬럼이 있는 6테이블 전부에 트리거가 걸려 있다'
+  7,
+  'updated_at 컬럼이 있는 7테이블 전부에 트리거가 걸려 있다 (place_votes 추가, 결정 #46)'
 );
 
 select * from finish();

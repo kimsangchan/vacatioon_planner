@@ -31,8 +31,10 @@
 ## 함정
 
 - **`npx supabase db reset` 은 로컬 데이터를 지운다.** 실제 여행 기록을 로컬에 만들지 마라
-- dev 서버·사용자 사용과 vitest integration 이 **같은 로컬 Supabase 를 두고 경합**한다.
-  5초 타임아웃으로 우수수 깨지면 코드 문제가 아니다 — 단독으로 다시 돌려 보라
+- **vitest integration 은 서로 경합한다** (2026-08-20 원인 확정). vitest 가 테스트 파일을 병렬로
+  돌리는데 통합 테스트들이 로컬 Supabase 하나를 같이 쓴다. 5초 타임아웃으로 **매번 다른 한 건**이
+  깨지면 코드 문제가 아니다 — `npx vitest run --no-file-parallelism` 이면 전부 통과한다.
+  dev 서버를 켜 두면 경합이 한 겹 더 는다
 
 ## 검증
 
