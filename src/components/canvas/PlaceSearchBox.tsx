@@ -165,12 +165,30 @@ export function PlaceSearchBox({
 
   return (
     <div className="flex flex-col gap-3">
-      <label htmlFor="place-search" className="text-[13px] font-semibold text-fg-2">
+      {/* 라벨이 한 줄을 통째로 먹고 있었다 — 좁은 패널에서 그 한 줄이 아깝다 (사용자 지적).
+          아이콘을 입력 안으로 넣고 라벨은 스크린리더에만 남긴다: 돋보기는 만국 공통이라 뜻이 샌다 */}
+      <label htmlFor="place-search" className="sr-only">
         장소 검색
       </label>
       {/* 지우는 버튼은 입력 안에 얹는다. type=search 의 네이티브 X 는 브라우저마다 있거나 없어서
           모바일에서는 기대할 수 없다 — 직접 둔다. 적은 게 없으면 내지 않는다 */}
       <div className="relative flex">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-fg-4"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="size-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.75}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Zm4.7-1.8L20 20" />
+          </svg>
+        </span>
         <input
           id="place-search"
           type="search"
@@ -178,7 +196,7 @@ export function PlaceSearchBox({
           autoComplete="off"
           placeholder="가고 싶은 곳 이름을 적어 주세요"
           onChange={(event) => changeQuery(event.target.value)}
-          className="min-h-12 w-full rounded-m border border-line bg-surface-2 pr-12 pl-4 text-base outline-none transition-colors duration-120 placeholder:text-fg-4 focus:border-[1.5px] focus:border-brand focus:bg-surface [&::-webkit-search-cancel-button]:hidden"
+          className="min-h-12 w-full rounded-m border border-line bg-surface-2 pr-12 pl-11 text-base outline-none transition-colors duration-120 placeholder:text-fg-4 focus:border-[1.5px] focus:border-brand focus:bg-surface [&::-webkit-search-cancel-button]:hidden"
         />
         {query !== '' && (
           <button
@@ -197,10 +215,11 @@ export function PlaceSearchBox({
         )}
       </div>
 
-      {results && results.length > 0 && (
+      {/* 고르고 나면 목록을 접는다 — 결과 다섯 줄이 그대로 남으면 아래의 "어디에 담을까요"가
+          화면 밖으로 밀려 정작 담지를 못한다 (사용자 지적). 고른 것은 아래 카드가 이름으로 되짚어 준다 */}
+      {results && results.length > 0 && !picked && (
         <ul className="flex flex-col gap-1">
           {results.map((place) => {
-            const active = picked?.name === place.name && picked?.lat === place.lat
             return (
               <li key={`${place.name}-${place.lat}-${place.lng}`}>
                 <button
@@ -211,9 +230,7 @@ export function PlaceSearchBox({
                     setNote(null)
                     onEditorOpen?.()
                   }}
-                  className={`flex min-h-11 w-full flex-col items-start gap-0.5 rounded-m px-3 py-2.5 text-left transition-colors duration-120 hover:bg-surface-2 ${
-                    active ? 'bg-surface-2' : ''
-                  }`}
+                  className="flex min-h-11 w-full flex-col items-start gap-0.5 rounded-m px-3 py-2.5 text-left transition-colors duration-120 hover:bg-surface-2"
                 >
                   <span className="flex items-center gap-2 text-base font-medium">
                     {place.name}
@@ -238,9 +255,20 @@ export function PlaceSearchBox({
 
       {picked && (
         <div className="flex flex-col gap-2 rounded-xl border border-line p-3">
-          <p className="text-sm text-fg-2">
-            {picked.name} — 어디에 담을까요?
-          </p>
+          <div className="flex items-baseline gap-2">
+            <p className="min-w-0 flex-1 text-sm text-fg-2">
+              <span className="font-medium text-fg">{picked.name}</span> — 어디에 담을까요?
+            </p>
+            {results && results.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setPicked(null)}
+                className="min-h-8 shrink-0 rounded-s px-2 text-[13px] font-medium text-fg-3 transition-colors duration-120 hover:bg-surface-2 hover:text-fg"
+              >
+                다시 고르기
+              </button>
+            )}
+          </div>
           <div className="flex gap-2">
             {CATEGORY_ORDER.map((category) => {
               const suggested = category === picked.categoryHint

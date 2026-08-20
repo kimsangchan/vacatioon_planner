@@ -49,6 +49,7 @@ import {
   type PlaceRow,
 } from '@/lib/trips/bundle'
 import { dateChangeNotice } from '@/lib/trips/dates'
+import { shortPeriod } from '@/lib/trips/dates'
 import { disableShare, enableShare, toHex } from '@/lib/share/api'
 import { saveMyVote, voterKey, type Stars } from '@/lib/vote/api'
 import { ShareButton } from '@/components/trips/ShareButton'
@@ -337,7 +338,7 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
             }}
             className="flex min-h-8 items-center text-sm text-fg-3 underline underline-offset-4"
           >
-            {bundle.start_date.replaceAll('-', '.')} ~ {bundle.end_date.replaceAll('-', '.')}
+            {shortPeriod(bundle.start_date, bundle.end_date)}
             <span className="sr-only"> 기간 고치기</span>
           </button>
 

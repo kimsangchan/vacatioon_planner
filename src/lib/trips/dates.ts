@@ -74,3 +74,21 @@ export function dateChangeNotice(change: TripDateChange): string {
 
   return `일정에서 빠진 곳 ${removed}곳 가운데 ${unassigned}곳을 보관함으로 옮겼어요. 나머지는 다른 날에도 담겨 있어요.`
 }
+
+/**
+ * 헤더에 들어갈 짧은 기간 표기 (사용자 지적 — 길어서 줄이 넘어가고 여행 제목이 밀렸다).
+ * 겹치는 자리를 지운다: 같은 해면 해를, 같은 달이면 달까지 뒷날에서 뺀다.
+ * 해가 다를 때만 두 해를 다 내는 이유는, 그때 생략하면 12.30~1.2 가 어느 해인지 사라져서다.
+ */
+export function shortPeriod(startDate: string, endDate: string): string {
+  const [sy, sm, sd] = startDate.split('-').map(Number)
+  const [ey, em, ed] = endDate.split('-').map(Number)
+
+  if (sy !== ey) {
+    const yy = (year: number) => String(year).slice(2)
+    return `${yy(sy)}.${sm}.${sd}~${yy(ey)}.${em}.${ed}`
+  }
+  if (sm !== em) return `${sm}.${sd}~${em}.${ed}`
+  if (sd !== ed) return `${sm}.${sd}~${ed}`
+  return `${sm}.${sd}`
+}

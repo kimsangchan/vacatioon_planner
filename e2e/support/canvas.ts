@@ -2,6 +2,7 @@
 // 측정 구간은 각 스펙이 직접 다룬다 — 준비 과정이 실측값에 섞이면 안 된다.
 
 import { expect, type Locator, type Page } from 'playwright/test'
+import { shortPeriod } from '../../src/lib/trips/dates'
 
 export interface NewTripInput {
   name: string
@@ -53,8 +54,10 @@ export async function setTripDatesThroughUi(
 
   // 고른 기간이 실제로 붙었는지 확인한다. 이 단언이 없으면 달력이 하루짜리로 접혀도
   // 스모크가 통과한다 — 실제로 그런 결함이 한 번 빠져나갔다
-  const shown = `${startDate.replaceAll('-', '.')} ~ ${endDate.replaceAll('-', '.')}`
-  await expect(page.getByRole('button', { name: new RegExp(`${shown}.*기간 고치기`) })).toBeVisible()
+  // 앱과 같은 함수로 문자열을 만든다 — 표기를 줄였을 때(9.10~12) 여기만 옛 형식으로 남아 깨졌다.
+  // 정규식 대신 부분 일치를 쓴다: 날짜에 든 마침표를 이스케이프할 일이 없어진다
+  const shown = shortPeriod(startDate, endDate)
+  await expect(page.getByRole('button', { name: shown, exact: false })).toBeVisible()
 }
 
 /**

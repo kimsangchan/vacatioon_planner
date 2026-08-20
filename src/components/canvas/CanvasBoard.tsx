@@ -633,7 +633,9 @@ export function CanvasBoard({
       {/* 검색은 화면 맨 위에 상주한다 (결정 #42 — 네이버 지도처럼). 인스턴스는 **하나**다:
           둘을 두면 `id="place-search"` 가 문서에 두 번 생겨 라벨이 엉뚱한 입력에 붙는다(실측).
           모바일은 지도 위에 띄우고, 데스크톱은 사이드바 위쪽 자리에 얹는다 */}
-      <div className="absolute inset-x-3 top-3 z-30 rounded-2xl bg-background/95 p-2 shadow-lg backdrop-blur md:inset-x-auto md:top-4 md:left-4 md:w-[328px] md:bg-background md:shadow-none md:backdrop-blur-none">
+      {/* 넘치면 이 안에서 스크롤한다 — 캔버스가 뷰포트 높이에 고정돼 있어 넘친 만큼은 그냥 잘린다.
+            아래는 하단 메뉴 자리를 비워 둔다 */}
+        <div className="absolute inset-x-3 top-3 z-30 max-h-[calc(100%-5.5rem)] overflow-y-auto overscroll-contain rounded-2xl bg-background/95 p-2 shadow-3 backdrop-blur md:inset-x-auto md:top-4 md:left-4 md:max-h-[calc(100%-3rem)] md:w-[328px] md:bg-background md:shadow-none md:backdrop-blur-none">
         <PlaceSearchBox
           onSave={onSave}
           onShowExisting={revealInList}

@@ -254,16 +254,19 @@ describe('TimelinePane — TDS list-row 규격', () => {
     expect(row('l1').getAttribute('data-lines')).toBe('2')
   })
 
-  it('행에는 작업 버튼 하나만 두고 순서·편집·되돌리기는 펼친 뒤 보여 준다', () => {
+  // 순서는 행에 그대로 둔다 — 목록 순서가 곧 이동 순서라(#15) 경로·이동시간이 여기 달려 있어
+  // 가장 자주 만진다. 접어 두면 한 칸 옮기는 데 두 번 눌러야 한다 (사용자 지적)
+  it('순서 바꾸기는 행에 바로 두고, 편집·되돌리기만 펼친 뒤 보여 준다', () => {
     renderPane()
 
-    expect(within(row('s1')).queryByRole('button', { name: '아래로 옮기기' })).toBeNull()
+    expect(within(row('s1')).getByRole('button', { name: '아래로 옮기기' })).toBeTruthy()
     expect(within(row('s1')).queryByRole('button', { name: '보관함으로 되돌리기' })).toBeNull()
 
     fireEvent.click(within(row('s1')).getByRole('button', { name: '흑돼지집 작업 열기' }))
 
-    expect(within(row('s1')).getByRole('button', { name: '아래로 옮기기' })).toBeTruthy()
     expect(within(row('s1')).getByRole('button', { name: '보관함으로 되돌리기' })).toBeTruthy()
+    // 순서 버튼이 서랍에도 또 생기지는 않는다 — 같은 일을 하는 버튼이 둘이면 헷갈린다
+    expect(within(row('s1')).getAllByRole('button', { name: '아래로 옮기기' })).toHaveLength(1)
   })
 })
 

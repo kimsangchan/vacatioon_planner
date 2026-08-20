@@ -265,3 +265,47 @@ describe('PlaceSearchBox — 분기 (PRD 엣지케이스 / L-06)', () => {
     expect(onShowExisting).toHaveBeenCalledWith('place-1')
   })
 })
+
+describe('PlaceSearchBox — 고르면 목록을 접는다 (사용자 지적)', () => {
+  it('결과가 다섯이면 고른 뒤 목록이 사라진다 — 안 접으면 "어디에 담을까요"가 화면 밖으로 밀린다', async () => {
+    const five = [HEUKDWAEJI, SEONGSAN, HEUKDWAEJI, SEONGSAN, HEUKDWAEJI].map((place, index) => ({
+      ...place,
+      name: `${place.name}${index}`,
+    }))
+    fetchMock.mockResolvedValue(jsonOnce(five))
+    render(<PlaceSearchBox onSave={vi.fn()} />)
+
+    type('흑돼지')
+    await tick(300)
+    const results = screen.getAllByRole('button', { name: /제주특별자치도/ })
+    expect(results).toHaveLength(5)
+
+    fireEvent.click(results[0])
+
+    expect(screen.queryAllByRole('button', { name: /제주특별자치도/ })).toHaveLength(0)
+    expect(screen.getByRole('button', { name: '식당으로 담기' })).toBeTruthy()
+  })
+
+  it('다시 고르기로 목록을 되살린다 — 접었으면 돌아갈 문이 있어야 한다', async () => {
+    fetchMock.mockResolvedValue(jsonOnce([HEUKDWAEJI, SEONGSAN]))
+    render(<PlaceSearchBox onSave={vi.fn()} />)
+
+    type('흑돼지')
+    await tick(300)
+    fireEvent.click(screen.getAllByRole('button', { name: /제주특별자치도/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: '다시 고르기' }))
+
+    expect(screen.getAllByRole('button', { name: /제주특별자치도/ })).toHaveLength(2)
+  })
+
+  it('결과가 하나뿐이면 다시 고르기를 내지 않는다 — 돌아가도 같은 하나다', async () => {
+    fetchMock.mockResolvedValue(jsonOnce([HEUKDWAEJI]))
+    render(<PlaceSearchBox onSave={vi.fn()} />)
+
+    type('흑돼지')
+    await tick(300)
+    fireEvent.click(screen.getAllByRole('button', { name: /제주특별자치도/ })[0])
+
+    expect(screen.queryByRole('button', { name: '다시 고르기' })).toBeNull()
+  })
+})

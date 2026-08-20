@@ -334,7 +334,11 @@ export function TimelinePane({
             )
           )}
 
-          {(onReorder || onUpdateStop || onUnassignStop) && (
+          {/* 순서 바꾸기는 접지 않는다 — 목록 순서가 곧 이동 순서이고(#15) 경로·이동시간이 여기 달려 있어
+              가장 자주 만지는 손질이다. 접어 두면 두 번 눌러야 한 칸 움직인다 (사용자 지적) */}
+          {onReorder && moveButtons(stop.id, index)}
+
+          {(onUpdateStop || onUnassignStop) && (
             <button
               type="button"
               aria-expanded={actionsForId === stop.id}
@@ -351,7 +355,6 @@ export function TimelinePane({
 
         {actionsForId === stop.id && (
           <div className="flex flex-wrap items-center justify-end gap-1 border-t border-line-subtle py-2">
-            {moveButtons(stop.id, index)}
             {onUpdateStop && (
               <button
                 type="button"

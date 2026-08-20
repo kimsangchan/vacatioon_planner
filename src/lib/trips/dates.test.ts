@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest'
 import type { DayRow, StopRow } from './bundle'
-import { dateChangeNotice, shrinkConfirmMessage, shrinkImpact } from './dates'
+import { dateChangeNotice, shrinkConfirmMessage, shrinkImpact , shortPeriod } from './dates'
 
 const stop = (id: string): StopRow => ({
   id,
@@ -102,5 +102,27 @@ describe('dateChangeNotice — E-14 반환 카운트를 사람 말로 (FR-015)',
 
   it('옮긴 게 없으면 바뀐 사실만 알린다', () => {
     expect(dateChangeNotice({ removed_stops: 0, unassigned_places: 0 })).toBe('기간을 바꿨어요.')
+  })
+})
+
+describe('shortPeriod — 헤더가 좁다 (사용자 지적)', () => {
+  it('같은 달이면 뒷날은 일만 남긴다 — 9.10~12', () => {
+    expect(shortPeriod('2026-09-10', '2026-09-12')).toBe('9.10~12')
+  })
+
+  it('달이 다르면 달까지 낸다 — 9.30~10.2', () => {
+    expect(shortPeriod('2026-09-30', '2026-10-02')).toBe('9.30~10.2')
+  })
+
+  it('해가 다르면 두 해를 다 낸다 — 헷갈리느니 길어지는 편이 낫다', () => {
+    expect(shortPeriod('2026-12-30', '2027-01-02')).toBe("26.12.30~27.1.2")
+  })
+
+  it('하루짜리는 한 번만 쓴다 — 같은 날을 두 번 읽게 하지 않는다', () => {
+    expect(shortPeriod('2026-09-10', '2026-09-10')).toBe('9.10')
+  })
+
+  it('앞자리 0 을 떼서 자리를 아낀다', () => {
+    expect(shortPeriod('2026-01-05', '2026-01-07')).toBe('1.5~7')
   })
 })

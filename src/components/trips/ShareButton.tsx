@@ -60,7 +60,7 @@ export function ShareButton({ enabled, token, onEnable, onDisable }: ShareButton
         >
           <path d="M8.7 13.4l6.6 3.8M15.3 6.8L8.7 10.6M18 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM6 15a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm12 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
         </svg>
-        같이 보기
+        공유
       </button>
 
       {open && (
