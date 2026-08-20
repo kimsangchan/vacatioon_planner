@@ -37,6 +37,7 @@ Supabase(Postgres + Auth + Storage) / vitest · pgTAP · Playwright
 ## 명령
 
 - `npm test`(vitest) · `npm run build` · `npm run lint` · `npm run test:e2e`(playwright)
+  통합 테스트가 산발적으로 깨지면 `npx vitest run --no-file-parallelism` (로컬 Supabase 경합)
 - `npx supabase start` / `npx supabase db reset`(마이그레이션 적용) / `npx supabase test db`(pgTAP)
 
 ## 반드시 (전역 — 어기면 설계 붕괴)
