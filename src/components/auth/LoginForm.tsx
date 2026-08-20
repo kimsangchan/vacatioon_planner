@@ -27,11 +27,11 @@ async function confirmOtpCode(email: string, code: string): Promise<void> {
 }
 
 const PRIMARY =
-  'flex min-h-11 w-full items-center justify-center rounded-full bg-foreground px-5 text-base font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50'
+  'tds-button tds-button-xl w-full bg-brand px-6 text-[17px] font-bold text-white hover:opacity-90 disabled:opacity-50'
 const SECONDARY =
-  'flex min-h-11 items-center justify-center rounded-full border border-black/15 px-5 text-base font-medium transition-colors hover:bg-black/[.04] dark:border-white/20 dark:hover:bg-white/[.06]'
+  'tds-button tds-button-m border border-line px-4 text-[15px] font-medium hover:bg-surface-2'
 const FIELD =
-  'min-h-11 w-full rounded-xl border border-black/15 bg-transparent px-4 text-base outline-none focus:border-foreground dark:border-white/20'
+  'tds-field w-full border border-line bg-surface px-4 text-base outline-none focus:border-brand'
 
 export function LoginForm({ requestCode, verifyCode, onSignedIn }: LoginFormProps) {
   const router = useRouter()
@@ -90,7 +90,7 @@ export function LoginForm({ requestCode, verifyCode, onSignedIn }: LoginFormProp
   if (step === 'code') {
     return (
       <form onSubmit={handleConfirmCode} className="flex w-full flex-col gap-4">
-        <p className="text-base text-black/70 dark:text-white/70">
+        <p className="text-base text-fg-2">
           {email}로 6자리 코드를 보냈어요. 코드를 넣으면 바로 들어가요.
         </p>
 
@@ -112,7 +112,7 @@ export function LoginForm({ requestCode, verifyCode, onSignedIn }: LoginFormProp
         </div>
 
         {error && (
-          <div role="alert" className="flex flex-col gap-3 rounded-xl bg-black/[.04] p-4 dark:bg-white/[.08]">
+          <div role="alert" className="flex flex-col gap-3 rounded-xl bg-surface-2 p-4">
             <p className="text-sm">{error}</p>
             <button type="button" onClick={backToEmail} className={`${SECONDARY} self-start`}>
               코드 다시 받기
@@ -124,13 +124,13 @@ export function LoginForm({ requestCode, verifyCode, onSignedIn }: LoginFormProp
           {pending ? '확인하고 있어요' : '코드 확인하기'}
         </button>
 
-        <p className="text-sm text-black/60 dark:text-white/60">
+        <p className="text-sm text-fg-2">
           메일의 링크로도 열려요. 코드가 편하면 위에 그대로 넣어 주세요.
         </p>
         <button
           type="button"
           onClick={backToEmail}
-          className="flex min-h-11 items-center self-start text-sm underline underline-offset-4"
+          className="tds-button tds-button-m self-start px-1 text-sm text-fg-2 underline underline-offset-4"
         >
           다른 메일 주소로 받기
         </button>
@@ -146,10 +146,10 @@ export function LoginForm({ requestCode, verifyCode, onSignedIn }: LoginFormProp
           카카오를 못 쓰는 상황(동의 취소·OIDC 미설정)의 대안이기도 하다 (결정 #33) */}
       <KakaoLoginButton />
 
-      <p className="flex items-center gap-3 text-sm text-black/45 dark:text-white/45">
-        <span aria-hidden className="h-px flex-1 bg-black/10 dark:bg-white/15" />
+      <p className="flex items-center gap-3 text-sm text-fg-3">
+        <span aria-hidden className="h-px flex-1 bg-surface-2" />
         또는 메일로
-        <span aria-hidden className="h-px flex-1 bg-black/10 dark:bg-white/15" />
+        <span aria-hidden className="h-px flex-1 bg-surface-2" />
       </p>
 
       <form onSubmit={handleSendCode} className="flex w-full flex-col gap-4">
@@ -170,7 +170,7 @@ export function LoginForm({ requestCode, verifyCode, onSignedIn }: LoginFormProp
       </div>
 
       {error && (
-        <div role="alert" className="flex flex-col gap-3 rounded-xl bg-black/[.04] p-4 dark:bg-white/[.08]">
+        <div role="alert" className="flex flex-col gap-3 rounded-xl bg-surface-2 p-4">
           <p className="text-sm">{error}</p>
           <button type="submit" disabled={pending} className={`${SECONDARY} self-start`}>
             다시 보내기
@@ -182,7 +182,7 @@ export function LoginForm({ requestCode, verifyCode, onSignedIn }: LoginFormProp
         {pending ? '메일을 보내고 있어요' : '인증 코드 받기'}
       </button>
 
-        <p className="text-sm text-black/60 dark:text-white/60">
+        <p className="text-sm text-fg-2">
           메일로 6자리 코드와 링크를 함께 보내요. 코드를 넣는 쪽이 어느 기기에서나 잘 열려요.
         </p>
       </form>

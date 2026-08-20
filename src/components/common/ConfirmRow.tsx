@@ -25,7 +25,7 @@ export function ConfirmRow({
   return (
     <div
       role="alert"
-      className="flex flex-col gap-2 rounded-xl border border-black/15 p-3 text-sm dark:border-white/20"
+      className="flex flex-col gap-2 rounded-m border border-line p-3 text-[13px]"
     >
       <p>{message}</p>
       <div className="flex flex-wrap gap-2">
@@ -33,7 +33,7 @@ export function ConfirmRow({
           type="button"
           disabled={busy}
           onClick={onConfirm}
-          className="flex min-h-8 items-center rounded-full border border-black/25 px-3 text-sm font-medium transition-colors duration-[120ms] hover:bg-black/[.06] disabled:opacity-40 dark:border-white/30 dark:hover:bg-white/[.10]"
+          className="flex min-h-8 items-center rounded-full border border-line-strong px-3 text-sm font-medium transition-colors duration-[120ms] hover:bg-surface-2 disabled:opacity-40"
         >
           {confirmLabel}
         </button>

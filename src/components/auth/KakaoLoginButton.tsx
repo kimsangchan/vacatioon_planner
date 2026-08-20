@@ -8,14 +8,14 @@
 // 'use client' 가 없는 평범한 폼이다: JS 없이도 눌리고, 세션이 꼬여도 눌린다.
 // GET 링크로 두면 Next 의 prefetch 가 로그인을 미리 실행해 nonce 를 태운다.
 //
-// 강조색(bg-foreground)을 쓰지 않는다 — 이 화면의 강조 CTA 는 '인증 코드 받기' 하나다 (L-09).
+// 강조색(bg-brand)을 쓰지 않는다 — 이 화면의 강조 CTA 는 '인증 코드 받기' 하나다 (L-09).
 
 export function KakaoLoginButton() {
   return (
     <form method="post" action="/auth/kakao/start">
       <button
         type="submit"
-        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#FEE500] px-5 text-base font-medium text-[#191600] transition-opacity hover:opacity-90"
+        className="tds-button tds-button-l w-full gap-2 bg-[#FEE500] px-5 text-base font-semibold text-[#191600] hover:opacity-90"
       >
         <span aria-hidden>💬</span>
         카카오로 계속하기

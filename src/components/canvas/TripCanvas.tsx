@@ -49,6 +49,9 @@ import {
   type PlaceRow,
 } from '@/lib/trips/bundle'
 import { dateChangeNotice } from '@/lib/trips/dates'
+import { disableShare, enableShare, toHex } from '@/lib/share/api'
+import { saveMyVote, voterKey, type Stars } from '@/lib/vote/api'
+import { ShareButton } from '@/components/trips/ShareButton'
 import { CanvasBoard } from './CanvasBoard'
 import type { PlaceDraft } from './PlaceSearchBox'
 import { TripDatesForm } from './TripDatesForm'
@@ -98,6 +101,23 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
   })
 
   const refetchBundle = () => queryClient.invalidateQueries({ queryKey: tripBundleKey(tripId) })
+
+  // 별표 협의 (결정 #46) — 주인은 RLS 경유로 바로 쓴다. 공유 링크로 들어온 사람은 RPC 를 거친다
+  // 공유 링크 (결정 #3) — 켜기를 다시 누르면 새 토큰이 나오고 그게 곧 이전 링크 무효화다
+  const turnOnShare = useMutation({
+    mutationFn: () => enableShare(supabase, tripId),
+    onSuccess: refetchBundle,
+  })
+  const turnOffShare = useMutation({
+    mutationFn: () => disableShare(supabase, tripId),
+    onSuccess: refetchBundle,
+  })
+
+  const votePlace = useMutation({
+    mutationFn: ({ placeId, stars }: { placeId: string; stars: 0 | Stars }) =>
+      saveMyVote(supabase, { placeId, voterKey: voterKey(window.localStorage), stars }),
+    onSuccess: refetchBundle,
+  })
 
   const save = useMutation({
     mutationFn: (draft: PlaceDraft) =>
@@ -221,7 +241,7 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
       patch,
     }: {
       stopId: string
-      patch: { start_time: string | null; cost_amount: number | null }
+      patch: { start_time?: string | null; cost_amount?: number | null; confirmed?: boolean }
     }) => updateStop(supabase, stopId, patch),
     onSuccess: refetchBundle,
   })
@@ -258,7 +278,7 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
 
   if (bundleQuery.isPending) {
     return (
-      <p className="px-5 py-12 text-base text-black/60 sm:px-8 dark:text-white/60">
+      <p className="px-5 py-12 text-base text-fg-2 sm:px-8">
         여행을 불러오고 있어요.
       </p>
     )
@@ -275,10 +295,10 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-col items-start gap-4 px-5 py-12 sm:px-8">
         <h2 className="text-xl font-semibold tracking-tight">여행을 열지 못했어요</h2>
-        <p className="text-base text-black/60 dark:text-white/60">{message}</p>
+        <p className="text-base text-fg-2">{message}</p>
         <Link
           href="/"
-          className="flex min-h-11 items-center justify-center rounded-full bg-foreground px-5 text-base font-medium text-background transition-opacity hover:opacity-90"
+          className="flex min-h-12 items-center justify-center rounded-l bg-brand px-5 text-[17px] font-bold text-white transition-opacity hover:opacity-90"
         >
           여행 목록 보기
         </Link>
@@ -293,7 +313,10 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-col gap-2 px-4 pt-4 pb-3 md:px-5">
         <div className="flex items-baseline gap-3">
-          <Link href="/" className="flex min-h-8 items-center text-sm underline underline-offset-4">
+          <Link
+            href="/"
+            className="flex min-h-8 shrink-0 items-center text-[13px] font-medium text-fg-3 transition-colors duration-120 hover:text-fg"
+          >
             여행 목록
           </Link>
           <TripTitleField
@@ -312,11 +335,22 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
               setEditingDates((open) => !open)
               setNotice(null)
             }}
-            className="flex min-h-8 items-center text-sm text-black/55 underline underline-offset-4 dark:text-white/55"
+            className="flex min-h-8 items-center text-sm text-fg-3 underline underline-offset-4"
           >
             {bundle.start_date.replaceAll('-', '.')} ~ {bundle.end_date.replaceAll('-', '.')}
             <span className="sr-only"> 기간 고치기</span>
           </button>
+
+          {/* 같이 보기 — 동행자를 부르는 유일한 문이다 (결정 #3·#46).
+              오른쪽 끝에 두는 이유: 이 화면의 주 행동은 장소를 담는 것이고, 공유는 다 담고 나서 한다 */}
+          <div className="ml-auto self-center">
+            <ShareButton
+              enabled={bundle.share_enabled === true}
+              token={bundle.share_token ? toHex(bundle.share_token) : null}
+              onEnable={async () => void (await turnOnShare.mutateAsync())}
+              onDisable={() => turnOffShare.mutateAsync()}
+            />
+          </div>
         </div>
 
         {editingDates && (
@@ -350,7 +384,7 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
                 setNotice(null)
                 void guard(undo.run)
               }}
-              className="flex min-h-8 items-center rounded-full border border-black/15 px-3 text-xs font-medium dark:border-white/20"
+              className="flex min-h-8 items-center rounded-full border border-line px-3 text-xs font-medium"
             >
               {undo.label}
             </button>
@@ -370,7 +404,7 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
               setScheduleFailure(null)
               void refetchBundle()
             }}
-            className="flex min-h-8 items-center rounded-full border border-black/15 px-3 text-xs dark:border-white/20"
+            className="flex min-h-8 items-center rounded-full border border-line px-3 text-xs"
           >
             여행 다시 불러오기
           </button>
@@ -384,6 +418,7 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
           await save.mutateAsync(draft)
         }}
         onAssignPlace={(placeId, dayId) => guard(() => assignPlace.mutateAsync({ placeId, dayId }))}
+        onVotePlace={(placeId, stars) => guard(() => votePlace.mutateAsync({ placeId, stars }))}
         onUnassignStop={(stopId) => guard(() => unassignStop.mutateAsync(stopId))}
         onUpdateStop={(stopId, patch) => guard(() => changeStop.mutateAsync({ stopId, patch }))}
         onReorderDay={(dayId, orderedIds) =>

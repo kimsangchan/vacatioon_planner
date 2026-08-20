@@ -6,6 +6,9 @@ export interface StopLike {
   position: number
   start_time: string | null // 'HH:MM' 벽시계 값
   cost_amount: number | null // 원 단위 정수 — 방문 지출 (decision-log #24)
+  // 확정 여부 (decision-log #47). **생략은 확정으로 본다** — DB 기본값(true)과 같은 뜻이라
+  // 이 값을 모르는 호출부가 갑자기 경로를 잃지 않는다
+  confirmed?: boolean
 }
 
 export interface LegLike {

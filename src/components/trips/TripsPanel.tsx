@@ -113,28 +113,34 @@ export function TripsPanel({
   const recentlyDeleted = deletedTrips.filter((trip) => !restoredIds.includes(trip.id))
 
   return (
-    <section className="flex flex-col gap-6">
-      {visible.length > 0 && (
-        <button
-          type="button"
-          onClick={() => void handleStart()}
-          disabled={starting}
-          className="flex min-h-11 items-center justify-center self-start rounded-full bg-foreground px-5 text-base font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {starting ? '여는 중이에요' : '새 여행 만들기'}
-        </button>
-      )}
+    <section aria-labelledby="active-trips-heading" className="flex flex-col gap-5">
+      <div className="flex min-h-12 items-center justify-between gap-4 border-b border-line pb-4">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h2 id="active-trips-heading" className="text-lg font-bold">진행 중인 여행</h2>
+          <span className="tabular text-sm text-fg-3">{visible.length}</span>
+        </div>
+        {visible.length > 0 && (
+          <button
+            type="button"
+            onClick={() => void handleStart()}
+            disabled={starting}
+            className="tds-button tds-button-l bg-brand px-5 text-[15px] font-bold text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {starting ? '여는 중이에요' : '새 여행 만들기'}
+          </button>
+        )}
+      </div>
 
       {removed && (
         <p
           role="status"
-          className="flex flex-wrap items-center gap-3 rounded-2xl bg-black/[.04] px-4 py-3 text-sm dark:bg-white/[.08]"
+          className="flex flex-wrap items-center gap-3 rounded-xl bg-surface-2 px-4 py-3 text-[13px]"
         >
           ‘{removed.name}’ 여행을 지웠어요.
           <button
             type="button"
             onClick={() => void handleRestore(removed.id)}
-            className="flex min-h-8 items-center rounded-full border border-black/15 px-3 text-sm font-medium dark:border-white/20"
+            className="tds-button tds-button-m border border-line px-3 text-sm font-medium"
           >
             되돌리기
           </button>

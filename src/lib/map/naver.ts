@@ -67,9 +67,14 @@ export interface NaverMarker {
   setMap(map: unknown): void
 }
 
+export interface NaverPolyline {
+  setMap(map: unknown): void
+}
+
 export interface NaverMapsNamespace {
   Map: new (el: HTMLElement, options: Record<string, unknown>) => NaverMap
   Marker: new (options: Record<string, unknown>) => NaverMarker
+  Polyline: new (options: Record<string, unknown>) => NaverPolyline
   LatLng: new (lat: number, lng: number) => unknown
   Point: new (x: number, y: number) => unknown
   Event: {
@@ -164,6 +169,7 @@ export class NaverMapProvider implements MapProvider {
   private maps: NaverMapsNamespace | null = null
   private map: NaverMap | null = null
   private markers: NaverMarker[] = []
+  private routeLine: NaverPolyline | null = null
   private listeners: unknown[] = []
   private pinHandlers: PinEventHandler[] = []
   private longPressHandlers: LongPressHandler[] = []
@@ -292,15 +298,40 @@ export class NaverMapProvider implements MapProvider {
     this.mapTapHandlers.push(cb)
   }
 
+  // 그 날 실제로 달리는 길 (결정 #49). 선은 하나만 둔다 — 일차를 바꾸면 갈아 끼운다
+  setRoutePath(points: LatLng[], color: string): void {
+    try {
+      this.routeLine?.setMap(null)
+      this.routeLine = null
+      if (!this.maps || !this.map || points.length < 2) return
+
+      this.routeLine = new this.maps.Polyline({
+        map: this.map,
+        path: points.map((point) => new this.maps!.LatLng(point.lat, point.lng)),
+        // 핀보다 얇고 흐리게 — 선이 주인공이 아니다. 길을 잇는 실마리일 뿐이다
+        strokeColor: color,
+        strokeOpacity: 0.85,
+        strokeWeight: 5,
+        strokeLineCap: 'round',
+        strokeLineJoin: 'round',
+      })
+    } catch {
+      // 인증 실패로 SDK 내부가 비어 있을 수 있다 — 선이 없다고 지도를 막지는 않는다
+      this.routeLine = null
+    }
+  }
+
   destroy(): void {
     try {
       for (const listener of this.listeners) this.maps?.Event.removeListener(listener)
       for (const marker of this.markers) marker.setMap(null)
+      this.routeLine?.setMap(null)
     } catch {
       // 인증 실패로 SDK 내부가 비어도 정리는 계속한다
     }
     this.listeners = []
     this.markers = []
+    this.routeLine = null
     this.pinHandlers = []
     this.longPressHandlers = []
     this.mapTapHandlers = []
@@ -334,9 +365,9 @@ function pinContent(pin: Pin): string {
   const size = pinSize(pin.selected)
   const ring = pin.selected ? '3px solid var(--background)' : '2px solid var(--background)'
   const glyph =
-    pin.dayNumber !== null
+    pin.orderNumber !== null
       ? `<span style="color:#fff;font-size:${pin.selected ? 13 : 11}px;` +
-        `font-weight:700;line-height:1;font-variant-numeric:tabular-nums">${pin.dayNumber}</span>`
+        `font-weight:700;line-height:1;font-variant-numeric:tabular-nums">${pin.orderNumber}</span>`
       : `<svg viewBox="0 0 24 24" width="${pin.selected ? 15 : 12}" ` +
         `height="${pin.selected ? 15 : 12}" fill="none" stroke="#fff" stroke-width="2.4" ` +
         `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +

@@ -165,7 +165,7 @@ export function PlaceSearchBox({
 
   return (
     <div className="flex flex-col gap-3">
-      <label htmlFor="place-search" className="text-sm font-medium">
+      <label htmlFor="place-search" className="text-[13px] font-semibold text-fg-2">
         장소 검색
       </label>
       {/* 지우는 버튼은 입력 안에 얹는다. type=search 의 네이티브 X 는 브라우저마다 있거나 없어서
@@ -178,7 +178,7 @@ export function PlaceSearchBox({
           autoComplete="off"
           placeholder="가고 싶은 곳 이름을 적어 주세요"
           onChange={(event) => changeQuery(event.target.value)}
-          className="min-h-11 w-full rounded-xl border border-black/15 bg-transparent pr-12 pl-4 text-base outline-none focus:border-foreground [&::-webkit-search-cancel-button]:hidden dark:border-white/20"
+          className="min-h-12 w-full rounded-m border border-line bg-surface-2 pr-12 pl-4 text-base outline-none transition-colors duration-120 placeholder:text-fg-4 focus:border-[1.5px] focus:border-brand focus:bg-surface [&::-webkit-search-cancel-button]:hidden"
         />
         {query !== '' && (
           <button
@@ -190,7 +190,7 @@ export function PlaceSearchBox({
               setFailure(null)
               document.getElementById('place-search')?.focus()
             }}
-            className="absolute inset-y-0 right-1 flex w-10 items-center justify-center text-black/45 dark:text-white/45"
+            className="absolute inset-y-0 right-1 flex w-10 items-center justify-center text-fg-3"
           >
             <span aria-hidden>✕</span>
           </button>
@@ -211,8 +211,8 @@ export function PlaceSearchBox({
                     setNote(null)
                     onEditorOpen?.()
                   }}
-                  className={`flex min-h-11 w-full flex-col items-start gap-0.5 rounded-xl px-3 py-2 text-left transition-colors duration-[120ms] hover:bg-black/5 dark:hover:bg-white/10 ${
-                    active ? 'bg-black/5 dark:bg-white/10' : ''
+                  className={`flex min-h-11 w-full flex-col items-start gap-0.5 rounded-m px-3 py-2.5 text-left transition-colors duration-120 hover:bg-surface-2 ${
+                    active ? 'bg-surface-2' : ''
                   }`}
                 >
                   <span className="flex items-center gap-2 text-base font-medium">
@@ -220,13 +220,13 @@ export function PlaceSearchBox({
                     <span
                       // 옆의 truncate 형제가 자리를 다 가져가면 이 배지가 최소 너비까지 눌려
                       // "스팟" 같은 두 글자가 세로로 접힌다 — 줄이지도 말고 접지도 마라
-                      className="shrink-0 rounded-full px-2 py-0.5 text-xs whitespace-nowrap text-background"
+                      className="shrink-0 rounded-full px-2 py-0.5 text-xs whitespace-nowrap text-white"
                       style={{ background: `var(--pin-${place.categoryHint})` }}
                     >
                       {CATEGORY_LABEL[place.categoryHint]}
                     </span>
                   </span>
-                  <span className="text-sm text-black/60 dark:text-white/60">
+                  <span className="text-sm text-fg-2">
                     {place.roadAddress || place.address}
                   </span>
                 </button>
@@ -237,8 +237,8 @@ export function PlaceSearchBox({
       )}
 
       {picked && (
-        <div className="flex flex-col gap-2 rounded-xl border border-black/10 p-3 dark:border-white/15">
-          <p className="text-sm text-black/60 dark:text-white/60">
+        <div className="flex flex-col gap-2 rounded-xl border border-line p-3">
+          <p className="text-sm text-fg-2">
             {picked.name} — 어디에 담을까요?
           </p>
           <div className="flex gap-2">
@@ -254,8 +254,8 @@ export function PlaceSearchBox({
                   onClick={() => void confirmCategory(category)}
                   className={
                     suggested
-                      ? `${CATEGORY_ITEM} bg-foreground text-background`
-                      : `${CATEGORY_ITEM} border border-black/15 dark:border-white/20`
+                      ? `${CATEGORY_ITEM} bg-brand text-white`
+                      : `${CATEGORY_ITEM} border border-line`
                   }
                 >
                   {CATEGORY_LABEL[category]}으로 담기
@@ -267,7 +267,7 @@ export function PlaceSearchBox({
       )}
 
       {note && (
-        <p role="status" className="text-sm text-black/60 dark:text-white/60">
+        <p role="status" className="text-sm text-fg-2">
           {note}
         </p>
       )}
@@ -276,7 +276,7 @@ export function PlaceSearchBox({
         <button
           type="button"
           onClick={onPickOnMap}
-          className="flex min-h-8 w-fit items-center rounded-full border border-black/15 px-3 text-sm dark:border-white/20"
+          className="flex min-h-8 w-fit items-center rounded-full border border-line px-3 text-sm"
         >
           지도에 직접 찍기
         </button>
@@ -289,7 +289,7 @@ export function PlaceSearchBox({
             <button
               type="button"
               onClick={retry}
-              className="flex min-h-8 items-center rounded-full border border-black/15 px-3 dark:border-white/20"
+              className="flex min-h-8 items-center rounded-full border border-line px-3"
             >
               다시 검색하기
             </button>
@@ -298,7 +298,7 @@ export function PlaceSearchBox({
             <button
               type="button"
               onClick={() => onShowExisting(existingPlaceId)}
-              className="flex min-h-8 items-center rounded-full border border-black/15 px-3 dark:border-white/20"
+              className="flex min-h-8 items-center rounded-full border border-line px-3"
             >
               담아둔 곳 보기
             </button>

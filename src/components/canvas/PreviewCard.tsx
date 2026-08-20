@@ -8,6 +8,7 @@
 
 import { useId, useState } from 'react'
 import { ConfirmRow } from '@/components/common/ConfirmRow'
+import { StarRating } from '@/components/common/StarRating'
 import { CATEGORY_LABEL } from '@/lib/map/provider'
 import { PhotoError, photoErrorMessage, photoPublicUrl } from '@/lib/photo/upload'
 import { formatAmount, formatAmountInput, parseAmountInput } from '@/lib/timeline/money'
@@ -30,10 +31,13 @@ export interface PreviewCardProps {
   onUnassign?: () => Promise<void> | void
   onDeletePlace?: () => Promise<void> | void
   onClose?: () => void
+  /** 별표 협의 (결정 #46) — 내가 준 별과 모두의 합. 없으면 별표를 아예 내지 않는다 */
+  vote?: { mine: number; total: number; voters: number }
+  onVote?: (stars: 0 | 1 | 2 | 3) => void
 }
 
 const SMALL_BUTTON =
-  'flex min-h-8 items-center rounded-full border border-black/15 px-2 text-xs dark:border-white/20'
+  'flex min-h-8 items-center rounded-full border border-line px-2 text-xs'
 
 // 되돌릴 수 없는 일(사진 hard delete)과 미리 알려야 하는 일(Stop 동반 삭제)만 여기를 거친다
 interface PendingConfirm {
@@ -44,6 +48,8 @@ interface PendingConfirm {
 
 export function PreviewCard({
   place,
+  vote,
+  onVote,
   variant,
   placedCount = 0,
   onAddPhoto,
@@ -121,7 +127,7 @@ export function PreviewCard({
     <>
       <label
         htmlFor={fileInputId}
-        className="flex min-h-8 cursor-pointer items-center justify-center rounded-full border border-black/15 px-3 text-sm font-medium dark:border-white/20"
+        className="flex min-h-8 cursor-pointer items-center justify-center rounded-full border border-line px-3 text-sm font-medium"
       >
         사진 담기
       </label>
@@ -141,7 +147,7 @@ export function PreviewCard({
       data-testid="preview-card"
       data-variant={variant}
       aria-label={`${place.name} 미리보기`}
-      className="flex animate-[fade-in_120ms_ease-out] flex-col gap-3 rounded-2xl border border-black/10 bg-background p-3 shadow-sm dark:border-white/15"
+      className="flex animate-[fade-in_120ms_ease-out] flex-col gap-3 rounded-2xl border border-line bg-background p-3 shadow-sm"
     >
       <div className="flex items-start gap-3">
         {cover ? (
@@ -159,7 +165,7 @@ export function PreviewCard({
           <span
             data-testid="photo-placeholder"
             aria-hidden
-            className="flex size-20 shrink-0 items-center justify-center rounded-xl bg-black/5 dark:bg-white/10"
+            className="flex size-20 shrink-0 items-center justify-center rounded-xl bg-surface-2"
           >
             <span
               className="size-6 rounded-full"
@@ -169,20 +175,29 @@ export function PreviewCard({
         )}
 
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <h3 className="truncate text-base font-semibold">{place.name}</h3>
-          <p className="flex items-center gap-2 text-sm text-black/60 dark:text-white/60">
+          <h3 className="truncate text-[18px] leading-tight font-semibold">{place.name}</h3>
+          <p className="flex items-center gap-2 text-sm text-fg-2">
             <span
               // 옆의 truncate 형제가 자리를 다 가져가면 이 배지가 최소 너비까지 눌려
               // "스팟" 같은 두 글자가 세로로 접힌다 — 줄이지도 말고 접지도 마라
-              className="shrink-0 rounded-full px-2 py-0.5 text-xs whitespace-nowrap text-background"
+              className="shrink-0 rounded-full px-2 py-0.5 text-xs whitespace-nowrap text-white"
               style={{ background: `var(--pin-${place.category})` }}
             >
               {CATEGORY_LABEL[place.category]}
             </span>
             <span className="truncate">{place.road_address || place.address}</span>
           </p>
+          {sheet && vote && (
+            <StarRating
+              label={place.name}
+              mine={vote.mine}
+              total={vote.total}
+              voters={vote.voters}
+              onChange={onVote}
+            />
+          )}
           {!sheet && memoFirstLine !== '' && (
-            <p className="truncate text-sm text-black/70 dark:text-white/70">{memoFirstLine}</p>
+            <p className="truncate text-sm text-fg-2">{memoFirstLine}</p>
           )}
         </div>
 
@@ -190,7 +205,7 @@ export function PreviewCard({
           <button
             type="button"
             onClick={onClose}
-            className="flex min-h-8 min-w-8 items-center justify-center rounded-full text-sm text-black/60 dark:text-white/60"
+            className="flex min-h-8 min-w-8 items-center justify-center rounded-full text-sm text-fg-2"
           >
             <span className="sr-only">미리보기 닫기</span>
             <span aria-hidden>✕</span>
@@ -211,7 +226,7 @@ export function PreviewCard({
                 className="size-14 rounded-lg object-cover"
               />
               {photo.id === cover?.id ? (
-                <span className="text-xs text-black/60 dark:text-white/60">대표</span>
+                <span className="text-xs text-fg-2">대표</span>
               ) : (
                 onSetCover && (
                   <button
@@ -306,7 +321,7 @@ export function PreviewCard({
                 value={memo}
                 onChange={(event) => setMemo(event.target.value)}
                 placeholder="가서 뭘 할지 적어 두세요"
-                className="rounded-xl border border-black/15 bg-transparent px-3 py-2 text-base outline-none focus:border-foreground dark:border-white/20"
+                className="min-h-12 rounded-m border border-line bg-surface-2 px-3 text-base outline-none transition-colors duration-120 placeholder:text-fg-4 focus:border-[1.5px] focus:border-brand focus:bg-surface"
               />
             </>
           )}
@@ -323,9 +338,9 @@ export function PreviewCard({
                 value={amount}
                 onChange={(event) => setAmount(formatAmountInput(event.target.value))}
                 placeholder="여기서 얼마쯤 쓸까요"
-                className="rounded-xl border border-black/15 bg-transparent px-3 py-2 text-base outline-none focus:border-foreground dark:border-white/20"
+                className="min-h-12 rounded-m border border-line bg-surface-2 px-3 text-base outline-none transition-colors duration-120 placeholder:text-fg-4 focus:border-[1.5px] focus:border-brand focus:bg-surface"
               />
-              <p className="text-xs text-black/55 dark:text-white/55">
+              <p className="text-xs text-fg-3">
                 실제로 쓴 돈은 일정에 넣은 뒤 그 방문에 적어요.
               </p>
             </>
@@ -343,7 +358,7 @@ export function PreviewCard({
                 }
               }, '저장했어요.')
             }
-            className="flex min-h-11 w-fit items-center rounded-full bg-foreground px-4 text-sm font-medium text-background transition-opacity duration-[120ms] hover:opacity-90"
+            className="flex min-h-10 w-fit items-center rounded-m bg-brand px-4 text-[15px] font-semibold text-white transition-opacity duration-[120ms] hover:opacity-90"
           >
             저장하기
           </button>
@@ -358,7 +373,7 @@ export function PreviewCard({
               href={place.provider_link}
               target="_blank"
               rel="noreferrer noopener"
-              className="flex min-h-8 items-center rounded-full border border-black/15 px-3 text-sm dark:border-white/20"
+              className="flex min-h-8 items-center rounded-full border border-line px-3 text-sm"
             >
               네이버에서 보기
             </a>
@@ -369,7 +384,7 @@ export function PreviewCard({
               type="button"
               disabled={busy}
               onClick={removePlace}
-              className="flex min-h-8 items-center rounded-full px-3 text-sm text-black/60 underline underline-offset-4 dark:text-white/60"
+              className="flex min-h-8 items-center rounded-full px-3 text-sm text-fg-2 underline underline-offset-4"
             >
               보관함에서 빼기
             </button>
@@ -391,7 +406,7 @@ export function PreviewCard({
       {!sheet && !cover && photoButton && <div className="flex">{photoButton}</div>}
 
       {note && (
-        <p role="status" className="text-sm text-black/60 dark:text-white/60">
+        <p role="status" className="text-sm text-fg-2">
           {note}
         </p>
       )}

@@ -31,6 +31,7 @@ function stop(id: string, placeId: string, cost: number | null): StopRow {
     position: 0,
     start_time: null,
     cost_amount: cost,
+    confirmed: true,
     note: '',
   }
 }

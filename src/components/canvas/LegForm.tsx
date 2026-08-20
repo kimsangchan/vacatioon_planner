@@ -28,7 +28,7 @@ export interface LegFormProps {
 }
 
 const FIELD =
-  'min-h-11 rounded-xl border border-black/15 bg-transparent px-3 text-base outline-none focus:border-foreground dark:border-white/20'
+  'min-h-12 rounded-m border border-line bg-surface-2 px-3 text-base outline-none transition-colors duration-120 placeholder:text-fg-4 focus:border-[1.5px] focus:border-brand focus:bg-surface'
 
 // time 입력은 'HH:MM'을 주고받는다. DB 는 'HH:MM:SS'로 돌려주므로 앞 5글자만 쓴다
 function toTimeInput(value: string | null | undefined, fallback: string): string {
@@ -99,7 +99,7 @@ export function LegForm({ leg, onSubmit, onCancel }: LegFormProps) {
         event.preventDefault()
         submit()
       }}
-      className="flex flex-col gap-3 rounded-2xl border border-black/10 p-3 dark:border-white/15"
+      className="flex flex-col gap-3 rounded-2xl border border-line p-3"
     >
       <div className="flex flex-col gap-1">
         <label htmlFor={field('mode')} className="text-sm font-medium">
@@ -224,14 +224,14 @@ export function LegForm({ leg, onSubmit, onCancel }: LegFormProps) {
           value={memo}
           placeholder="좌석·환승 같은 걸 적어 두세요"
           onChange={(event) => setMemo(event.target.value)}
-          className="rounded-xl border border-black/15 bg-transparent px-3 py-2 text-base outline-none focus:border-foreground dark:border-white/20"
+          className="min-h-12 rounded-m border border-line bg-surface-2 px-3 text-base outline-none transition-colors duration-120 placeholder:text-fg-4 focus:border-[1.5px] focus:border-brand focus:bg-surface"
         />
       </div>
 
       {askNextDay && (
         <div
           role="alert"
-          className="flex flex-col gap-2 rounded-xl border border-black/15 p-3 text-sm dark:border-white/20"
+          className="flex flex-col gap-2 rounded-m border border-line p-3 text-[13px]"
         >
           <p>
             도착 {arriveAt} 이 출발 {departAt} 보다 일러요. 다음 날 도착인가요?
@@ -241,14 +241,14 @@ export function LegForm({ leg, onSubmit, onCancel }: LegFormProps) {
               type="button"
               disabled={saving}
               onClick={() => void save(1)}
-              className="flex min-h-8 items-center rounded-full bg-foreground px-3 text-sm font-medium text-background transition-opacity duration-[120ms] hover:opacity-90"
+              className="flex min-h-8 items-center rounded-[10px] bg-brand px-3 text-[13px] font-semibold text-white transition-opacity duration-[120ms] hover:opacity-90"
             >
               네, 다음 날 도착이에요
             </button>
             <button
               type="button"
               onClick={() => setAskNextDay(false)}
-              className="flex min-h-8 items-center rounded-full border border-black/15 px-3 text-sm dark:border-white/20"
+              className="flex min-h-8 items-center rounded-full border border-line px-3 text-sm"
             >
               아니요, 시각을 고칠게요
             </button>
@@ -263,8 +263,8 @@ export function LegForm({ leg, onSubmit, onCancel }: LegFormProps) {
           // 확인 줄이 열려 있는 동안의 주 결정은 "다음 날 도착인가요?" 다 — 강조를 넘겨준다 (L-09)
           className={
             askNextDay
-              ? 'flex min-h-11 flex-1 items-center justify-center rounded-full border border-black/15 px-4 text-base font-medium transition-colors duration-[120ms] hover:bg-black/5 disabled:opacity-40 dark:border-white/20 dark:hover:bg-white/10'
-              : 'flex min-h-11 flex-1 items-center justify-center rounded-full bg-foreground px-4 text-base font-medium text-background transition-opacity duration-[120ms] hover:opacity-90 disabled:opacity-40'
+              ? 'flex min-h-11 flex-1 items-center justify-center rounded-full border border-line px-4 text-base font-medium transition-colors duration-[120ms] hover:bg-surface-2 disabled:opacity-40 dark:hover:bg-surface-2'
+              : 'flex min-h-12 flex-1 items-center justify-center rounded-l bg-brand px-4 text-[17px] font-bold text-white transition-opacity duration-[120ms] hover:opacity-90 disabled:opacity-40'
           }
         >
           {editing ? '이동 저장하기' : '이동 담기'}
@@ -272,7 +272,7 @@ export function LegForm({ leg, onSubmit, onCancel }: LegFormProps) {
         <button
           type="button"
           onClick={onCancel}
-          className="flex min-h-11 items-center rounded-full border border-black/15 px-4 text-sm dark:border-white/20"
+          className="flex min-h-11 items-center rounded-full border border-line px-4 text-sm"
         >
           그만두기
         </button>

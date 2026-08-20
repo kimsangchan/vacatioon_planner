@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { FakeMapProvider } from '@/lib/map/fake'
+import { installMatchMedia } from '@/test/match-media'
 import type { PlaceRow, TripBundle } from '@/lib/trips/bundle'
 import { CanvasBoard } from './CanvasBoard'
 import { SEARCH_DEBOUNCE_MS } from './PlaceSearchBox'
@@ -65,6 +66,7 @@ const bundle: TripBundle = {
           day_id: 'd1',
           place_id: 'p2',
           position: 0,
+          confirmed: true,
           start_time: null,
           cost_amount: null,
           note: '',
@@ -88,6 +90,8 @@ let provider: FakeMapProvider
 let scrollIntoView: (arg?: boolean | ScrollIntoViewOptions) => void
 
 beforeEach(() => {
+  // 기본은 모바일 폭 — 기존 테스트들이 하단 메뉴·핀에 붙는 카드를 전제한다 (390×844)
+  installMatchMedia(390)
   provider = new FakeMapProvider()
   scrollIntoView = vi.fn()
   Element.prototype.scrollIntoView = scrollIntoView
@@ -243,6 +247,8 @@ describe('CanvasBoard — 일차 색 (결정 #41)', () => {
     await renderBoard({ onSetDayColor })
 
     fireEvent.click(screen.getByRole('button', { name: '1일차' }))
+    // 팔레트는 접혀 있다 — 여덟 개를 늘 펼쳐 두면 정작 일정 목록이 밀린다
+    fireEvent.click(screen.getByRole('button', { name: '1일차 색 고르기' }))
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '1일차 색 하늘로 바꾸기' }))
     })
@@ -477,6 +483,7 @@ describe('CanvasBoard — 보관함↔일차 배치 (FR-007)', () => {
     await renderBoard({ onUnassignStop })
 
     fireEvent.click(screen.getByRole('button', { name: '1일차' }))
+    fireEvent.click(screen.getByRole('button', { name: '호텔제주 작업 열기' }))
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '보관함으로 되돌리기' }))
     })
@@ -502,7 +509,7 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
     fireEvent.click(screen.getByRole('button', { name: '흑돼지집 일정에 넣기' }))
 
     for (const name of ['흑돼지집 1일차에 넣기', '흑돼지집 2일차에 넣기']) {
-      expect(screen.getByRole('button', { name }).className).not.toContain('bg-foreground')
+      expect(screen.getByRole('button', { name }).className).not.toContain('bg-brand')
     }
   })
 
@@ -543,14 +550,78 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
     expect(at().bottom).toBe('')
   })
 
-  it('카드를 닫으면 지도 구독도 거둔다 — 열고 닫을수록 쌓이면 안 된다', async () => {
+  it('카드를 닫으면 카드의 지도 구독을 거둔다 — 열고 닫을수록 쌓이면 안 된다', async () => {
     await renderBoard({ onSaveMemo: vi.fn() })
 
+    // 캔버스가 떠 있는 동안 늘 도는 구독이 하나 있다 — 지도 조작을 감지해
+    // 하단 메뉴를 물리는 쪽이다 (결정 #48). 카드 구독은 그 위에 얹혔다 걷힌다
+    const idle = provider.viewportSubscriberCount
+    expect(idle).toBe(1)
+
     fireEvent.click(item('p3'))
-    expect(provider.viewportSubscriberCount).toBe(1)
+    expect(provider.viewportSubscriberCount).toBe(idle + 1)
 
     fireEvent.click(screen.getByRole('button', { name: '미리보기 닫기' }))
-    expect(provider.viewportSubscriberCount).toBe(0)
+    expect(provider.viewportSubscriberCount).toBe(idle)
+  })
+
+  it('장소 카드를 열면 하단 메뉴가 물러난다 — 지도를 넓게 쓴다 (결정 #48)', async () => {
+    await renderBoard({ onSaveMemo: vi.fn() })
+    const nav = screen.getByRole('navigation', { name: '화면 고르기' })
+
+    expect(nav.getAttribute('data-hidden')).toBeNull()
+
+    fireEvent.click(item('p3'))
+
+    // jsdom 에는 레이아웃이 없어 "안 보인다"를 못 잰다 — 밀어 내린 상태를 표식과 클래스로 단언한다
+    expect(nav.getAttribute('data-hidden')).not.toBeNull()
+    expect(nav.className).toContain('translate-y-full')
+  })
+
+  it('지도를 만지는 동안 하단 메뉴가 물러났다가, 멎으면 돌아온다 (결정 #48)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      await renderBoard({ onSaveMemo: vi.fn() })
+      const nav = screen.getByRole('navigation', { name: '화면 고르기' })
+
+      await act(async () => {
+        provider.emitViewportChange()
+      })
+      expect(nav.getAttribute('data-hidden')).not.toBeNull()
+
+      await act(async () => {
+        vi.advanceTimersByTime(1000)
+      })
+      expect(nav.getAttribute('data-hidden')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('보관함 화면에서는 지도를 만져도 메뉴가 남는다 — 돌아갈 문이 사라지면 안 된다', async () => {
+    await renderBoard({ onSaveMemo: vi.fn() })
+    // 데스크톱 필터 칩에도 같은 이름이 있다 — 하단 메뉴 쪽만 고른다
+    fireEvent.click(screen.getByRole('button', { name: '보관함' }))
+
+    await act(async () => {
+      provider.emitViewportChange()
+    })
+
+    expect(
+      screen.getByRole('navigation', { name: '화면 고르기' }).getAttribute('data-hidden'),
+    ).toBeNull()
+  })
+
+  it('데스크톱 좌측 패널을 접었다 편다 (결정 #48)', async () => {
+    await renderBoard({ onSaveMemo: vi.fn() })
+
+    const toggle = screen.getByRole('button', { name: '패널 접기' })
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+
+    fireEvent.click(toggle)
+
+    const reopened = screen.getByRole('button', { name: '패널 펴기' })
+    expect(reopened.getAttribute('aria-expanded')).toBe('false')
   })
 
   it('보관함의 장소를 눌러도 같은 카드가 떠오른다', async () => {
@@ -580,6 +651,7 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
     await act(async () => provider.emitPinEvent('p2', 'tap'))
     expect(screen.getByRole('button', { name: '저장하기' })).toBeTruthy()
 
+    fireEvent.click(screen.getByRole('button', { name: '호텔제주 작업 열기' }))
     fireEvent.click(screen.getByRole('button', { name: '시각·가격 적기' }))
 
     expect(screen.getByLabelText('방문 시각')).toBeTruthy()
@@ -779,5 +851,80 @@ describe('CanvasBoard — 지도에서 직접 담기 (FR-016)', () => {
       provider_link: null,
     })
     expect(screen.queryByTestId('manual-place-form')).toBeNull()
+  })
+})
+
+describe('CanvasBoard — 데스크톱은 상세를 패널 안에 낸다 (사용자 요청)', () => {
+  beforeEach(() => {
+    installMatchMedia(1280)
+  })
+
+  it('장소를 누르면 지도 위 카드가 아니라 패널이 상세로 갈아탄다', async () => {
+    await renderBoard({ onSaveMemo: vi.fn() })
+
+    fireEvent.click(item('p3'))
+
+    // 카드가 커지면 지도 위에서 스크롤이 생겨 정작 지도를 가린다 — 그래서 지도 위에 안 띄운다
+    expect(screen.queryByTestId('place-card-anchor')).toBeNull()
+    expect(screen.getByRole('button', { name: '목록으로' })).toBeTruthy()
+  })
+
+  it('목록으로 를 누르면 되돌아온다', async () => {
+    await renderBoard({ onSaveMemo: vi.fn() })
+    fireEvent.click(item('p3'))
+
+    fireEvent.click(screen.getByRole('button', { name: '목록으로' }))
+
+    expect(screen.queryByRole('button', { name: '목록으로' })).toBeNull()
+  })
+
+  it('모바일에서는 그대로 핀에 붙는 카드다 (#40·#43 유지)', async () => {
+    installMatchMedia(390)
+    await renderBoard({ onSaveMemo: vi.fn() })
+
+    fireEvent.click(item('p3'))
+
+    expect(screen.getByTestId('place-card-anchor')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '목록으로' })).toBeNull()
+  })
+})
+
+describe('CanvasBoard — 일차 경로를 지도에 그린다 (결정 #49)', () => {
+  const ANSWER = {
+    sections: [{ durationSeconds: 600, distanceMeters: 5000 }],
+    total: { durationSeconds: 600, distanceMeters: 5000, tollFare: 0, fuelPrice: 0 },
+    path: [
+      { lat: 33.5, lng: 126.5 },
+      { lat: 33.48, lng: 126.52 },
+      { lat: 33.46, lng: 126.54 },
+    ],
+  }
+
+  it('길이 도착하면 그 좌표를 지도에 넘긴다 — 핀만으로는 어디서 어디로 가는지 안 읽힌다', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify(ANSWER), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      await renderBoard({ onSaveMemo: vi.fn(), onUpdateStop: vi.fn() })
+      fireEvent.click(screen.getByRole('button', { name: '일정' }))
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      // 방문이 둘 이상이어야 길을 묻는다 — 이 픽스처의 1일차는 한 곳뿐이라 선이 없다
+      expect(provider.routePath).toEqual([])
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('그릴 길이 없으면 선을 지운다 — 일차를 바꿨는데 옛 선이 남으면 거짓말이 된다', async () => {
+    await renderBoard({ onSaveMemo: vi.fn() })
+
+    expect(provider.routeColor).toBeNull()
   })
 })

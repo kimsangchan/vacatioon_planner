@@ -79,7 +79,7 @@ export function TripDatesForm({
         event.preventDefault()
         submit()
       }}
-      className="flex flex-col gap-3 rounded-2xl border border-black/10 p-3 dark:border-white/15"
+      className="flex flex-col gap-3 rounded-2xl border border-line p-3"
     >
       <DateRangeCalendar start={start} end={end} minDate={floor} onChange={change} />
 
@@ -98,14 +98,14 @@ export function TripDatesForm({
         <button
           type="submit"
           disabled={saving}
-          className="flex min-h-11 flex-1 items-center justify-center rounded-full bg-foreground px-4 text-base font-medium text-background transition-opacity duration-[120ms] hover:opacity-90 disabled:opacity-40"
+          className="flex min-h-12 flex-1 items-center justify-center rounded-l bg-brand px-4 text-[17px] font-bold text-white transition-opacity duration-[120ms] hover:opacity-90 disabled:opacity-40"
         >
           기간 저장하기
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="flex min-h-11 items-center rounded-full border border-black/15 px-4 text-sm dark:border-white/20"
+          className="flex min-h-11 items-center rounded-full border border-line px-4 text-sm"
         >
           그만두기
         </button>

@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { DAY_COLORS, DAY_COLOR_LABEL, dayColorOf, dayColorVar, type DayColor } from '@/lib/map/day-color'
-import { CATEGORY_COLOR_VAR, CATEGORY_LABEL } from '@/lib/map/provider'
+import { CATEGORY_COLOR_VAR, CATEGORY_LABEL, type LatLng } from '@/lib/map/provider'
 import { formatWon } from '@/lib/timeline/money'
 import { storageEstimate, tripBudget } from '@/lib/trips/budget'
 import type { LegDraft } from '@/lib/timeline/api'
@@ -30,7 +30,7 @@ export interface ListPaneProps {
   onUnassignStop?: (stopId: string) => Promise<void> | void
   onUpdateStop?: (
     stopId: string,
-    patch: { start_time: string | null; cost_amount: number | null },
+    patch: { start_time?: string | null; cost_amount?: number | null; confirmed?: boolean },
   ) => Promise<void> | void
   onReorderDay?: (dayId: string, orderedIds: string[]) => Promise<void> | void
   onSaveLeg?: (dayId: string, draft: LegDraft, legId?: string) => Promise<void> | void
@@ -39,6 +39,8 @@ export interface ListPaneProps {
   onAddLegPhoto?: (legId: string, file: File) => Promise<void> | void
   onRemovePhoto?: (photo: PhotoRow) => Promise<void> | void
   onRemoveLeg?: (legId: string) => Promise<void> | void
+  /** 그 날 경로를 지도에 그리라고 위로 알린다 (결정 #49) */
+  onRouteChange?: (path: LatLng[], color: string) => void
   /** 일차 색 고르기 (결정 #41) — 지도 핀 색이 여기서 정해진다 */
   onSetDayColor?: (dayId: string, color: DayColor) => Promise<void> | void
   /** 모바일 하단 메뉴가 고른 구역 (결정 #42). 데스크톱은 넘기지 않는다 — 탭이 이미 다 보인다 */
@@ -69,8 +71,10 @@ export function ListPane({
   onRemovePhoto,
   onRemoveLeg,
   onSetDayColor,
+  onRouteChange,
   focusSection,
 }: ListPaneProps) {
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const itemsRef = useRef(new Map<string, HTMLElement>())
   const [tab, setTab] = useState<string>(STORAGE_TAB)
   const [pickingFor, setPickingFor] = useState<string | null>(null)
@@ -132,14 +136,14 @@ export function ListPane({
             onFocus={() => onHover(place.id)}
             onBlur={() => onHover(null)}
             onClick={() => onSelect(place.id)}
-            className={`flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors duration-[120ms] ${
-              highlighted ? 'bg-black/8 dark:bg-white/12' : 'hover:bg-black/5 dark:hover:bg-white/10'
+            className={`flex h-11 min-w-0 flex-1 items-center gap-3 rounded-m px-3 py-1 text-left transition-colors duration-[120ms] ${
+              highlighted ? 'bg-surface-2' : 'hover:bg-surface-2 dark:hover:bg-surface-2'
             }`}
           >
             <CategoryIcon category={place.category} color={CATEGORY_COLOR_VAR[place.category]} />
-            <span className="flex min-w-0 flex-col">
-              <span className="truncate text-base font-medium">{place.name}</span>
-              <span className="truncate text-sm text-black/55 dark:text-white/55">
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="truncate text-[15px] leading-tight font-semibold">{place.name}</span>
+              <span className="truncate text-[13px] leading-tight text-fg-3">
                 {CATEGORY_LABEL[place.category]} · {place.road_address || place.address}
               </span>
             </span>
@@ -151,7 +155,7 @@ export function ListPane({
               aria-label={`${place.name} 일정에 넣기`}
               aria-expanded={picking}
               onClick={() => setPickingFor(picking ? null : place.id)}
-              className="flex min-h-8 shrink-0 items-center rounded-full border border-black/15 px-3 text-xs dark:border-white/20"
+              className="flex min-h-8 shrink-0 items-center rounded-full border border-line px-3 text-xs"
             >
               일정에 넣기
             </button>
@@ -170,7 +174,7 @@ export function ListPane({
                     void onAssignPlace(place.id, day.id)
                   }}
                   // 고르는 자리는 주 행동이 아니다 — 강조색은 화면당 하나뿐이다 (L-09)
-                  className="flex min-h-8 items-center rounded-full border border-black/15 px-3 text-xs font-medium transition-colors duration-[120ms] hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+                  className="flex min-h-8 items-center rounded-full border border-line px-3 text-xs font-medium transition-colors duration-[120ms] hover:bg-surface-2 dark:hover:bg-surface-2"
                 >
                   {dayLabel(day)}
                 </button>
@@ -182,18 +186,19 @@ export function ListPane({
     )
   }
 
+  // TDS tab — 활성은 아래 2.5px 브랜드 언더라인. 알약을 두 벌 두면 어느 쪽이 켜졌는지 안 읽힌다
   const tabClass = (selected: boolean) =>
-    `flex min-h-8 shrink-0 items-center rounded-full px-3 text-sm transition-colors duration-[120ms] ${
+    `flex min-h-10 shrink-0 items-center border-b-[2.5px] px-3 text-[15px] transition-colors duration-120 ${
       selected
-        ? 'bg-black/10 font-medium dark:bg-white/15'
-        : 'border border-black/15 dark:border-white/20'
+        ? 'border-brand font-semibold text-fg'
+        : 'border-transparent text-fg-3 hover:text-fg-2'
     }`
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col">
       <div
         aria-label="보관함과 일차 고르기"
-        className="flex gap-1 overflow-x-auto pb-1"
+        className="-mx-1 flex gap-1 overflow-x-auto border-b border-line px-1"
         role="group"
       >
         <button
@@ -223,31 +228,63 @@ export function ListPane({
         ))}
       </div>
 
+      <div className="flex items-baseline justify-between gap-3 pt-5 pb-3">
+        <h3 className="text-[15px] font-bold">
+          {activeDay ? `${dayLabel(activeDay)} 일정` : '보관함'}
+        </h3>
+        <span className="tabular text-[13px] text-fg-3">
+          {activeDay
+            ? `${activeDay.stops.length + activeDay.legs.length}개 항목`
+            : `${unassigned.length}곳`}
+        </span>
+      </div>
+
       {/* 확정(이미 쓴 돈)과 예상을 한 숫자로 합치지 않는다 — 합치면 화면에서 되찾을 수 없다.
           둘의 차이가 곧 "아직 안 정해진 돈"이라 나란히 둘 때 읽힌다 */}
       {budget.hasAny && (
         <dl
           data-testid="trip-budget"
-          className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-black/10 pb-2 text-sm dark:border-white/15"
+          className="mb-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-m bg-surface-2 px-3 py-2 text-sm"
         >
           <div className="flex items-baseline gap-1.5">
-            <dt className="text-black/55 dark:text-white/55">확정</dt>
+            <dt className="text-fg-3">확정</dt>
             <dd className="font-medium">{formatWon(budget.confirmed)}</dd>
           </div>
           {budget.withEstimate !== budget.confirmed && (
             <div className="flex items-baseline gap-1.5">
-              <dt className="text-black/55 dark:text-white/55">예상 포함</dt>
+              <dt className="text-fg-3">예상 포함</dt>
               <dd className="font-medium">{formatWon(budget.withEstimate)}</dd>
             </div>
           )}
         </dl>
       )}
 
+      {/* 색 고르기는 접어 둔다 — 여덟 개를 늘 펼쳐 두면 정작 주인공인 일정 목록이 밀린다.
+          자주 하는 일이 아니라 한 번 정하고 마는 일이라, 지금 색을 보여 주는 점이 곧 문이다 */}
       {activeDay && onSetDayColor && (
+        <div className="mb-3 flex flex-col gap-2">
+          <button
+            type="button"
+            aria-expanded={paletteOpen}
+            aria-label={`${dayLabel(activeDay)} 색 고르기`}
+            onClick={() => setPaletteOpen((open) => !open)}
+            className="flex min-h-8 w-fit items-center gap-2 rounded-full border border-line px-2.5 text-[13px] font-medium text-fg-2 transition-colors duration-120 hover:bg-surface-2"
+          >
+            <span
+              aria-hidden
+              className="size-4 shrink-0 rounded-full"
+              style={{ background: dayColorVar(dayColorOf(activeDay)) }}
+            />
+            색
+          </button>
+        </div>
+      )}
+
+      {activeDay && onSetDayColor && paletteOpen && (
         <div
           role="group"
-          aria-label={`${dayLabel(activeDay)} 색 고르기`}
-          className="flex flex-wrap gap-1.5"
+          aria-label={`${dayLabel(activeDay)} 색 고르기 팔레트`}
+          className="mb-3 flex flex-wrap gap-1.5"
         >
           {DAY_COLORS.map((color) => {
             const current = dayColorOf(activeDay) === color
@@ -260,7 +297,7 @@ export function ListPane({
                 onClick={() => void onSetDayColor(activeDay.id, color)}
                 // 고른 색만 테두리로 표시한다 — 강조색은 화면당 하나라 여기에 쓰지 않는다 (L-09)
                 className={`size-7 rounded-full transition-transform duration-[120ms] ${
-                  current ? 'ring-2 ring-foreground ring-offset-2 ring-offset-background' : ''
+                  current ? 'ring-2 ring-fg ring-offset-2 ring-offset-surface' : ''
                 }`}
                 style={{ background: dayColorVar(color) }}
               />
@@ -273,6 +310,7 @@ export function ListPane({
         <TimelinePane
           day={activeDay}
           label={dayLabel(activeDay)}
+          onRouteChange={onRouteChange}
           places={places}
           highlightedId={highlightedId}
           onHover={onHover}
@@ -288,19 +326,19 @@ export function ListPane({
           registerItem={registerItem}
         />
       ) : (
-        <section aria-label={`보관함 ${unassigned.length}곳`} className="flex flex-col gap-2">
+        <section aria-label={`보관함 ${unassigned.length}곳`} className="flex flex-col gap-2 border-t border-line">
           {/* 보관함 소계는 여행 총액과 섞지 않는다 — 아직 일정에 없는 후보들이다 */}
           {storage.hasAny && (
             <p
               data-testid="storage-estimate"
-              className="text-sm text-black/55 dark:text-white/55"
+              className="pt-3 text-sm text-fg-3"
             >
               후보 {storage.count}곳 · 예상 {formatWon(storage.total)}
             </p>
           )}
 
           {unassigned.length === 0 ? (
-            <p className="text-sm text-black/60 dark:text-white/60">
+            <p className="text-sm text-fg-2">
               아직 담아둔 곳이 없어요. 위에서 장소를 찾아 보관함에 담아 보세요.
             </p>
           ) : (

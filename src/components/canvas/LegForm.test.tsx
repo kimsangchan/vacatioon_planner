@@ -123,22 +123,22 @@ describe('LegForm — 도착<출발 확인 플로우 (PRD 엣지 / validation/ti
     renderForm()
     const submitButton = () => screen.getByRole('button', { name: '이동 담기' })
 
-    expect(submitButton().className).toContain('bg-foreground')
+    expect(submitButton().className).toContain('bg-brand')
 
     fill('출발 시각', '23:00')
     fill('도착 시각', '01:10')
     await submit()
 
     expect(screen.getByRole('button', { name: '네, 다음 날 도착이에요' }).className).toContain(
-      'bg-foreground',
+      'bg-brand',
     )
-    expect(submitButton().className).not.toContain('bg-foreground')
+    expect(submitButton().className).not.toContain('bg-brand')
 
     // 확인을 물리면 원래대로 — 다시 담기가 그 화면의 주 행동이다
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '아니요, 시각을 고칠게요' }))
     })
-    expect(submitButton().className).toContain('bg-foreground')
+    expect(submitButton().className).toContain('bg-brand')
   })
 
   it('시각을 고쳐 역전이 풀리면 확인 없이 저장된다', async () => {

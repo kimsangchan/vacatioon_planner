@@ -78,10 +78,10 @@ export function TripTitleField({ name, onRename, onOpen, closeSignal }: TripTitl
       <button
         type="button"
         onClick={open}
-        className="flex min-h-8 min-w-0 items-center gap-1.5 rounded-lg px-1 text-left transition-colors hover:bg-black/[.05] dark:hover:bg-white/[.08]"
+        className="flex min-h-8 min-w-0 items-center gap-1.5 rounded-lg px-1 text-left transition-colors hover:bg-surface-2"
       >
         <h1 className="truncate text-lg font-semibold tracking-tight">{name}</h1>
-        <span aria-hidden className="text-sm text-black/40 dark:text-white/40">
+        <span aria-hidden className="text-sm text-fg-3">
           ✎
         </span>
         <span className="sr-only">이름 고치기</span>
@@ -106,12 +106,12 @@ export function TripTitleField({ name, onRename, onOpen, closeSignal }: TripTitl
             setFailure(null)
           }}
           aria-label="여행 이름"
-          className="min-h-9 min-w-0 flex-1 rounded-xl border border-black/15 bg-transparent px-3 text-base outline-none focus:border-foreground dark:border-white/20"
+          className="min-h-10 min-w-0 flex-1 rounded-m border border-line bg-surface-2 px-3 text-base outline-none transition-colors duration-120 placeholder:text-fg-4 focus:border-[1.5px] focus:border-brand focus:bg-surface"
         />
         <button
           type="submit"
           disabled={saving}
-          className="flex min-h-9 shrink-0 items-center rounded-full bg-foreground px-4 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+          className="flex min-h-10 shrink-0 items-center rounded-m bg-brand px-4 text-[15px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           이름 저장하기
         </button>

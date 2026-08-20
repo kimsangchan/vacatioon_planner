@@ -21,6 +21,16 @@ async function renderLogin(reason?: string) {
 }
 
 describe('로그인 화면 — 왜 여기 왔는지 알린다', () => {
+  it('제품 소개와 로그인 영역을 분리한 반응형 셸을 쓴다', async () => {
+    await renderLogin()
+
+    expect(screen.getByTestId('login-shell').className).toContain('lg:grid-cols')
+    expect(screen.getByRole('region', { name: '여행 캔버스 소개' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '인증 코드 받기' }).className).toContain(
+      'tds-button-xl',
+    )
+  })
+
   it('그냥 들어왔을 때는 사연을 지어내지 않는다', async () => {
     await renderLogin()
 

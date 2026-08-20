@@ -385,7 +385,7 @@ describe('PreviewCard — 보관함에서 빼기 (FR-017 soft delete)', () => {
     render(<PreviewCard variant="sheet" place={place()} onDeletePlace={vi.fn()} />)
 
     const button = screen.getByRole('button', { name: '보관함에서 빼기' })
-    expect(button.className).not.toContain('bg-foreground')
+    expect(button.className).not.toContain('bg-brand')
     expect(button.className).not.toMatch(/text-red|bg-red/)
   })
 })

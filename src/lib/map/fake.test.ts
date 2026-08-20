@@ -10,7 +10,7 @@ const JEJU = { lat: 33.4996, lng: 126.5312 }
 const SEONGSAN = { lat: 33.4581, lng: 126.9425 }
 
 function pin(id: string, category: Pin['category'], selected = false): Pin {
-  return { id, latLng: SEONGSAN, category, selected, dayNumber: null, color: 'var(--pin-spot)' }
+  return { id, latLng: SEONGSAN, category, selected, orderNumber: null, color: 'var(--pin-spot)' }
 }
 
 // 노드 환경에서도 돌아야 하므로 컨테이너는 형태만 맞춘 자리표시다

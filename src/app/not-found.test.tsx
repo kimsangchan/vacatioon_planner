@@ -21,7 +21,7 @@ describe('404 화면 (SPEC §UI 규칙 — 막다른 에러 금지)', () => {
   it('강조 CTA 는 여행 목록으로 하나뿐이다 (L-09)', () => {
     const { container } = render(<NotFound />)
 
-    const emphasized = container.querySelectorAll('[class*="bg-foreground"]')
+    const emphasized = container.querySelectorAll('[class*="bg-brand"]')
     expect(emphasized).toHaveLength(1)
     expect(emphasized[0]?.textContent).toBe('여행 목록으로')
   })

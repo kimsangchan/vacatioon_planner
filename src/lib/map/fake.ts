@@ -73,6 +73,15 @@ export class FakeMapProvider implements MapProvider {
     }
   }
 
+  /** 마지막으로 그린 경로 — 테스트가 "무엇을 그렸나"를 이걸로 본다 */
+  routePath: LatLng[] = []
+  routeColor: string | null = null
+
+  setRoutePath(points: LatLng[], color: string): void {
+    this.routePath = points
+    this.routeColor = points.length >= 2 ? color : null
+  }
+
   destroy(): void {
     this.mounted = false
     this.element = null

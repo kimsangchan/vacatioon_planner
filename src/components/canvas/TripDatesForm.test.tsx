@@ -21,6 +21,7 @@ const stop = (id: string): StopRow => ({
   position: 0,
   start_time: null,
   cost_amount: null,
+  confirmed: true,
   note: '',
 })
 

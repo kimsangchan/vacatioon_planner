@@ -67,6 +67,10 @@ test.describe('여정 1 — 첫 여행 만들기 (스모크)', () => {
     await expect(sheet.getByText('사진을 담았어요.')).toBeVisible()
     await expect(sheet.getByRole('img', { name: '흑돼지 명가 사진' }).first()).toBeVisible()
 
+    // 데스크톱에서 상세는 지도 위가 아니라 **패널 안**에 뜨고, 그동안 목록은 자리를 내준다
+    // (네이버 지도 방식). 목록의 배치 버튼을 쓰려면 상세를 닫아 목록으로 돌아온다
+    await page.getByRole('button', { name: '미리보기 닫기' }).click()
+
     // ⑤ 일정 배치 (FR-007 — "일정에 넣기" → 일차, 2탭)
     for (const name of ['흑돼지 명가', '바다뷰 호텔', '성산일출봉']) {
       await page.getByRole('button', { name: `${name} 일정에 넣기` }).click()
@@ -80,6 +84,8 @@ test.describe('여정 1 — 첫 여행 만들기 (스모크)', () => {
 
     // Stop 시각·가격 (결정 #24 — Day 합계는 Stop + Leg)
     const first = dayItem(page, '흑돼지 명가')
+    // 행 액션은 '작업 열기' 뒤에 접혀 있다 — 한 줄에 버튼 넷을 늘어놓으면 목록이 시끄럽다
+    await first.getByRole('button', { name: '흑돼지 명가 작업 열기' }).click()
     await first.getByRole('button', { name: '시각·가격 적기' }).click()
     await first.getByLabel('방문 시각').fill('09:00')
     // '가격'만으로 찾으면 옆의 aria-label "시각·가격 적기" 버튼까지 걸린다
@@ -89,6 +95,7 @@ test.describe('여정 1 — 첫 여행 만들기 (스모크)', () => {
 
     // 뒤 항목에 이른 시각을 적으면 경고 배지가 붙는다 (순서의 진실은 position — 결정 #15)
     const second = dayItem(page, '바다뷰 호텔')
+    await second.getByRole('button', { name: '바다뷰 호텔 작업 열기' }).click()
     await second.getByRole('button', { name: '시각·가격 적기' }).click()
     await second.getByLabel('방문 시각').fill('08:30')
     await second.getByRole('button', { name: '시각·가격 저장하기' }).click()

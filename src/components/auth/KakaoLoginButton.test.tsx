@@ -25,7 +25,7 @@ describe('KakaoLoginButton — 카카오로 들어오기', () => {
   it('강조 CTA 자리를 뺏지 않는다', () => {
     const { container } = render(<KakaoLoginButton />)
 
-    expect(container.querySelectorAll('[class*="bg-foreground"]')).toHaveLength(0)
+    expect(container.querySelectorAll('[class*="bg-brand"]')).toHaveLength(0)
   })
 
   // 클라이언트 상태가 없다 — 눌리면 브라우저가 폼을 보낸다. 실패 안내는 /login 이 한다

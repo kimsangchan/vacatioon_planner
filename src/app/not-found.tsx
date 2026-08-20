@@ -7,13 +7,13 @@ export default function NotFound() {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-4 px-5 py-12 sm:px-8">
       <h1 className="text-2xl font-semibold tracking-tight">찾는 페이지가 없어요</h1>
-      <p className="text-base text-black/60 dark:text-white/60">
+      <p className="text-base text-fg-2">
         주소가 바뀌었거나 지워진 화면이에요. 여행 목록에서 다시 찾아 볼까요?
       </p>
       <div className="flex flex-col gap-3 sm:flex-row">
         <Link
           href="/"
-          className="flex min-h-11 items-center justify-center rounded-full bg-foreground px-5 text-base font-medium text-background transition-opacity hover:opacity-90"
+          className="flex min-h-12 items-center justify-center rounded-l bg-brand px-5 text-[17px] font-bold text-white transition-opacity hover:opacity-90"
         >
           여행 목록으로
         </Link>

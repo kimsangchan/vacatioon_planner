@@ -20,15 +20,15 @@ export function formatPeriod(startDate: string, endDate: string): string {
 export function TripList({ trips, onCreateFirst, onDelete }: TripListProps) {
   if (trips.length === 0) {
     return (
-      <div className="flex flex-col items-start gap-4 rounded-2xl border border-dashed border-black/15 p-8 dark:border-white/20">
+      <div className="flex flex-col items-start gap-4 rounded-2xl bg-surface-2 p-7 sm:p-9">
         <p className="text-lg font-medium">아직 만든 여행이 없어요.</p>
-        <p className="text-base text-black/60 dark:text-white/60">
+        <p className="text-base text-fg-2">
           누르면 바로 지도가 열려요. 이름과 기간은 나중에 붙여도 괜찮아요.
         </p>
         <button
           type="button"
           onClick={onCreateFirst}
-          className="flex min-h-11 items-center justify-center rounded-full bg-foreground px-5 text-base font-medium text-background transition-opacity hover:opacity-90"
+          className="tds-button tds-button-xl bg-brand px-6 text-[17px] font-bold text-white hover:opacity-90"
         >
           첫 여행 만들기
         </button>
@@ -37,15 +37,18 @@ export function TripList({ trips, onCreateFirst, onDelete }: TripListProps) {
   }
 
   return (
-    <ul className="flex flex-col gap-3">
+    <ul aria-label="진행 중인 여행 목록" className="divide-y divide-line border-b border-line">
       {trips.map((trip) => (
-        <li key={trip.id} className="flex items-center gap-2">
+        <li
+          key={trip.id}
+          className="group flex items-center gap-1 transition-colors duration-120 hover:bg-surface-2"
+        >
           <Link
             href={`/trip/${trip.id}`}
-            className="flex min-h-11 flex-1 flex-col gap-1 rounded-2xl border border-black/10 p-5 transition-colors hover:bg-black/[.04] dark:border-white/15 dark:hover:bg-white/[.06]"
+            className="flex min-h-20 flex-1 flex-col justify-center gap-1 px-1 py-4 text-left sm:px-3"
           >
-            <span className="text-lg font-medium">{trip.name}</span>
-            <span className="text-sm text-black/60 dark:text-white/60">
+            <span className="text-[18px] leading-tight font-semibold">{trip.name}</span>
+            <span className="tabular text-[13px] leading-tight text-fg-3">
               {formatPeriod(trip.start_date, trip.end_date)} · 장소 {trip.place_count}곳
             </span>
           </Link>
@@ -55,7 +58,7 @@ export function TripList({ trips, onCreateFirst, onDelete }: TripListProps) {
               type="button"
               aria-label={`${trip.name} 삭제하기`}
               onClick={() => onDelete(trip)}
-              className="flex min-h-11 shrink-0 items-center rounded-full px-3 text-sm text-black/60 underline underline-offset-4 dark:text-white/60"
+              className="tds-button tds-button-m shrink-0 px-3 text-[13px] font-medium text-fg-3 hover:bg-surface-3 hover:text-danger"
             >
               삭제하기
             </button>

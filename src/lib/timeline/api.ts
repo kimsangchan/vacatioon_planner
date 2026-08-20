@@ -34,7 +34,9 @@ export interface StopUpsert {
   note?: string
 }
 
-export type StopPatch = Partial<Pick<StopRow, 'start_time' | 'cost_amount' | 'note' | 'position'>>
+export type StopPatch = Partial<
+  Pick<StopRow, 'start_time' | 'cost_amount' | 'confirmed' | 'note' | 'position'>
+>
 
 // 폼이 만들어 내는 이동 한 건 — 자리(position)와 소속(day_id)은 호출자가 정한다
 export interface LegDraft {
@@ -115,7 +117,7 @@ export function isTimeReversed(departAt: string, arriveAt: string): boolean {
   return arriveAt < departAt
 }
 
-const STOP_COLUMNS = 'id,day_id,place_id,position,start_time,cost_amount,note'
+const STOP_COLUMNS = 'id,day_id,place_id,position,start_time,cost_amount,confirmed,note'
 const LEG_COLUMNS =
   'id,day_id,mode,depart_at,arrive_at,arrive_day_offset,from_label,to_label,booking_ref,cost_amount,memo,position'
 

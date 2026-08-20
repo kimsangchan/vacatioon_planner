@@ -62,6 +62,15 @@ function renderPanel(props: Partial<Parameters<typeof TripsPanel>[0]> = {}) {
 }
 
 describe('TripsPanel — 새 여행 (FR-002 · 결정 #27)', () => {
+  it('목록을 그룹 헤더와 L 크기 주 행동으로 구분한다', () => {
+    renderPanel()
+
+    expect(screen.getByRole('heading', { name: '진행 중인 여행' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '새 여행 만들기' }).className).toContain(
+      'tds-button-l',
+    )
+  })
+
   it('이름도 날짜도 묻지 않고 곧장 캔버스로 보낸다', async () => {
     const { onCreate } = renderPanel()
 
@@ -148,7 +157,7 @@ describe('TripsPanel — 여행 지우기 (FR-017 soft delete)', () => {
     renderPanel()
 
     const remove = screen.getByRole('button', { name: '제주 3일 삭제하기' })
-    expect(remove.className).not.toContain('bg-foreground')
+    expect(remove.className).not.toContain('bg-brand')
   })
 })
 

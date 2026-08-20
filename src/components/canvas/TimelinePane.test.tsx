@@ -44,6 +44,7 @@ const stop = (o: Partial<StopRow> & { id: string; place_id: string; position: nu
   day_id: 'd1',
   start_time: null,
   cost_amount: null,
+  confirmed: true,
   note: '',
   ...o,
 })
@@ -93,6 +94,120 @@ function renderPane(props: Partial<Parameters<typeof TimelinePane>[0]> = {}) {
   return handlers
 }
 
+describe('TimelinePane — 붙어 있는 방문 사이 이동시간 (결정 #45)', () => {
+  const ANSWER = {
+    sections: [
+      { durationSeconds: 3240, distanceMeters: 28073 },
+      { durationSeconds: 2403, distanceMeters: 17969 },
+    ],
+    total: { durationSeconds: 5643, distanceMeters: 46042, tollFare: 0 },
+  }
+
+  function stubDirections() {
+    const calls: unknown[] = []
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      calls.push(JSON.parse(String(init.body)))
+      return new Response(JSON.stringify(ANSWER), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    return { calls }
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  // 부산역 → 기장 → 동래 처럼 나란히 담은 곳들
+  const THREE = day({
+    stops: [
+      stop({ id: 's1', place_id: 'p1', position: 0 }),
+      stop({ id: 's2', place_id: 'p2', position: 1 }),
+      stop({ id: 's3', place_id: 'p1', position: 2 }),
+    ],
+    legs: [],
+  })
+
+  it('나란한 방문 사이마다 이동시간을 낸다 — 목록 순서가 곧 이동 순서다', async () => {
+    stubDirections()
+    await act(async () => {
+      renderPane({ day: THREE })
+    })
+
+    expect(screen.getByTestId('travel-s1').textContent).toContain('차로 54분')
+    expect(screen.getByTestId('travel-s1').textContent).toContain('28.1km')
+    expect(screen.getByTestId('travel-s2').textContent).toContain('차로 40분')
+  })
+
+  it('사이에 적어 둔 이동이 있으면 그 구간엔 추정치를 내지 않는다', async () => {
+    stubDirections()
+    await act(async () => {
+      renderPane()
+    })
+
+    // 기본 픽스처는 s1 - leg - s2 다
+    expect(screen.queryByTestId('travel-s1')).toBeNull()
+  })
+
+  it('미확정 방문은 경로 요청의 좌표와 구간에서 제외한다', async () => {
+    const { calls } = stubDirections()
+    const ROUTE_PLACES = [
+      { ...place('p1', '부산역'), lat: 35.1151, lng: 129.0403 },
+      { ...place('p2', '고민 중'), lat: 35.18, lng: 129.08 },
+      { ...place('p3', '기장'), lat: 35.2445, lng: 129.2223 },
+    ]
+    const withUnconfirmed = day({
+      stops: [
+        stop({ id: 's1', place_id: 'p1', position: 0, confirmed: true }),
+        stop({ id: 's2', place_id: 'p2', position: 1, confirmed: false }),
+        stop({ id: 's3', place_id: 'p3', position: 2, confirmed: true }),
+      ],
+      legs: [],
+    })
+
+    await act(async () => {
+      renderPane({ day: withUnconfirmed, places: ROUTE_PLACES })
+    })
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toEqual({
+      points: [
+        { lat: ROUTE_PLACES[0].lat, lng: ROUTE_PLACES[0].lng },
+        { lat: ROUTE_PLACES[2].lat, lng: ROUTE_PLACES[2].lng },
+      ],
+    })
+    expect(screen.getByTestId('travel-s1').textContent).toContain('차로 54분')
+  })
+
+  it('순서를 바꾸면 바뀐 좌표로 다시 묻는다', async () => {
+    // 기본 픽스처는 두 장소의 좌표가 같아 순서를 바꿔도 키가 그대로다 — 여기서는 갈라 둔다
+    const SPREAD = [
+      { ...place('p1', '부산역'), lat: 35.1151, lng: 129.0403 },
+      { ...place('p2', '기장'), lat: 35.2445, lng: 129.2223 },
+    ]
+    const { calls } = stubDirections()
+    const { rerender } = render(<TimelinePane day={THREE} label="1일차" places={SPREAD} />)
+    await act(async () => {})
+
+    const reordered = day({
+      stops: [
+        stop({ id: 's3', place_id: 'p2', position: 0 }),
+        stop({ id: 's1', place_id: 'p1', position: 1 }),
+        stop({ id: 's2', place_id: 'p2', position: 2 }),
+      ],
+      legs: [],
+    })
+    await act(async () => {
+      rerender(<TimelinePane day={reordered} label="1일차" places={SPREAD} />)
+    })
+
+    expect(calls.length).toBe(2)
+    expect(calls[0]).not.toEqual(calls[1])
+  })
+})
+
 describe('TimelinePane — 예상 금액 표시 (결정 #39)', () => {
   // 실제와 예상이 같은 자리에 같은 모양으로 뜨면 "이미 쓴 돈"을 알 수 없다 — 말로 구분한다
   it('금액을 안 적은 방문은 그 장소의 예상 단가를 예상이라고 밝혀 보여준다', () => {
@@ -120,6 +235,37 @@ describe('TimelinePane — 예상 금액 표시 (결정 #39)', () => {
 })
 
 const row = (id: string) => screen.getByTestId(`day-item-${id}`)
+
+function openStopActions(id: string, name: string) {
+  fireEvent.click(within(row(id)).getByRole('button', { name: `${name} 작업 열기` }))
+}
+
+function openLegActions(id = 'l1') {
+  fireEvent.click(within(row(id)).getByRole('button', { name: '이동 작업 열기' }))
+}
+
+describe('TimelinePane — TDS list-row 규격', () => {
+  it('방문과 이동을 44px 슬롯의 타이틀·보조문구 2줄 행으로 표시한다', () => {
+    renderPane()
+
+    expect(row('s1').getAttribute('data-ui')).toBe('list-row')
+    expect(row('s1').getAttribute('data-lines')).toBe('2')
+    expect(row('l1').getAttribute('data-ui')).toBe('list-row')
+    expect(row('l1').getAttribute('data-lines')).toBe('2')
+  })
+
+  it('행에는 작업 버튼 하나만 두고 순서·편집·되돌리기는 펼친 뒤 보여 준다', () => {
+    renderPane()
+
+    expect(within(row('s1')).queryByRole('button', { name: '아래로 옮기기' })).toBeNull()
+    expect(within(row('s1')).queryByRole('button', { name: '보관함으로 되돌리기' })).toBeNull()
+
+    fireEvent.click(within(row('s1')).getByRole('button', { name: '흑돼지집 작업 열기' }))
+
+    expect(within(row('s1')).getByRole('button', { name: '아래로 옮기기' })).toBeTruthy()
+    expect(within(row('s1')).getByRole('button', { name: '보관함으로 되돌리기' })).toBeTruthy()
+  })
+})
 
 describe('TimelinePane — 통합 position 병합 (결정 #15)', () => {
   it('Stop 과 Leg 를 position 순서 하나로만 늘어놓는다', () => {
@@ -187,6 +333,7 @@ describe('TimelinePane — Day 지출 합계 (FR-008 / 결정 #24)', () => {
 describe('TimelinePane — 순서 변경 (E-07 reorder_day_items)', () => {
   it('위로 올리면 통합 순서 배열을 그대로 넘긴다', async () => {
     const { onReorder } = renderPane()
+    openStopActions('s2', '호텔제주')
 
     await act(async () => {
       fireEvent.click(within(row('s2')).getByRole('button', { name: '위로 옮기기' }))
@@ -197,6 +344,7 @@ describe('TimelinePane — 순서 변경 (E-07 reorder_day_items)', () => {
 
   it('아래로 내릴 때도 Stop·Leg 를 한 배열로 다룬다', async () => {
     const { onReorder } = renderPane()
+    openStopActions('s1', '흑돼지집')
 
     await act(async () => {
       fireEvent.click(within(row('s1')).getByRole('button', { name: '아래로 옮기기' }))
@@ -216,6 +364,7 @@ describe('TimelinePane — 순서 변경 (E-07 reorder_day_items)', () => {
 describe('TimelinePane — Stop 배치 해제·시각·가격 (FR-007)', () => {
   it('보관함으로 되돌리면 그 Stop 만 지운다', async () => {
     const { onUnassignStop } = renderPane()
+    openStopActions('s1', '흑돼지집')
 
     await act(async () => {
       fireEvent.click(within(row('s1')).getByRole('button', { name: '보관함으로 되돌리기' }))
@@ -226,6 +375,7 @@ describe('TimelinePane — Stop 배치 해제·시각·가격 (FR-007)', () => {
 
   it('시각과 가격을 적어 저장한다 (원 단위 정수)', async () => {
     const { onUpdateStop } = renderPane()
+    openStopActions('s2', '호텔제주')
 
     fireEvent.click(within(row('s2')).getByRole('button', { name: '시각·가격 적기' }))
     fireEvent.change(screen.getByLabelText('방문 시각'), { target: { value: '13:20' } })
@@ -244,6 +394,7 @@ describe('TimelinePane — Stop 배치 해제·시각·가격 (FR-007)', () => {
 
   it('시각을 지우면 없는 값(null)으로 저장한다 — 시각은 선택 입력이다', async () => {
     const { onUpdateStop } = renderPane()
+    openStopActions('s1', '흑돼지집')
 
     fireEvent.click(within(row('s1')).getByRole('button', { name: '시각·가격 적기' }))
     fireEvent.change(screen.getByLabelText('방문 시각'), { target: { value: '' } })
@@ -285,6 +436,7 @@ describe('TimelinePane — 이동 담기 (FR-008)', () => {
 
   it('담아 둔 이동은 같은 폼으로 고친다', async () => {
     const { onSaveLeg } = renderPane()
+    openLegActions()
 
     fireEvent.click(within(row('l1')).getByRole('button', { name: '이동 고치기' }))
     fireEvent.change(screen.getByLabelText('도착 지점'), { target: { value: '중문' } })
@@ -304,6 +456,7 @@ describe('TimelinePane — 이동 담기 (FR-008)', () => {
   it('이동 폼을 펼칠 때마다 알려 준다 (담기·고치기 모두)', () => {
     const onEditorOpen = vi.fn()
     renderPane({ onEditorOpen })
+    openLegActions()
 
     fireEvent.click(screen.getByRole('button', { name: '이동 적기' }))
     expect(onEditorOpen).toHaveBeenCalledTimes(1)
@@ -319,6 +472,7 @@ describe('TimelinePane — 이동 담기 (FR-008)', () => {
   it('Stop 시각·가격 편집기를 펼칠 때도 알려 준다 — 강조는 하나다', () => {
     const onEditorOpen = vi.fn()
     renderPane({ onEditorOpen })
+    openStopActions('s1', '흑돼지집')
 
     fireEvent.click(within(row('s1')).getByRole('button', { name: '시각·가격 적기' }))
     expect(onEditorOpen).toHaveBeenCalledTimes(1)
@@ -346,6 +500,7 @@ describe('TimelinePane — Leg 예매 캡처 (FR-018 / E-05 leg_id 첨부)', () 
 
   it('이동 고치기에서 고른 파일을 그 Leg 로 넘긴다', async () => {
     const { onAddLegPhoto } = renderPane()
+    openLegActions()
 
     fireEvent.click(within(row('l1')).getByRole('button', { name: '이동 고치기' }))
     const file = new File([new Uint8Array(8)], 'ktx.jpg', { type: 'image/jpeg' })
@@ -358,6 +513,7 @@ describe('TimelinePane — Leg 예매 캡처 (FR-018 / E-05 leg_id 첨부)', () 
 
   it('캡처 지우기는 되돌릴 수 없어 한 번 묻는다 (E-12 hard delete)', async () => {
     const { onRemovePhoto } = renderPane({ day: withTicket() })
+    openLegActions()
 
     fireEvent.click(within(row('l1')).getByRole('button', { name: '이동 고치기' }))
     fireEvent.click(within(row('l1')).getByRole('button', { name: '예매 캡처 지우기' }))
@@ -375,6 +531,7 @@ describe('TimelinePane — Leg 예매 캡처 (FR-018 / E-05 leg_id 첨부)', () 
 describe('TimelinePane — 이동 지우기 (E-12 hard delete)', () => {
   it('확인한 뒤에만 지운다', async () => {
     const { onRemoveLeg } = renderPane()
+    openLegActions()
 
     fireEvent.click(within(row('l1')).getByRole('button', { name: '이동 고치기' }))
     fireEvent.click(within(row('l1')).getByRole('button', { name: '이동 지우기' }))
@@ -391,6 +548,7 @@ describe('TimelinePane — 이동 지우기 (E-12 hard delete)', () => {
 
   it('그만두면 이동은 그대로 남는다 (T-06)', () => {
     const { onRemoveLeg } = renderPane()
+    openLegActions()
 
     fireEvent.click(within(row('l1')).getByRole('button', { name: '이동 고치기' }))
     fireEvent.click(within(row('l1')).getByRole('button', { name: '이동 지우기' }))
@@ -398,5 +556,50 @@ describe('TimelinePane — 이동 지우기 (E-12 hard delete)', () => {
 
     expect(onRemoveLeg).not.toHaveBeenCalled()
     expect(row('l1')).toBeTruthy()
+  })
+})
+
+describe('TimelinePane — 확정 체크 (결정 #47)', () => {
+  it('기본은 확정이다 — 일차에 넣는 행위가 이미 "가기로 했다"는 뜻이다', () => {
+    renderPane()
+
+    expect(screen.getAllByRole('checkbox')[0].getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('체크를 풀면 미확정으로 저장한다 — 경로에서 빠진다', async () => {
+    const handlers = renderPane()
+
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('checkbox')[0])
+    })
+
+    expect(handlers.onUpdateStop).toHaveBeenCalledWith(expect.any(String), { confirmed: false })
+  })
+
+  it('고칠 수 없는 화면에서는 체크를 내지 않는다 — 누를 수 없는 것을 보여 주지 않는다', () => {
+    renderPane({ onUpdateStop: undefined })
+
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+  })
+})
+
+describe('TimelinePane — 이동시간은 자동이다 (결정 #45, 사용자 피드백)', () => {
+  it('방문이 하나뿐이면 왜 이동시간이 없는지 알려 준다 — 침묵하면 직접 넣어야 하나 싶어진다', () => {
+    const one = { ...day(), stops: [day().stops[0]], legs: [] }
+    render(<TimelinePane day={one} label="1일차" places={PLACES} />)
+
+    expect(screen.getByText(/한 곳 더 담으면/)).toBeTruthy()
+  })
+
+  it('둘 이상이면 그 안내를 내지 않는다 — 할 말이 없을 때 말하지 않는다', () => {
+    renderPane()
+
+    expect(screen.queryByText(/한 곳 더 담으면/)).toBeNull()
+  })
+
+  it('이동 적기는 예매한 교통편을 적는 자리라고 밝힌다 — 이동시간을 얻는 문이 아니다', () => {
+    renderPane()
+
+    expect(screen.getByText(/예매한 기차·버스·비행기/)).toBeTruthy()
   })
 })

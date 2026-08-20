@@ -7,7 +7,7 @@ export function SignOutButton() {
     <form action="/auth/signout" method="post">
       <button
         type="submit"
-        className="flex min-h-11 items-center text-sm underline underline-offset-4"
+        className="tds-button tds-button-m px-1 text-sm text-fg-2 underline underline-offset-4"
       >
         로그아웃하기
       </button>

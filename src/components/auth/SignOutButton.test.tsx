@@ -25,12 +25,12 @@ describe('SignOutButton — 로그아웃 탈출구', () => {
     const { container } = render(<SignOutButton />)
 
     expect(container.querySelectorAll('button')).toHaveLength(1)
-    expect(screen.getByRole('button', { name: '로그아웃하기' }).className).toContain('min-h-11')
+    expect(screen.getByRole('button', { name: '로그아웃하기' }).className).toContain('tds-button-m')
   })
 
   it('강조 CTA 를 차지하지 않는다 (L-09)', () => {
     const { container } = render(<SignOutButton />)
 
-    expect(container.querySelectorAll('[class*="bg-foreground"]')).toHaveLength(0)
+    expect(container.querySelectorAll('[class*="bg-brand"]')).toHaveLength(0)
   })
 })

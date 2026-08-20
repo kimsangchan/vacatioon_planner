@@ -19,6 +19,9 @@ export interface MapPaneProps {
   onLongPress?: (latLng: LatLng) => void
   /** '지도에서 찍기' 모드일 때만 의미가 있다 — 평소엔 구독자가 없어 아무 일도 안 한다 */
   onMapTap?: (latLng: LatLng) => void
+  /** 그 날 실제로 달리는 길 (결정 #49). 빈 배열이면 선을 지운다 */
+  routePath?: LatLng[]
+  routeColor?: string
 }
 
 export function MapPane({
@@ -29,6 +32,8 @@ export function MapPane({
   onPinEvent,
   onLongPress,
   onMapTap,
+  routePath,
+  routeColor,
 }: MapPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
@@ -85,16 +90,22 @@ export function MapPane({
     created.provider.setPins(toPins(places, highlightedId, days))
   }, [created, ready, failed, places, highlightedId, days])
 
+  // 그 날 실제로 달리는 길 (결정 #49). 직선으로 잇지 않는 이유: 제주에서 직선은 바다를 가로지른다
+  useEffect(() => {
+    if (!ready || failed) return
+    created.provider.setRoutePath(routePath ?? [], routeColor ?? '')
+  }, [created, ready, failed, routePath, routeColor])
+
   return (
     // 부모(relative)를 절대 채움으로 덮는다 — h-full 은 flex 아이템 안에서 퍼센트 기준이
     // 확정되지 않아 지도 컨테이너가 0px 이 되고 지도가 백지로 뜬다 (실측, 결정 #42)
-    <div className="absolute inset-0 bg-black/5 dark:bg-white/5">
+    <div className="absolute inset-0 bg-surface-2">
       <div ref={containerRef} className="h-full w-full" data-testid="map-container" />
 
       {created.kind === 'fake' && (
         <p
           role="status"
-          className="absolute inset-x-3 top-3 rounded-xl bg-background/90 px-3 py-2 text-sm text-black/70 shadow-sm dark:text-white/70"
+          className="absolute inset-x-3 top-3 rounded-xl bg-background/90 px-3 py-2 text-sm text-fg-2 shadow-sm"
         >
           지도 키를 넣으면 실지도가 보여요. 지금도 담고 고르는 건 그대로 할 수 있어요.
         </p>

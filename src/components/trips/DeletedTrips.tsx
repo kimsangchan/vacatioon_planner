@@ -20,12 +20,12 @@ export function DeletedTrips({ trips, onRestore }: DeletedTripsProps) {
   if (trips.length === 0) return null
 
   return (
-    <section className="flex flex-col gap-3 border-t border-black/10 pt-5 dark:border-white/15">
+    <section className="flex flex-col gap-3 border-t border-line pt-5">
       <button
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="flex min-h-11 w-fit items-center gap-2 text-sm text-black/60 underline underline-offset-4 dark:text-white/60"
+        className="flex min-h-11 w-fit items-center gap-2 text-sm text-fg-2 underline underline-offset-4"
       >
         최근 삭제한 여행 {trips.length}개 — {open ? '접기' : '보기'}
       </button>
@@ -35,11 +35,11 @@ export function DeletedTrips({ trips, onRestore }: DeletedTripsProps) {
           {trips.map((trip) => (
             <li
               key={trip.id}
-              className="flex items-center gap-2 rounded-2xl border border-black/10 px-4 py-3 dark:border-white/15"
+              className="flex items-center gap-2 rounded-2xl border border-line px-4 py-3"
             >
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-base font-medium">{trip.name}</span>
-                <span className="truncate text-sm text-black/55 dark:text-white/55">
+                <span className="truncate text-sm text-fg-3">
                   {formatPeriod(trip.start_date, trip.end_date)}
                 </span>
               </span>
@@ -47,7 +47,7 @@ export function DeletedTrips({ trips, onRestore }: DeletedTripsProps) {
                 type="button"
                 aria-label={`${trip.name} 되돌리기`}
                 onClick={() => onRestore(trip.id)}
-                className="flex min-h-8 shrink-0 items-center rounded-full border border-black/15 px-3 text-sm dark:border-white/20"
+                className="tds-button tds-button-m shrink-0 border border-line px-3 text-sm"
               >
                 되돌리기
               </button>

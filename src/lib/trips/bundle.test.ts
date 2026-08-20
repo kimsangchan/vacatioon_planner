@@ -51,6 +51,7 @@ const bundle: TripBundle = {
           position: 0,
           start_time: null,
           cost_amount: null,
+          confirmed: true,
           note: '',
         },
       ],
@@ -102,20 +103,45 @@ describe('toPins — 핀의 입력 (FR-005 · 결정 #41)', () => {
     expect(pins[0].category).toBe('restaurant')
   })
 
-  // 색은 "몇 일차인가"만 나른다. 모양(숫자/아이콘)이 "무엇을 하는 곳인가"를 맡는다 (결정 #41)
-  it('일차에 배치된 곳은 그 일차 번호와 일차 색을 단다', () => {
+  // 색 = 몇 일차 (#41) · 숫자 = 그 날 몇 번째 방문 (#49). 두 채널이 다른 말을 해야 둘 다 읽힌다
+  it('일차에 배치된 곳은 그 날 방문 순서와 일차 색을 단다', () => {
     const pins = toPins(bundle.places, null, bundle.days)
     const placed = pins.find((pin) => pin.id === 'p2')
 
-    expect(placed?.dayNumber).toBe(1)
+    expect(placed?.orderNumber).toBe(1)
     expect(placed?.color).toBe('var(--day-rose)')
+  })
+
+  it('한 일차의 방문들이 서로 다른 숫자를 단다 — 예전엔 전부 같은 일차 번호였다 (#49)', () => {
+    const day = {
+      ...bundle.days[0],
+      stops: [
+        { ...bundle.days[0].stops[0], id: 's1', place_id: 'p1', position: 0 },
+        { ...bundle.days[0].stops[0], id: 's2', place_id: 'p2', position: 1 },
+        { ...bundle.days[0].stops[0], id: 's3', place_id: 'p3', position: 2 },
+      ],
+    }
+    const pins = toPins(bundle.places, null, [day])
+
+    expect(pins.map((pin) => pin.orderNumber)).toEqual([1, 2, 3])
+    // 색은 셋 다 같은 일차 색이다 — 순서는 숫자가, 일차는 색이 나른다
+    expect(new Set(pins.map((pin) => pin.color)).size).toBe(1)
+  })
+
+  it('둘째 일차의 순서는 다시 1부터다 — 일차마다 새로 센다', () => {
+    const second = { ...bundle.days[0], id: 'd2', position: 1, stops: [
+      { ...bundle.days[0].stops[0], id: 's9', place_id: 'p3', position: 0 },
+    ] }
+    const pins = toPins(bundle.places, null, [bundle.days[0], second])
+
+    expect(pins.find((pin) => pin.id === 'p3')?.orderNumber).toBe(1)
   })
 
   it('보관함(미배치)은 숫자 없이 카테고리 색을 쓴다 — 아이콘으로 보인다', () => {
     const pins = toPins(bundle.places, null, bundle.days)
     const stored = pins.find((pin) => pin.id === 'p1')
 
-    expect(stored?.dayNumber).toBeNull()
+    expect(stored?.orderNumber).toBeNull()
     expect(stored?.color).toBe('var(--pin-restaurant)')
   })
 
@@ -126,14 +152,16 @@ describe('toPins — 핀의 입력 (FR-005 · 결정 #41)', () => {
     expect(pins.find((pin) => pin.id === 'p2')?.color).toBe('var(--day-sky)')
   })
 
-  it('같은 장소가 여러 일차에 있으면 가장 이른 일차를 단다 — 핀은 하나뿐이다', () => {
+  // 숫자가 순서를 나르게 되면서(#49) "어느 일차인가"는 **색**이 단독으로 말한다 —
+  // 그래서 이 규칙은 색으로 단언한다
+  it('같은 장소가 여러 일차에 있으면 가장 이른 일차의 색을 단다 — 핀은 하나뿐이다', () => {
     const days = [
       bundle.days[1] && { ...bundle.days[1], position: 1, stops: bundle.days[0].stops },
       { ...bundle.days[0], position: 0, stops: [] },
     ].filter(Boolean) as typeof bundle.days
     const pins = toPins(bundle.places, null, [...days].reverse())
 
-    expect(pins.find((pin) => pin.id === 'p2')?.dayNumber).toBe(2)
+    expect(pins.find((pin) => pin.id === 'p2')?.color).toBe('var(--day-amber)')
   })
 
   it('lat·lng 가 문자열(numeric)로 와도 숫자로 바꾼다', () => {

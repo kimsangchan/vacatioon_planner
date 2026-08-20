@@ -106,8 +106,12 @@ test.describe('SC-004 — 390×844 에서 하루 타임라인', () => {
     await signInThroughUi(page, EMAIL)
     await page.goto(`/trip/${tripId}`)
 
-    // 모바일 레이아웃은 하단 시트다 — 올려서 보는 게 이 화면의 기본 동작이다 (스크롤이 아니다)
-    await page.getByRole('button', { name: '리스트 올리기' }).click()
+    // 모바일에서 시트를 여는 문은 **하단 메뉴**다 (결정 #42). 손잡이는 내릴 때 쓴다 (결정 #44).
+    // 예전엔 페이지가 세로로 스크롤돼 손잡이에 닿을 수 있었지만, 캔버스가 뷰포트 높이에 고정되면서
+    // (스크롤바가 지도 폭을 먹던 결함을 고치며) 닫힌 시트의 손잡이는 화면 밖에 있다
+    await page.getByRole('navigation', { name: '화면 고르기' })
+      .getByRole('button', { name: '일정' })
+      .click()
     await page.getByRole('button', { name: '1일차', exact: true }).click()
     await expect(dayItems(page)).toHaveCount(11)
 

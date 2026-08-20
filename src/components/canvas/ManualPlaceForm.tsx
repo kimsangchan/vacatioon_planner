@@ -54,9 +54,9 @@ export function ManualPlaceForm({ latLng, onSubmit, onCancel }: ManualPlaceFormP
   return (
     <div
       data-testid="manual-place-form"
-      className="flex flex-col gap-3 rounded-2xl border border-black/10 p-3 dark:border-white/15"
+      className="flex flex-col gap-3 rounded-2xl border border-line p-3"
     >
-      <p className="text-sm text-black/60 dark:text-white/60">
+      <p className="text-sm text-fg-2">
         {latLng.lat}, {latLng.lng} 자리예요.
       </p>
 
@@ -71,7 +71,7 @@ export function ManualPlaceForm({ latLng, onSubmit, onCancel }: ManualPlaceFormP
         autoFocus
         placeholder="여기를 뭐라고 부를까요?"
         onChange={(event) => setName(event.target.value)}
-        className="min-h-11 rounded-xl border border-black/15 bg-transparent px-4 text-base outline-none focus:border-foreground dark:border-white/20"
+        className="min-h-12 rounded-m border border-line bg-surface-2 px-4 text-base outline-none transition-colors duration-120 placeholder:text-fg-4 focus:border-[1.5px] focus:border-brand focus:bg-surface"
       />
 
       <div className="flex gap-2">
@@ -83,8 +83,8 @@ export function ManualPlaceForm({ latLng, onSubmit, onCancel }: ManualPlaceFormP
             onClick={() => setCategory(item)}
             className={
               item === category
-                ? `${CATEGORY_ITEM} border border-transparent text-background`
-                : `${CATEGORY_ITEM} border border-black/15 dark:border-white/20`
+                ? `${CATEGORY_ITEM} border border-transparent text-white`
+                : `${CATEGORY_ITEM} border border-line`
             }
             style={item === category ? { background: `var(--pin-${item})` } : undefined}
           >
@@ -98,14 +98,14 @@ export function ManualPlaceForm({ latLng, onSubmit, onCancel }: ManualPlaceFormP
           type="button"
           disabled={trimmed === '' || saving}
           onClick={() => void save()}
-          className="flex min-h-11 flex-1 items-center justify-center rounded-full bg-foreground px-4 text-base font-medium text-background transition-opacity duration-[120ms] hover:opacity-90 disabled:opacity-40"
+          className="flex min-h-12 flex-1 items-center justify-center rounded-l bg-brand px-4 text-[17px] font-bold text-white transition-opacity duration-[120ms] hover:opacity-90 disabled:opacity-40"
         >
           이 자리에 담기
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="flex min-h-11 items-center rounded-full border border-black/15 px-4 text-sm dark:border-white/20"
+          className="flex min-h-11 items-center rounded-full border border-line px-4 text-sm"
         >
           그만두기
         </button>

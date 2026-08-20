@@ -22,12 +22,13 @@ export default async function HomePage() {
   ])
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-5 py-12 sm:px-8">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">내 여행</h1>
-          <p className="text-base text-black/60 dark:text-white/60">
-            여행을 고르면 지도와 일정이 있는 캔버스가 열려요.
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 px-5 py-10 sm:px-8 sm:py-16">
+      <header className="flex flex-wrap items-end justify-between gap-5 border-b border-line pb-8">
+        <div className="flex min-w-0 flex-col gap-3">
+          <p className="text-[13px] font-bold tracking-[0.12em] text-brand-fg">TRIP CANVAS</p>
+          <h1 className="text-[32px] leading-tight font-bold tracking-[-0.025em]">내 여행</h1>
+          <p className="max-w-xl text-base text-fg-2 text-pretty">
+            이어서 계획할 여행을 고르거나, 새 캔버스를 시작해 보세요.
           </p>
         </div>
         <SignOutButton />

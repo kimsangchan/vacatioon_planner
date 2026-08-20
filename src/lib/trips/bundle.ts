@@ -12,7 +12,9 @@ import { TripError, toTripError } from './api'
 // legs 임베드에도 photos 를 딸려 온다 — 예매 캡처가 타임라인에서 바로 보여야 하고(FR-018),
 // 그러자고 카드마다 조회를 늘리면 E-06 "단일 쿼리"가 깨진다
 export const TRIP_BUNDLE_SELECT =
-  '*,days(*,stops(*,place:places(*,photos(*))),legs(*,photos(*))),places(*,photos(*))'
+  '*,days(*,stops(*,place:places(*,photos(*))),legs(*,photos(*))),places(*,photos(*),place_votes(*))'
+
+import type { VoteRow } from '@/lib/vote/api'
 
 export interface PhotoRow {
   id: string
@@ -36,6 +38,8 @@ export interface PlaceRow {
   /** 원 단위 정수 — 이 장소에서 쓸 것 같은 돈. 실제 지출(stops.cost_amount)과 다른 값이다 (결정 #39) */
   estimated_cost: number | null
   photos: PhotoRow[]
+  /** 별표 협의 (결정 #46). 주인은 자기 여행의 표를 다 본다 */
+  place_votes?: VoteRow[]
 }
 
 export interface StopRow {
@@ -45,6 +49,7 @@ export interface StopRow {
   position: number
   start_time: string | null // 'HH:MM(:SS)' 벽시계 값 — 표시 정보, 정렬 키 아님 (결정 #15)
   cost_amount: number | null // 원 단위 정수 — 방문 지출 (결정 #24)
+  confirmed: boolean // 확정된 방문만 경로를 잇는다 (결정 #47)
   note: string
   place?: PlaceRow | null
 }
@@ -82,6 +87,9 @@ export interface TripBundle {
   start_date: string
   end_date: string
   timezone: string
+  /** 공유 링크가 켜져 있는지 (결정 #3). 주인만 읽는다 — get_shared_trip 은 이 둘을 안 내보낸다 */
+  share_enabled?: boolean
+  share_token?: string | null
   days: DayRow[]
   places: PlaceRow[]
 }
@@ -115,6 +123,9 @@ export async function fetchTripBundle(
     start_date: bundle.start_date,
     end_date: bundle.end_date,
     timezone: bundle.timezone,
+    // 공유 상태 (결정 #3) — 주인만 읽는다. 여기서 빠뜨리면 링크를 켜도 화면이 안 따라온다
+    share_enabled: bundle.share_enabled ?? false,
+    share_token: bundle.share_token ?? null,
     places: (bundle.places ?? []).map((place) => ({ ...place, photos: place.photos ?? [] })),
     days: (bundle.days ?? []).slice().sort(byPosition).map((day) => ({
       ...day,
@@ -171,22 +182,27 @@ export function thumbPaths(bundle: TripBundle): string[] {
 // 일차에 배치된 곳은 일차 색 + 일차 번호를, 보관함은 카테고리 색 + 카테고리 아이콘을 단다.
 // 한 장소가 여러 일차에 있으면 가장 이른 일차를 단다 — 좌표가 같아 핀은 하나뿐이다.
 export function toPins(places: PlaceRow[], highlightedId: string | null, days: DayRow[]): Pin[] {
-  const byPlace = new Map<string, DayRow>()
+  // 핀이 나르는 두 채널: **색 = 몇 일차**(#41) · **숫자 = 그 날 몇 번째 방문**(#49).
+  // 예전에는 숫자도 일차였는데, 색이 이미 같은 말을 하고 있어 한 일차의 핀이 전부 같은 숫자였다 —
+  // 그래서 지도만 보고는 어디부터 도는지 알 수 없었다 (사용자 지적).
+  const placed = new Map<string, { day: DayRow; order: number }>()
   for (const day of [...days].sort((a, b) => a.position - b.position)) {
-    for (const stop of day.stops ?? []) {
-      if (!byPlace.has(stop.place_id)) byPlace.set(stop.place_id, day)
-    }
+    const stops = [...(day.stops ?? [])].sort((a, b) => a.position - b.position)
+    stops.forEach((stop, index) => {
+      // 같은 곳을 여러 날에 담을 수 있다 (#21) — 먼저 만나는 날의 순서를 쓴다
+      if (!placed.has(stop.place_id)) placed.set(stop.place_id, { day, order: index + 1 })
+    })
   }
 
   return places.map((place) => {
-    const day = byPlace.get(place.id)
+    const at = placed.get(place.id)
     return {
       id: place.id,
       latLng: { lat: Number(place.lat), lng: Number(place.lng) },
       category: place.category,
       selected: place.id === highlightedId,
-      dayNumber: day ? day.position + 1 : null,
-      color: day ? dayColorVar(dayColorOf(day)) : CATEGORY_COLOR_VAR[place.category],
+      orderNumber: at ? at.order : null,
+      color: at ? dayColorVar(dayColorOf(at.day)) : CATEGORY_COLOR_VAR[place.category],
     }
   })
 }

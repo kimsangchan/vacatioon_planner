@@ -105,7 +105,7 @@ export function DateRangeCalendar({ start, end, minDate, onChange }: DateRangeCa
           onClick={() => move(-1)}
           disabled={!canGoBack}
           aria-label="지난 달"
-          className="flex size-9 items-center justify-center rounded-full text-lg transition-colors hover:bg-black/[.06] disabled:opacity-30 dark:hover:bg-white/[.08]"
+          className="flex size-9 items-center justify-center rounded-full text-lg transition-colors hover:bg-surface-2 disabled:opacity-30"
         >
           ‹
         </button>
@@ -116,7 +116,7 @@ export function DateRangeCalendar({ start, end, minDate, onChange }: DateRangeCa
           type="button"
           onClick={() => move(1)}
           aria-label="다음 달"
-          className="flex size-9 items-center justify-center rounded-full text-lg transition-colors hover:bg-black/[.06] dark:hover:bg-white/[.08]"
+          className="flex size-9 items-center justify-center rounded-full text-lg transition-colors hover:bg-surface-2"
         >
           ›
         </button>
@@ -124,7 +124,7 @@ export function DateRangeCalendar({ start, end, minDate, onChange }: DateRangeCa
 
       <div className="grid grid-cols-7 gap-y-1">
         {WEEKDAY_LABELS.map((label) => (
-          <span key={label} className="py-1 text-center text-xs text-black/45 dark:text-white/45">
+          <span key={label} className="py-1 text-center text-xs text-fg-3">
             {label}
           </span>
         ))}
@@ -149,10 +149,10 @@ export function DateRangeCalendar({ start, end, minDate, onChange }: DateRangeCa
               onMouseUp={endDrag}
               className={[
                 'flex min-h-10 items-center justify-center text-sm transition-colors select-none',
-                edge ? 'rounded-full bg-foreground font-medium text-background' : '',
-                inRange && !edge ? 'bg-foreground/12' : '',
-                !inRange && !disabled ? 'rounded-full hover:bg-black/[.06] dark:hover:bg-white/[.08]' : '',
-                disabled ? 'text-black/25 dark:text-white/25' : '',
+                edge ? 'rounded-full bg-brand font-medium text-white' : '',
+                inRange && !edge ? 'bg-brand/12' : '',
+                !inRange && !disabled ? 'rounded-full hover:bg-surface-2' : '',
+                disabled ? 'text-fg-4' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -163,7 +163,7 @@ export function DateRangeCalendar({ start, end, minDate, onChange }: DateRangeCa
         })}
       </div>
 
-      <p className="text-sm text-black/60 dark:text-white/60">
+      <p className="text-sm text-fg-2">
         {start.replaceAll('-', '.')} ~ {end.replaceAll('-', '.')} · {nightsLabel(start, end)}
       </p>
     </div>

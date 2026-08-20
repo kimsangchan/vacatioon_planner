@@ -99,7 +99,7 @@ describe('NaverMapProvider — 핀 모양 (결정 #41)', () => {
       latLng: JEJU,
       category: 'restaurant',
       selected: false,
-      dayNumber: 2,
+      orderNumber: 2,
       color: 'var(--day-sky)',
     })
 
@@ -115,7 +115,7 @@ describe('NaverMapProvider — 핀 모양 (결정 #41)', () => {
       latLng: JEJU,
       category: 'lodging',
       selected: false,
-      dayNumber: null,
+      orderNumber: null,
       color: 'var(--pin-lodging)',
     })
 
@@ -211,13 +211,13 @@ describe('NaverMapProvider — mount 계약 (T6-1, SDK 로더 목킹)', () => {
     await provider.mount(document.createElement('div'), JEJU, 11)
 
     provider.setPins([
-      { id: 'a', latLng: JEJU, category: 'restaurant', selected: false, dayNumber: null, color: 'var(--pin-restaurant)' },
-      { id: 'b', latLng: JEJU, category: 'spot', selected: true, dayNumber: 2, color: 'var(--day-sky)' },
+      { id: 'a', latLng: JEJU, category: 'restaurant', selected: false, orderNumber: null, color: 'var(--pin-restaurant)' },
+      { id: 'b', latLng: JEJU, category: 'spot', selected: true, orderNumber: 2, color: 'var(--day-sky)' },
     ])
     expect(sdk.markers).toHaveLength(2)
 
     provider.setPins([
-      { id: 'a', latLng: JEJU, category: 'restaurant', selected: false, dayNumber: null, color: 'var(--pin-restaurant)' },
+      { id: 'a', latLng: JEJU, category: 'restaurant', selected: false, orderNumber: null, color: 'var(--pin-restaurant)' },
     ])
     // 첫 배치의 핀은 지도에서 내려간다 (setMap(null))
     expect(sdk.markers.slice(0, 2).every((m) => m.map === null)).toBe(true)
@@ -234,7 +234,7 @@ describe('NaverMapProvider — mount 계약 (T6-1, SDK 로더 목킹)', () => {
     await provider.mount(document.createElement('div'), JEJU, 11)
     provider.onPinEvent(onPin)
     provider.setPins([
-      { id: 'a', latLng: JEJU, category: 'spot', selected: false, dayNumber: null, color: 'var(--pin-spot)' },
+      { id: 'a', latLng: JEJU, category: 'spot', selected: false, orderNumber: null, color: 'var(--pin-spot)' },
     ])
 
     for (const type of ['mouseover', 'mouseout', 'click']) {
