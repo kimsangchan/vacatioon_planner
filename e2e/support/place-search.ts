@@ -19,6 +19,7 @@ export const PLACE_SEARCH_FIXTURE: NormalizedPlace[] = [
     lng: 126.4983,
     categoryHint: 'restaurant',
     providerLink: 'https://map.naver.com/p/e2e/1',
+    phone: '',
     provider: 'naver',
   },
   {
@@ -29,6 +30,7 @@ export const PLACE_SEARCH_FIXTURE: NormalizedPlace[] = [
     lng: 126.9425,
     categoryHint: 'spot',
     providerLink: 'https://map.naver.com/p/e2e/2',
+    phone: '',
     provider: 'naver',
   },
   {
@@ -39,6 +41,7 @@ export const PLACE_SEARCH_FIXTURE: NormalizedPlace[] = [
     lng: 126.5219,
     categoryHint: 'lodging',
     providerLink: 'https://map.naver.com/p/e2e/3',
+    phone: '',
     provider: 'naver',
   },
   {
@@ -49,6 +52,7 @@ export const PLACE_SEARCH_FIXTURE: NormalizedPlace[] = [
     lng: 126.6702,
     categoryHint: 'restaurant',
     providerLink: 'https://map.naver.com/p/e2e/4',
+    phone: '',
     provider: 'naver',
   },
   {
@@ -59,6 +63,7 @@ export const PLACE_SEARCH_FIXTURE: NormalizedPlace[] = [
     lng: 126.9702,
     categoryHint: 'spot',
     providerLink: 'https://map.naver.com/p/e2e/5',
+    phone: '',
     provider: 'naver',
   },
 ]

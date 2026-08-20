@@ -70,6 +70,7 @@ describe('toNormalizedPlaces', () => {
         lng: 126.3658809,
         categoryHint: 'restaurant',
         providerLink: 'https://map.naver.com/p/1',
+        phone: '',
         provider: 'naver',
       },
     ])

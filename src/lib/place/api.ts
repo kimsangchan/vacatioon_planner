@@ -18,6 +18,7 @@ export interface NewPlace {
   lng: number
   provider: PlaceProvider
   provider_link: string | null
+  phone?: string
   memo?: string
 }
 

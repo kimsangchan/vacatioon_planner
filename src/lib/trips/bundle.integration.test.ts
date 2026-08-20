@@ -41,6 +41,7 @@ describe('E-04 savePlace + E-06 Trip Bundle', () => {
       lng: 126.9425,
       provider: 'naver',
       provider_link: 'https://map.naver.com/p/1',
+      phone: '',
     })
 
     expect(saved.id).toBe(seongsanId)
@@ -63,6 +64,7 @@ describe('E-04 savePlace + E-06 Trip Bundle', () => {
       lng: 126.9425,
       provider: 'naver',
       provider_link: null,
+      phone: '',
     }).catch((error: unknown) => error)
 
     expect(failure).toBeInstanceOf(PlaceError)
@@ -83,6 +85,7 @@ describe('E-04 savePlace + E-06 Trip Bundle', () => {
       lng: 126.5312,
       provider: 'naver',
       provider_link: null,
+      phone: '',
     })
     await savePlace(client, {
       id: deletedId,
@@ -96,6 +99,7 @@ describe('E-04 savePlace + E-06 Trip Bundle', () => {
       lng: 126.52,
       provider: 'manual',
       provider_link: null,
+      phone: '',
     })
     await client
       .from('places')

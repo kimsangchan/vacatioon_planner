@@ -42,6 +42,7 @@ export function ManualPlaceForm({ latLng, onSubmit, onCancel }: ManualPlaceFormP
         lng: latLng.lng,
         provider: 'manual',
         provider_link: null,
+        phone: '',
       })
     } catch (error) {
       const placeError = error instanceof PlaceError ? error : new PlaceError('unknown')

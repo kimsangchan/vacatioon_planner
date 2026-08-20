@@ -28,6 +28,7 @@ function place(
     lng: 126.5,
     provider: 'naver',
     provider_link: null,
+    phone: '',
     memo: '',
     estimated_cost: null,
     photos,
@@ -456,6 +457,8 @@ describe('CanvasBoard — 미리보기 (FR-006 / SC-002)', () => {
     await renderBoard({ onSaveMemo })
 
     await act(async () => provider.emitPinEvent('p1', 'tap'))
+    // 카드는 읽기로 시작한다 — 연필을 눌러야 입력창이 나온다 (사용자 요청)
+    fireEvent.click(screen.getByRole('button', { name: '고치기' }))
     fireEvent.change(screen.getByLabelText('메모'), { target: { value: '예약 필요' } })
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '저장하기' }))
@@ -526,7 +529,9 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
 
   // 사용자 지적: "스팟 위에 마우스 이동을 하든 화면 확대축소를 하든 따라오게 해줘야 하는 거 아니야?
   // 화면 우측 하단에 고정인 거 같은데" — 화면 모서리에 붙박인 것은 지도 위 카드가 아니다.
-  it('카드는 그 장소 핀에 붙어 뜨고, 지도를 움직이면 따라온다', async () => {
+  it('데스크톱 말풍선은 그 핀에 붙어 뜨고, 지도를 움직이면 따라온다', async () => {
+    // 핀에 붙는 것은 데스크톱 말풍선이다 — 모바일은 하단 시트라 좌표를 쓰지 않는다 (사용자 요청)
+    installMatchMedia(1280)
     await renderBoard({ onSaveMemo: vi.fn() })
 
     fireEvent.click(item('p3'))
@@ -631,9 +636,9 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
   it('이동 폼을 펼치면 열려 있던 미리보기 시트를 닫는다', async () => {
     await renderBoard({ onSaveLeg: vi.fn(), onSaveMemo: vi.fn() })
 
-    // 배치된 곳의 핀 → 1일차 타임라인 + 미리보기 시트("메모 저장하기" 강조)
+    // 배치된 곳의 핀 → 1일차 타임라인 + 미리보기 시트
     await act(async () => provider.emitPinEvent('p2', 'tap'))
-    expect(screen.getByRole('button', { name: '저장하기' })).toBeTruthy()
+    expect(screen.getByTestId('preview-card')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: '이동 적기' }))
 
@@ -645,7 +650,7 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
     await renderBoard({ onUpdateStop: vi.fn(), onSaveMemo: vi.fn() })
 
     await act(async () => provider.emitPinEvent('p2', 'tap'))
-    expect(screen.getByRole('button', { name: '저장하기' })).toBeTruthy()
+    expect(screen.getByTestId('preview-card')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: '호텔제주 작업 열기' }))
     fireEvent.click(screen.getByRole('button', { name: '시각·가격 적기' }))
@@ -669,6 +674,7 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
               lng: 126.53,
               categoryHint: 'restaurant',
               providerLink: null,
+              phone: '',
               provider: 'naver',
             },
           ]),
@@ -681,7 +687,7 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
       await renderBoard({ onSaveMemo: vi.fn() })
 
       fireEvent.click(item('p3'))
-      expect(screen.getByRole('button', { name: '저장하기' })).toBeTruthy()
+      expect(screen.getByTestId('preview-card')).toBeTruthy()
 
       fireEvent.change(screen.getByLabelText('장소 검색'), { target: { value: '흑돼지' } })
       await act(async () => {
@@ -712,6 +718,7 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
           lng: 126.53,
           categoryHint: 'restaurant',
           providerLink: null,
+          phone: '',
           provider: 'naver',
         })),
       ),
@@ -722,10 +729,12 @@ describe('CanvasBoard — 강조 CTA 하나 (L-09)', () => {
   // 사용자 보고: "카드 팝업 안되고 왼쪽 패널에 여전히 있는데".
   // 카드가 DOM 에 있는 것만으로는 부족하다 — 리스트 패널 바깥, 캔버스 위에 떠 있어야 한다.
   // jsdom 에는 레이아웃이 없으므로 위치 대신 "어느 부모 아래에 있는가"로 못 박는다.
+  // 저장 버튼이 아니라 **연필**로 단언한다 — 카드가 읽기로 시작하도록 바뀌면서
+  // 저장 버튼은 편집 모드의 사정이 됐다 (사용자 요청). 여기서 보려는 것은 "카드가 패널 밖에 떴나"다
   function expectFloatingCard() {
     const card = screen.getByTestId('preview-card')
     expect(card.dataset.variant).toBe('sheet')
-    expect(screen.getByRole('button', { name: '저장하기' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '고치기' })).toBeTruthy()
     expect(document.querySelector('aside')?.contains(card)).toBe(false)
   }
 
@@ -845,6 +854,7 @@ describe('CanvasBoard — 지도에서 직접 담기 (FR-016)', () => {
       lng: 126.6,
       provider: 'manual',
       provider_link: null,
+      phone: '',
     })
     expect(screen.queryByTestId('manual-place-form')).toBeNull()
   })
@@ -855,32 +865,45 @@ describe('CanvasBoard — 데스크톱은 상세를 패널 안에 낸다 (사용
     installMatchMedia(1280)
   })
 
-  it('장소를 누르면 지도 위 카드가 아니라 패널이 상세로 갈아탄다', async () => {
+  it('장소를 누르면 먼저 짧은 말풍선이 뜬다 — 패널은 그대로 목록이다', async () => {
     await renderBoard({ onSaveMemo: vi.fn() })
 
     fireEvent.click(item('p3'))
 
-    // 카드가 커지면 지도 위에서 스크롤이 생겨 정작 지도를 가린다 — 그래서 지도 위에 안 띄운다
-    expect(screen.queryByTestId('place-card-anchor')).toBeNull()
-    expect(screen.getByRole('button', { name: '목록으로' })).toBeTruthy()
+    expect(screen.getByTestId('pin-bubble')).toBeTruthy()
+    // 바로 패널을 채우면 목록이 사라져 연달아 담지 못한다 (사용자 요청)
+    expect(screen.queryByRole('button', { name: '목록으로' })).toBeNull()
   })
 
-  it('목록으로 를 누르면 되돌아온다', async () => {
+  it("'자세히'를 눌러야 패널이 상세로 갈아탄다", async () => {
     await renderBoard({ onSaveMemo: vi.fn() })
     fireEvent.click(item('p3'))
+
+    fireEvent.click(screen.getByRole('button', { name: '자세히' }))
+
+    expect(screen.getByRole('button', { name: '목록으로' })).toBeTruthy()
+    expect(screen.queryByTestId('pin-bubble')).toBeNull()
+  })
+
+  it('목록으로 는 펼침만 접는다 — 말풍선은 남아 어디를 보고 있었는지 잃지 않는다', async () => {
+    await renderBoard({ onSaveMemo: vi.fn() })
+    fireEvent.click(item('p3'))
+    fireEvent.click(screen.getByRole('button', { name: '자세히' }))
 
     fireEvent.click(screen.getByRole('button', { name: '목록으로' }))
 
     expect(screen.queryByRole('button', { name: '목록으로' })).toBeNull()
+    expect(screen.getByTestId('pin-bubble')).toBeTruthy()
   })
 
-  it('모바일에서는 그대로 핀에 붙는 카드다 (#40·#43 유지)', async () => {
+  it('모바일은 아래에서 올라오는 시트다 — 핀 위에 띄우면 카드가 가리키는 곳을 덮는다', async () => {
     installMatchMedia(390)
     await renderBoard({ onSaveMemo: vi.fn() })
 
     fireEvent.click(item('p3'))
 
-    expect(screen.getByTestId('place-card-anchor')).toBeTruthy()
+    expect(screen.getByTestId('place-sheet')).toBeTruthy()
+    expect(screen.queryByTestId('pin-bubble')).toBeNull()
     expect(screen.queryByRole('button', { name: '목록으로' })).toBeNull()
   })
 })
@@ -941,6 +964,7 @@ describe('CanvasBoard — 저장하면 지도에서 이어 간다 (결정 #50, �
               lng: 126.55,
               categoryHint: 'restaurant',
               providerLink: null,
+              phone: '',
             },
           ]),
           { status: 200, headers: { 'content-type': 'application/json' } },

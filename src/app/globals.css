@@ -209,6 +209,7 @@
   --shadow-2: var(--shadow-2);
   --shadow-3: var(--shadow-3);
   --shadow-toast: var(--shadow-toast);
+  --shadow-sheet: var(--shadow-sheet);
 }
 
 /* 미리보기 카드 등장 — 허용된 유일한 장식 모션. 320ms 를 넘기지 않는다 */

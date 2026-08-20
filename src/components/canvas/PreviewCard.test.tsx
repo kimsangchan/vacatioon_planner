@@ -31,6 +31,7 @@ function place(overrides: Partial<PlaceRow> = {}): PlaceRow {
     lng: 126.5312,
     provider: 'naver',
     provider_link: 'https://map.naver.com/p/1',
+    phone: '',
     memo: '',
     estimated_cost: null,
     photos: [],
@@ -39,6 +40,12 @@ function place(overrides: Partial<PlaceRow> = {}): PlaceRow {
 }
 
 afterEach(cleanup)
+
+// 기본은 보여 주기다 — 입력창은 연필을 눌러야 나온다 (사용자 요청).
+// 카드가 늘 편집 상태라 길어져 스크롤까지 하게 됐던 것이 이 변경의 이유다
+function openEdit() {
+  fireEvent.click(screen.getByRole('button', { name: '고치기' }))
+}
 
 describe('PreviewCard — 카드에서 일정에 넣고 뺀다 (결정 #43)', () => {
   const DAYS = [
@@ -102,6 +109,7 @@ describe('PreviewCard — 예상 금액 (결정 #39)', () => {
       />,
     )
 
+    openEdit()
     fireEvent.change(screen.getByLabelText('예상 금액'), { target: { value: '20000' } })
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '저장하기' }))
@@ -113,6 +121,7 @@ describe('PreviewCard — 예상 금액 (결정 #39)', () => {
   it('치는 동안 천 단위가 보인다 — 0이 몇 개인지 눈으로 세지 않게', () => {
     render(<PreviewCard place={place()} variant="sheet" onSaveEstimatedCost={vi.fn()} />)
 
+    openEdit()
     const input = screen.getByLabelText('예상 금액') as HTMLInputElement
     fireEvent.change(input, { target: { value: '20000' } })
 
@@ -129,6 +138,7 @@ describe('PreviewCard — 예상 금액 (결정 #39)', () => {
       />,
     )
 
+    openEdit()
     fireEvent.change(screen.getByLabelText('예상 금액'), { target: { value: '' } })
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '저장하기' }))
@@ -149,6 +159,7 @@ describe('PreviewCard — 예상 금액 (결정 #39)', () => {
       />,
     )
 
+    openEdit()
     fireEvent.change(screen.getByLabelText('메모'), { target: { value: '9시 전에' } })
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '저장하기' }))
@@ -223,6 +234,7 @@ describe('PreviewCard — 모바일 바텀시트 (FR-006 / 뎁스 2)', () => {
     expect(sheet.dataset.variant).toBe('sheet')
     expect(sheet.textContent).toContain('흑돼지집')
     expect(sheet.textContent).toContain('식당')
+    openEdit()
     expect((screen.getByLabelText('메모') as HTMLTextAreaElement).value).toBe('흑돼지 두 근')
     expect(screen.getByRole('button', { name: '저장하기' })).toBeTruthy()
     expect(screen.getByLabelText('사진 담기')).toBeTruthy()
@@ -232,6 +244,7 @@ describe('PreviewCard — 모바일 바텀시트 (FR-006 / 뎁스 2)', () => {
     const onSaveMemo = vi.fn().mockResolvedValue(undefined)
     render(<PreviewCard variant="sheet" place={place()} onSaveMemo={onSaveMemo} />)
 
+    openEdit()
     fireEvent.change(screen.getByLabelText('메모'), { target: { value: '9시 전에 가기' } })
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '저장하기' }))
@@ -387,5 +400,49 @@ describe('PreviewCard — 보관함에서 빼기 (FR-017 soft delete)', () => {
     const button = screen.getByRole('button', { name: '보관함에서 빼기' })
     expect(button.className).not.toContain('bg-brand')
     expect(button.className).not.toMatch(/text-red|bg-red/)
+  })
+})
+
+describe('PreviewCard — 읽기가 기본, 연필로 고친다 (사용자 요청)', () => {
+  it('입력창을 미리 펴 두지 않는다 — 늘 편집 상태라 카드가 길어져 스크롤까지 했다', () => {
+    render(<PreviewCard place={place()} variant="sheet" onSaveMemo={vi.fn()} onSaveEstimatedCost={vi.fn()} />)
+
+    expect(screen.queryByLabelText('메모')).toBeNull()
+    expect(screen.queryByLabelText('예상 금액')).toBeNull()
+    expect(screen.getByRole('button', { name: '고치기' })).toBeTruthy()
+  })
+
+  it('저장해 둔 것을 읽을 수 있게 낸다 — 전화·메모·예상 금액', () => {
+    render(
+      <PreviewCard
+        place={place({ phone: '064-123-4567', memo: '9시 전에', estimated_cost: 20000 })}
+        variant="sheet"
+        onSaveMemo={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('link', { name: '064-123-4567' }).getAttribute('href')).toBe(
+      'tel:064-123-4567',
+    )
+    expect(screen.getByText('9시 전에')).toBeTruthy()
+    expect(screen.getByText(/20,000/)).toBeTruthy()
+  })
+
+  it('영업시간은 담지 못하니 네이버 상세로 넘긴다 — 어느 공개 API 도 주지 않는다', () => {
+    render(<PreviewCard place={place()} variant="sheet" onSaveMemo={vi.fn()} />)
+
+    expect(screen.getByRole('link', { name: '네이버에서 열기' }).getAttribute('href')).toBe(
+      'https://map.naver.com/p/1',
+    )
+    expect(screen.getByText(/영업시간은 여기서/)).toBeTruthy()
+  })
+
+  it('연필을 누르면 입력창이 나온다', () => {
+    render(<PreviewCard place={place({ memo: '9시 전에' })} variant="sheet" onSaveMemo={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '고치기' }))
+
+    expect(screen.getByLabelText('메모')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '고치기 그만두기' })).toBeTruthy()
   })
 })

@@ -33,6 +33,7 @@ const place = (id: string, name: string): PlaceRow => ({
   lng: 126.5,
   provider: 'naver',
   provider_link: null,
+  phone: '',
   memo: '',
   estimated_cost: null,
   photos: [],

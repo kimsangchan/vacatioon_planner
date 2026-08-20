@@ -19,6 +19,8 @@ export interface PlaceDraft {
   name: string
   address: string
   road_address: string
+  /** 있으면 카드에서 바로 걸 수 있다. 영업시간은 어느 API 도 주지 않는다 (01-recon) */
+  phone: string
   lat: number
   lng: number
   /** 검색 결과는 naver, 지도에서 직접 찍은 곳은 manual (FR-016) */
@@ -141,6 +143,7 @@ export function PlaceSearchBox({
         lng: picked.lng,
         provider: 'naver',
         provider_link: picked.providerLink,
+        phone: picked.phone,
       })
       setPicked(null)
       setResults(null)

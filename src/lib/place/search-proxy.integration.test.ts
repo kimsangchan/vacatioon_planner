@@ -95,6 +95,7 @@ describe('E-03 GET /api/place-search', () => {
         lng: 126.9425,
         categoryHint: 'spot',
         providerLink: 'https://map.naver.com/p/1',
+        phone: '',
         provider: 'naver',
       },
       {
@@ -105,6 +106,7 @@ describe('E-03 GET /api/place-search', () => {
         lng: 126.94,
         categoryHint: 'restaurant',
         providerLink: null,
+        phone: '',
         provider: 'naver',
       },
     ])
@@ -183,6 +185,7 @@ describe('E-03 GET /api/place-search', () => {
         lng: 126.5,
         categoryHint: 'spot',
         providerLink: null,
+        phone: '',
         provider: 'naver',
       },
     ]
@@ -228,6 +231,7 @@ describe('E-03 GET /api/place-search', () => {
         lng: 126.5,
         categoryHint: 'restaurant',
         providerLink: null,
+        phone: '',
         provider: 'naver',
       },
     ]

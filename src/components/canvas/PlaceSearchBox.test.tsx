@@ -15,6 +15,7 @@ const SEONGSAN = {
   lng: 126.9425,
   categoryHint: 'spot' as const,
   providerLink: 'https://map.naver.com/p/1',
+  phone: '',
   provider: 'naver' as const,
 }
 
@@ -26,6 +27,7 @@ const HEUKDWAEJI = {
   lng: 126.5312,
   categoryHint: 'restaurant' as const,
   providerLink: null,
+  phone: '',
   provider: 'naver' as const,
 }
 
@@ -168,6 +170,7 @@ describe('PlaceSearchBox — 결정 3지점 (SC-001)', () => {
       lng: HEUKDWAEJI.lng,
       provider: 'naver',
       provider_link: null,
+      phone: '',
     })
     expect(screen.getByRole('status').textContent).toContain('보관함에 담았어요')
   })

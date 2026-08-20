@@ -10,8 +10,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 const VOTER_KEY_STORAGE = 'trip-canvas:voter-key'
 
-/** 1~3 만 저장한다. 0 은 "별표 취소"라는 뜻으로 쓰인다 (RPC 계약과 같다) */
-export type Stars = 1 | 2 | 3
+/**
+ * 1~5 만 저장한다. 0 은 "별표 취소"라는 뜻으로 쓰인다 (RPC 계약과 같다).
+ * 결정 #46 은 3단계였는데 사용자가 써 보고 5점을 원했다 (0013) — 쓰는 사람의 판단이 세다.
+ */
+export type Stars = 1 | 2 | 3 | 4 | 5
 
 export interface VoteRow {
   place_id: string

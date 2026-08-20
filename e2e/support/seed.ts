@@ -76,6 +76,7 @@ export async function seedPlaces(
       lng: seed.lng,
       provider: 'naver',
       provider_link: null,
+      phone: '',
     })
     ids.push(id)
   }

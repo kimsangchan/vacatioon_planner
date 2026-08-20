@@ -49,6 +49,7 @@ describe('ManualPlaceForm — 이 자리에 담기 (FR-016)', () => {
       lng: 126.5312,
       provider: 'manual',
       provider_link: null,
+      phone: '',
     })
   })
 

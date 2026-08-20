@@ -34,6 +34,8 @@ export interface PlaceRow {
   lng: number
   provider: PlaceProvider
   provider_link: string | null
+  /** 네이버가 주는 전화번호. 영업시간은 어느 공개 API 도 주지 않는다 (01-recon) */
+  phone: string
   memo: string
   /** 원 단위 정수 — 이 장소에서 쓸 것 같은 돈. 실제 지출(stops.cost_amount)과 다른 값이다 (결정 #39) */
   estimated_cost: number | null

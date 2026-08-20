@@ -9,6 +9,7 @@
 import { useId, useState } from 'react'
 import { ConfirmRow } from '@/components/common/ConfirmRow'
 import { StarRating } from '@/components/common/StarRating'
+import type { Stars } from '@/lib/vote/api'
 import { CATEGORY_LABEL } from '@/lib/map/provider'
 import { PhotoError, photoErrorMessage, photoPublicUrl } from '@/lib/photo/upload'
 import { formatAmount, formatAmountInput, parseAmountInput } from '@/lib/timeline/money'
@@ -33,7 +34,7 @@ export interface PreviewCardProps {
   onClose?: () => void
   /** 별표 협의 (결정 #46) — 내가 준 별과 모두의 합. 없으면 별표를 아예 내지 않는다 */
   vote?: { mine: number; total: number; voters: number }
-  onVote?: (stars: 0 | 1 | 2 | 3) => void
+  onVote?: (stars: 0 | Stars) => void
 }
 
 const SMALL_BUTTON =
@@ -76,6 +77,9 @@ export function PreviewCard({
   const [failure, setFailure] = useState<string | null>(null)
   const [pending, setPending] = useState<PendingConfirm | null>(null)
   const [picking, setPicking] = useState(false)
+  // 기본은 **보여 주기**다 (사용자 요청 — 네이버 지도가 그렇게 한다).
+  // 카드가 길어져 스크롤까지 하게 된 원인이 "늘 편집 상태"였다 — 입력창은 접어 두고 연필로 연다
+  const [editing, setEditing] = useState(false)
 
   const cover = coverPhoto(place)
   const sheet = variant === 'sheet'
@@ -201,14 +205,49 @@ export function PreviewCard({
           )}
         </div>
 
+        {sheet && (onSaveMemo || onSaveEstimatedCost) && (
+          <button
+            type="button"
+            aria-pressed={editing}
+            aria-label={editing ? '고치기 그만두기' : '고치기'}
+            onClick={() => setEditing((on) => !on)}
+            className={`flex size-8 shrink-0 items-center justify-center rounded-s transition-colors duration-120 ${
+              editing ? 'bg-surface-3 text-fg' : 'text-fg-3 hover:bg-surface-2 hover:text-fg'
+            }`}
+          >
+            <svg
+              aria-hidden
+              viewBox="0 0 24 24"
+              className="size-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.75}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3Z" />
+            </svg>
+          </button>
+        )}
+
         {sheet && onClose && (
           <button
             type="button"
             onClick={onClose}
-            className="flex min-h-8 min-w-8 items-center justify-center rounded-full text-sm text-fg-2"
+            className="flex size-8 shrink-0 items-center justify-center rounded-s text-fg-3 transition-colors duration-120 hover:bg-surface-2 hover:text-fg"
           >
             <span className="sr-only">미리보기 닫기</span>
-            <span aria-hidden>✕</span>
+            <svg
+              aria-hidden
+              viewBox="0 0 24 24"
+              className="size-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.75}
+              strokeLinecap="round"
+            >
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
           </button>
         )}
       </div>
@@ -306,9 +345,55 @@ export function PreviewCard({
         </div>
       )}
 
+      {/* 읽기 모드 — 저장해 둔 것을 보여 주기만 한다 (사용자 요청).
+          영업시간은 어느 공개 API 도 주지 않아(01-recon — 카카오 공식 답변) 담지 못한다.
+          대신 네이버 상세로 넘길 링크를 둔다 — 거기 영업시간이 있다 */}
+      {sheet && !editing && (
+        <dl className="flex flex-col gap-1.5 text-[13px]">
+          {place.phone !== '' && (
+            <div className="flex gap-2">
+              <dt className="w-14 shrink-0 text-fg-3">전화</dt>
+              <dd className="min-w-0 flex-1">
+                <a href={`tel:${place.phone}`} className="tabular text-brand-fg underline underline-offset-2">
+                  {place.phone}
+                </a>
+              </dd>
+            </div>
+          )}
+          {place.memo.trim() !== '' && (
+            <div className="flex gap-2">
+              <dt className="w-14 shrink-0 text-fg-3">메모</dt>
+              <dd className="min-w-0 flex-1 whitespace-pre-wrap">{place.memo}</dd>
+            </div>
+          )}
+          {place.estimated_cost != null && (
+            <div className="flex gap-2">
+              <dt className="w-14 shrink-0 text-fg-3">예상</dt>
+              <dd className="tabular min-w-0 flex-1">{formatAmount(place.estimated_cost)}원</dd>
+            </div>
+          )}
+          {place.provider_link && (
+            <div className="flex gap-2">
+              <dt className="w-14 shrink-0 text-fg-3">더 보기</dt>
+              <dd className="min-w-0 flex-1">
+                <a
+                  href={place.provider_link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-brand-fg underline underline-offset-2"
+                >
+                  네이버에서 열기
+                </a>
+                <span className="ml-1.5 text-fg-4">영업시간은 여기서 봐요</span>
+              </dd>
+            </div>
+          )}
+        </dl>
+      )}
+
       {/* 메모와 예상 금액은 한 폼·한 버튼이다 — 카드에서 다 고친다는 게 이 표면의 쓸모이고,
           강조 CTA 는 화면당 하나여야 한다 (L-09). 안 바꾼 값은 보내지 않는다 */}
-      {sheet && (onSaveMemo || onSaveEstimatedCost) && (
+      {sheet && editing && (onSaveMemo || onSaveEstimatedCost) && (
         <div className="flex flex-col gap-2">
           {onSaveMemo && (
             <>

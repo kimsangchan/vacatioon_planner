@@ -1,6 +1,6 @@
 begin;
 
-select plan(20);
+select plan(21);
 
 -- ── 픽스처 (superuser) ────────────────────────────────────────────────────────
 
@@ -28,12 +28,20 @@ select col_type_is('public', 'place_votes', 'stars', 'smallint',
 select col_is_pk('public', 'place_votes', array['place_id', 'voter_key'],
   '한 사람이 한 장소에 표 하나 — 여러 번 눌러 표를 부풀리지 못한다');
 
+-- #46 은 3단계였다. 사용자가 써 보고 5점을 원해 0013 에서 넓혔다 — 쓰는 사람의 판단이 세다
+-- 뒤의 개수 단언을 오염시키지 않도록 넣자마자 치운다 — 여기서 보려는 것은 범위뿐이다
+select lives_ok(
+  $$insert into public.place_votes (place_id, voter_key, stars)
+    values ('34000000-0000-0000-0000-000000000001', 'browser-fivestar', 5);
+    delete from public.place_votes where voter_key = 'browser-fivestar'$$,
+  '5점까지 받는다 (0013)');
+
 select throws_ok(
   $$insert into public.place_votes (place_id, voter_key, stars)
-    values ('34000000-0000-0000-0000-000000000001', 'browser-aaaaaaaa', 4)$$,
+    values ('34000000-0000-0000-0000-000000000001', 'browser-sixstars', 6)$$,
   '23514',
   null,
-  '4점은 거절한다 — 3과 4의 차이를 아무도 설명하지 못한다');
+  '6점은 거절한다 — 상한이 없으면 표의 뜻이 사라진다');
 
 select throws_ok(
   $$insert into public.place_votes (place_id, voter_key, stars)

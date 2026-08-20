@@ -23,6 +23,7 @@ function place(id: string, category: PlaceRow['category']): PlaceRow {
     lng: 126.5,
     provider: 'naver',
     provider_link: null,
+    phone: '',
     memo: '',
     estimated_cost: null,
     photos: [],

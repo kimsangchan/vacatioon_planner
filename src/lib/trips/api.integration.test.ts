@@ -113,6 +113,7 @@ describe('E-13 listTrips — FR-014', () => {
       lng,
       provider: 'manual',
       provider_link: null,
+      phone: '',
       deleted_at,
     })
 

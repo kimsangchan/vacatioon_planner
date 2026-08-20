@@ -53,6 +53,7 @@ describe('E-07 배치·재정렬 + E-08 이동 (FR-007·FR-008)', () => {
       lat: 33.4996,
       lng: 126.5312,
       provider_link: null,
+      phone: '',
     })
     await savePlace(client, {
       ...base,
@@ -64,6 +65,7 @@ describe('E-07 배치·재정렬 + E-08 이동 (FR-007·FR-008)', () => {
       lat: 33.4581,
       lng: 126.9425,
       provider_link: null,
+      phone: '',
     })
 
     const bundle = await fetchTripBundle(client, tripId)

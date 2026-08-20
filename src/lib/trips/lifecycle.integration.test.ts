@@ -30,6 +30,7 @@ const jeju = (id: string, name: string, tripId: string, ownerId: string, lat: nu
   lng,
   provider: 'manual' as const,
   provider_link: null,
+  phone: '',
 })
 
 describe('E-14 update_trip_dates — 기간 변경 캐스케이드 (FR-015)', () => {

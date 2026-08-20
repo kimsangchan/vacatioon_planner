@@ -60,6 +60,7 @@ describe('E-05 사진 업로드 (FR-004)', () => {
       lng: 126.5312,
       provider: 'naver',
       provider_link: null,
+      phone: '',
     })
   }, 40_000)
 

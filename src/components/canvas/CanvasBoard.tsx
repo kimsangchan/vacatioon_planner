@@ -26,6 +26,7 @@ import { ListPane, dayLabel } from './ListPane'
 import { ManualPlaceForm } from './ManualPlaceForm'
 import { MapPane } from './MapPane'
 import { PlaceSearchBox, type PlaceDraft } from './PlaceSearchBox'
+import { PinBubble } from './PinBubble'
 import { PreviewCard } from './PreviewCard'
 
 /** 모바일 하단 메뉴가 고르는 화면 */
@@ -62,19 +63,18 @@ function TabIcon({ view, active }: { view: MobileView; active: boolean }) {
   )
 }
 
-// 지도 조작이 멎었다고 볼 때까지 (결정 #48). 끌 때마다 탭이 깜빡이면 그게 더 시끄럽다
-const MAP_IDLE_MS = 900
-
-// 카드 폭 (w-80). 가로 가두기 계산에 쓴다
-const CARD_WIDTH = 320
-// 핀과 카드 사이 간격, 그리고 위아래로 남겨 둘 여백(아래는 하단 메뉴 자리다)
+// 말풍선 폭. 가로로 화면을 넘지 않게 가두는 계산에 쓴다
+const BUBBLE_WIDTH = 300
+// 핀과 말풍선 사이 간격, 위아래로 남겨 둘 여백
 const CARD_GAP = 14
 const CARD_TOP_INSET = 8
 const CARD_BOTTOM_INSET = 64
-// 핀 위에 이만큼도 없으면 아래로 뒤집는다. 카드 높이를 재지 않는 이유:
-// 렌더 중에는 ref 를 읽을 수 없고(react-hooks/refs), 재고 다시 그리면 카드가 한 번 튄다.
-// 대신 **쓸 수 있는 공간을 max-height 로 넘겨** 카드가 그 안에서 스스로 접히게 한다
-const CARD_MIN_SPACE = 200
+// 핀 위에 이만큼도 없으면 아래로 뒤집는다
+const CARD_MIN_SPACE = 140
+
+// 지도 조작이 멎었다고 볼 때까지 (결정 #48). 끌 때마다 탭이 깜빡이면 그게 더 시끄럽다
+const MAP_IDLE_MS = 900
+
 // 손잡이를 이만큼 아래로 끌면 패널을 내린다. 그 아래는 손 떨림이지 의사표시가 아니다
 const SWIPE_CLOSE_PX = 60
 const SWIPE_SLOP_PX = 8
@@ -163,6 +163,9 @@ export function CanvasBoard({
   // 상세를 어디에 낼지 가른다 — 데스크톱은 패널 안, 모바일은 핀에 붙는 카드.
   // 서버 렌더에는 화면 폭이 없으므로 false 로 시작해 mount 후 맞춘다
   const [isDesktop, setIsDesktop] = useState(false)
+  // 데스크톱은 두 단계다: 핀을 누르면 **짧은 말풍선**, '자세히'를 눌러야 패널이 상세로 갈아탄다
+  // (사용자 요청 — 네이버 지도 방식). 바로 패널을 채우면 목록이 사라져 연달아 담지 못한다
+  const [expanded, setExpanded] = useState(false)
   // 이 브라우저의 표 주인 (결정 #46). 서버 렌더에는 localStorage 가 없어 그때만 null 이다 —
   // 별표는 카드를 연 뒤에나 그려지므로 하이드레이션과 부딪히지 않는다
   const [myVoterKey] = useState<string | null>(() =>
@@ -235,7 +238,7 @@ export function CanvasBoard({
       }
       // 카드가 지도 밖으로 반쯤 걸치지 않게 가로만 가둔다. 폭이 0인 환경(jsdom)에서는 그대로 둔다
       const width = box?.clientWidth ?? 0
-      const half = Math.min(CARD_WIDTH, Math.max(width - 16, 0)) / 2
+      const half = Math.min(BUBBLE_WIDTH, Math.max(width - 16, 0)) / 2
       const x = width > 0 ? Math.min(Math.max(point.x, half + 8), width - half - 8) : point.x
       setAnchor({ id: detailPlace.id, point: { x, y: point.y } })
     }
@@ -255,31 +258,6 @@ export function CanvasBoard({
       stop?.()
     }
   }, [created])
-
-  // 이번에 연 장소의 자리일 때만 쓴다
-  const anchorPoint = anchor && anchor.id === detailId ? anchor.point : null
-  // 위에 놓을지 아래에 놓을지, 그리고 그때 쓸 수 있는 높이가 얼마인지를 함께 정한다.
-  // 높이를 안 넘기면 카드가 핀 위 공간보다 커질 때 화면 위로 밀려 나가 제목이 잘린다 (실측)
-  const cardStyle = ((): CSSProperties => {
-    if (!anchorPoint) {
-      return { left: '50%', bottom: CARD_BOTTOM_INSET, transform: 'translateX(-50%)', maxHeight: '70%' }
-    }
-    const above = anchorPoint.y - CARD_GAP - CARD_TOP_INSET
-    if (above >= CARD_MIN_SPACE) {
-      return {
-        left: anchorPoint.x,
-        bottom: `calc(100% - ${anchorPoint.y - CARD_GAP}px)`,
-        maxHeight: above,
-        transform: 'translateX(-50%)',
-      }
-    }
-    return {
-      left: anchorPoint.x,
-      top: anchorPoint.y + CARD_GAP,
-      maxHeight: `calc(100% - ${anchorPoint.y + CARD_GAP + CARD_BOTTOM_INSET}px)`,
-      transform: 'translateX(-50%)',
-    }
-  })()
 
   function revealInList(id: string) {
     setHighlightedId(id)
@@ -304,6 +282,7 @@ export function CanvasBoard({
   function openDetail(id: string) {
     revealInList(id)
     setDetailId(id)
+    setExpanded(false)
     setManualLatLng(null)
     setPickHint(false)
     // 카드는 지도 위에 산다 — 목록에서 눌렀다면 지도로 넘어가야 카드가 보인다.
@@ -361,6 +340,31 @@ export function CanvasBoard({
   // 문서에 같은 id 가 둘 생기면 라벨이 엉뚱한 입력에 붙는다 (#42 에서 겪은 것)
   const detailVote =
     detailPlace && myVoterKey ? tallyVotes(detailPlace.place_votes ?? [], myVoterKey) : undefined
+
+  // 이번에 연 장소의 자리일 때만 쓴다
+  const anchorPoint = anchor && anchor.id === detailId ? anchor.point : null
+  // 위에 놓을지 아래에 놓을지, 그리고 그때 쓸 수 있는 높이가 얼마인지를 함께 정한다.
+  // 높이를 안 넘기면 카드가 핀 위 공간보다 커질 때 화면 위로 밀려 나가 제목이 잘린다 (실측)
+  const cardStyle = ((): CSSProperties => {
+    if (!anchorPoint) {
+      return { left: '50%', bottom: CARD_BOTTOM_INSET, transform: 'translateX(-50%)', maxHeight: '70%' }
+    }
+    const above = anchorPoint.y - CARD_GAP - CARD_TOP_INSET
+    if (above >= CARD_MIN_SPACE) {
+      return {
+        left: anchorPoint.x,
+        bottom: `calc(100% - ${anchorPoint.y - CARD_GAP}px)`,
+        maxHeight: above,
+        transform: 'translateX(-50%)',
+      }
+    }
+    return {
+      left: anchorPoint.x,
+      top: anchorPoint.y + CARD_GAP,
+      maxHeight: `calc(100% - ${anchorPoint.y + CARD_GAP + CARD_BOTTOM_INSET}px)`,
+      transform: 'translateX(-50%)',
+    }
+  })()
 
   const previewCard = detailPlace ? (
           <PreviewCard
@@ -433,13 +437,32 @@ export function CanvasBoard({
           routeColor={routeLine.color}
         />
 
-        {detailPlace && !isDesktop && (
+        {/* 모바일 장소 상세 — 핀에 붙는 팝업에서 **아래에서 올라오는 시트**로 바꿨다
+            (사용자 요청, 결정 #40 을 뒤집는다). 핀 위에 띄우면 카드가 조금만 길어져도
+            핀 옆 공간을 넘겨 스크롤이 생기고, 정작 가리키는 곳을 카드가 덮는다.
+            시트는 폭을 다 쓰므로 같은 내용이 짧아지고, 지도 위쪽은 늘 열려 있다 (네이버 지도 방식).
+            하단 메뉴 위에서 끝난다 — 메뉴를 덮으면 다시 갇힌다 (#50) */}
+        {/* 데스크톱 — 핀에 붙는 짧은 말풍선 (사용자 요청). 펼치면 패널이 이어받는다 */}
+        {detailPlace && isDesktop && !expanded && (
           <div
             data-testid="place-card-anchor"
-            // 핀 바로 위에 뜬다. 위쪽 공간이 모자라면 아래로 뒤집는다 —
-            // 지도 밖으로 나가 사라지느니 핀을 잠깐 가리는 편이 낫다
-            className="absolute z-40 w-80 max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-2xl shadow-3"
+            className="absolute z-40 w-[300px] max-w-[calc(100%-1.5rem)]"
             style={cardStyle}
+          >
+            <PinBubble
+              place={detailPlace}
+              vote={detailVote}
+              onVote={onVotePlace ? (stars) => void onVotePlace(detailPlace.id, stars) : undefined}
+              onExpand={() => setExpanded(true)}
+              onClose={closeDetail}
+            />
+          </div>
+        )}
+
+        {detailPlace && !isDesktop && (
+          <div
+            data-testid="place-sheet"
+            className="absolute inset-x-0 bottom-[var(--mobile-nav-h)] z-40 max-h-[70%] overflow-y-auto overscroll-contain rounded-t-2xl border-t border-line bg-surface shadow-sheet"
           >
             {previewCard}
           </div>
@@ -544,14 +567,13 @@ export function CanvasBoard({
 
         {/* 데스크톱 장소 상세 — 지도 위에 띄우지 않고 패널이 통째로 갈아탄다 (네이버 지도 방식).
             목록을 지우지 않고 감추는 이유: 되돌아왔을 때 스크롤 위치와 열어 둔 일차가 살아 있어야 한다 */}
-        {isDesktop && previewCard && (
+        {isDesktop && expanded && previewCard && (
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pt-4 pb-8 md:px-6 md:pt-24">
             <button
               type="button"
-              onClick={() => {
-                setDetailId(null)
-                setHighlightedId(null)
-              }}
+              // 펼침만 접는다 — 말풍선은 남긴다. 여기서 선택까지 지우면
+              // "어디를 보고 있었는지"를 잃어 지도에서 다시 찾아야 한다
+              onClick={() => setExpanded(false)}
               className="flex min-h-9 w-fit items-center gap-1.5 rounded-full px-3 text-sm font-medium text-fg-2 transition-colors duration-120 hover:bg-surface-2"
             >
               <svg
@@ -574,7 +596,7 @@ export function CanvasBoard({
 
         <div
           className={`flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-20 md:px-6 md:pt-28 md:pb-8 ${
-            isDesktop && detailPlace ? 'hidden' : ''
+            isDesktop && expanded && detailPlace ? 'hidden' : ''
           }`}
         >
           {manualLatLng && (

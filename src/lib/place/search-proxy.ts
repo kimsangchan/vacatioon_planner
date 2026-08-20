@@ -37,6 +37,8 @@ export interface NormalizedPlace {
   name: string
   address: string
   roadAddress: string
+  /** 네이버가 주는 값. 영업시간은 어느 공개 API 도 주지 않아 담지 않는다 (01-recon) */
+  phone: string
   lat: number
   lng: number
   categoryHint: PlaceCategory
@@ -111,6 +113,7 @@ export function toNormalizedPlaces(items: NaverLocalItem[]): NormalizedPlaces {
       name: stripHtml(item.title ?? ''),
       address: item.address ?? '',
       roadAddress: item.roadAddress ?? '',
+      phone: item.telephone ?? '',
       lat: coords.lat,
       lng: coords.lng,
       categoryHint: categoryHint(item.category),
