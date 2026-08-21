@@ -3,7 +3,7 @@
 
 **MVP 배포됨**: https://vacatioon-planner.vercel.app
 검증 기준선: vitest **635** · pgTAP **232** · **E2E 5** · tsc 0 · lint 0 · build 0
-(2026-08-21 실측). 원격 Supabase 는 **`0014` 까지 적용됨** · 운영 배포 **`a458a07`**
+(2026-08-21 실측). 원격 Supabase 는 **`0018` 까지 적용됨** · 운영 배포 **`49744e4`**
 
 ### 로컬 완료 · 아직 배포 전
 
