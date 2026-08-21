@@ -13,6 +13,11 @@ import type { Stars } from '@/lib/vote/api'
 const STAR_PATH =
   'M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8L12 3.6Z'
 
+/** 손가락 최소 타깃 44px (Apple HIG · WCAG 2.5.5) — 24px 다섯이 붙어 있어 못 누른다는 신고를 받았다 */
+export const STAR_TAP_CLASS = 'size-11'
+/** 마우스 전용 자리(PC 말풍선)만 줄인다 — 말풍선은 짧아야 한다 (#52) */
+export const STAR_COMPACT_CLASS = 'size-6'
+
 export interface StarRatingProps {
   /** 내가 준 별 (0 = 아직 안 누름) */
   mine: number
@@ -21,11 +26,15 @@ export interface StarRatingProps {
   /** 표를 준 사람 수 */
   voters?: number
   label: string
+  /** 손가락 화면은 touch(기본), 마우스 전용 말풍선만 compact */
+  size?: 'touch' | 'compact'
   onChange?: (stars: 0 | Stars) => void
 }
 
-export function StarRating({ mine, total, voters, label, onChange }: StarRatingProps) {
+export function StarRating({ mine, total, voters, label, size = 'touch', onChange }: StarRatingProps) {
   const readOnly = !onChange
+  // 읽기 전용은 누를 것이 없으니 자리를 차지할 이유도 없다
+  const box = readOnly || size === 'compact' ? STAR_COMPACT_CLASS : STAR_TAP_CLASS
 
   return (
     <div className="flex items-center gap-1.5">
@@ -36,7 +45,7 @@ export function StarRating({ mine, total, voters, label, onChange }: StarRatingP
       >
         {[1, 2, 3, 4, 5].map((value) => {
           const filled = value <= mine
-          const common = 'flex size-6 items-center justify-center transition-colors duration-120'
+          const common = `flex ${box} items-center justify-center transition-colors duration-120`
           const icon = (
             <svg
               aria-hidden

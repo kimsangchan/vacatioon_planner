@@ -151,19 +151,23 @@ export function SharedTrip({ token }: { token: string }) {
                         key={stop.id}
                         onMouseEnter={() => setHighlightedId(place.id)}
                         onMouseLeave={() => setHighlightedId(null)}
-                        className="flex items-center gap-3 rounded-m px-2 py-2 transition-colors duration-120 hover:bg-surface-2"
+                        // 별이 손가락 크기(44px)라 이름 옆에 두면 이름이 눌린다 — 제 줄로 내린다.
+                        // 좌측 열은 데스크톱에서도 380px 라 가로로는 어차피 자리가 없다
+                        className="flex flex-col gap-1 rounded-m px-2 py-2 transition-colors duration-120 hover:bg-surface-2"
                       >
-                        <CategoryIcon
-                          category={place.category}
-                          color={CATEGORY_COLOR_VAR[place.category]}
-                          size={14}
-                        />
-                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <span className="truncate text-[17px] leading-tight font-semibold">
-                            {place.name}
-                          </span>
-                          <span className="truncate text-[13px] leading-tight text-fg-3">
-                            {place.road_address || place.address}
+                        <span className="flex items-center gap-3">
+                          <CategoryIcon
+                            category={place.category}
+                            color={CATEGORY_COLOR_VAR[place.category]}
+                            size={14}
+                          />
+                          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <span className="truncate text-[17px] leading-tight font-semibold">
+                              {place.name}
+                            </span>
+                            <span className="truncate text-[13px] leading-tight text-fg-3">
+                              {place.road_address || place.address}
+                            </span>
                           </span>
                         </span>
                         <StarRating

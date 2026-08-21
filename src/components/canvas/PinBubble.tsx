@@ -60,6 +60,8 @@ export function PinBubble({ place, vote, onVote, onExpand, onClose }: PinBubbleP
         {vote ? (
           <StarRating
             label={place.name}
+            // 말풍선은 마우스로만 닿는다 — 손가락 크기로 키우면 길어져 #52 를 깬다
+            size="compact"
             mine={vote.mine}
             total={vote.total}
             voters={vote.voters}
