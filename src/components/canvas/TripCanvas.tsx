@@ -242,7 +242,13 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
       patch,
     }: {
       stopId: string
-      patch: { start_time?: string | null; cost_amount?: number | null; confirmed?: boolean }
+      patch: {
+        start_time?: string | null
+        cost_amount?: number | null
+        confirmed?: boolean
+        /** 자리는 두고 장소만 갈아끼운다 (결정 #53) */
+        place_id?: string
+      }
     }) => updateStop(supabase, stopId, patch),
     onSuccess: refetchBundle,
   })

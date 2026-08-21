@@ -9,6 +9,8 @@
 import { useId, useState } from 'react'
 import { ConfirmRow } from '@/components/common/ConfirmRow'
 import { StarRating } from '@/components/common/StarRating'
+import type { SwapCandidate } from '@/lib/timeline/swap'
+import { SwapList } from './SwapList'
 import type { Stars } from '@/lib/vote/api'
 import { CATEGORY_LABEL } from '@/lib/map/provider'
 import { PhotoError, photoErrorMessage, photoPublicUrl } from '@/lib/photo/upload'
@@ -30,6 +32,9 @@ export interface PreviewCardProps {
   days?: { id: string; label: string }[]
   onAssign?: (dayId: string) => Promise<void> | void
   onUnassign?: () => Promise<void> | void
+  /** 이 자리에 대신 갈 곳 (결정 #53) — 계산은 위에서 한다, 여기는 고르는 화면이다 */
+  swapOptions?: SwapCandidate[]
+  onSwap?: (placeId: string) => Promise<void> | void
   onDeletePlace?: () => Promise<void> | void
   onClose?: () => void
   /** 별표 협의 (결정 #46) — 내가 준 별과 모두의 합. 없으면 별표를 아예 내지 않는다 */
@@ -61,6 +66,8 @@ export function PreviewCard({
   days = [],
   onAssign,
   onUnassign,
+  swapOptions,
+  onSwap,
   onDeletePlace,
   onClose,
 }: PreviewCardProps) {
@@ -83,6 +90,9 @@ export function PreviewCard({
 
   const cover = coverPhoto(place)
   const sheet = variant === 'sheet'
+  // 교체 (결정 #53) — 되돌리기는 "그 자리에 원래 장소를 다시 넣기"라 같은 문 하나로 대칭이다
+  const [swapping, setSwapping] = useState(false)
+  const [swapped, setSwapped] = useState<{ fromPlaceId: string; toName: string } | null>(null)
   const memoFirstLine = place.memo.split('\n')[0]?.trim() ?? ''
 
   async function run(action: () => Promise<void> | void, done?: string) {
@@ -309,6 +319,56 @@ export function PreviewCard({
         >
           일정에서 빼기
         </button>
+      )}
+
+      {sheet && onSwap && placedCount > 0 && (
+        <button
+          type="button"
+          disabled={busy}
+          aria-expanded={swapping}
+          onClick={() => {
+            setSwapping((open) => !open)
+            setSwapped(null)
+          }}
+          className={SMALL_BUTTON}
+        >
+          다른 곳으로 바꾸기
+        </button>
+      )}
+
+      {sheet && onSwap && swapping && (
+        <SwapList
+          candidates={swapOptions ?? []}
+          fromName={place.name}
+          onPick={async (candidate) => {
+            const from = place.id
+            await run(() => onSwap(candidate.place.id))
+            setSwapping(false)
+            setSwapped({ fromPlaceId: from, toName: candidate.place.name })
+          }}
+          onCancel={() => setSwapping(false)}
+          cancelClassName={SMALL_BUTTON}
+        />
+      )}
+
+      {sheet && onSwap && swapped !== null && (
+        <p className="flex items-center justify-between gap-2 text-[13px] text-fg-2">
+          <span className="min-w-0">
+            {swapped.toName}로 바꿨어요. {place.name}은 보관함에 있어요.
+          </span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={async () => {
+              await run(() => onSwap(swapped.fromPlaceId))
+              setSwapped(null)
+            }}
+            className={`${SMALL_BUTTON} shrink-0`}
+            aria-label="되돌리기"
+          >
+            되돌리기
+          </button>
+        </p>
       )}
 
       {sheet && onAssign && placedCount === 0 && days.length > 0 && (

@@ -3,7 +3,7 @@
 // 같은 컴포넌트의 두 얼굴이다. 사진이 없어도 기능은 성립해야 한다 (PRD 엣지케이스).
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { PhotoError } from '@/lib/photo/upload'
 import type { PhotoRow, PlaceRow } from '@/lib/trips/bundle'
 import { PreviewCard } from './PreviewCard'
@@ -444,5 +444,96 @@ describe('PreviewCard — 읽기가 기본, 연필로 고친다 (사용자 요�
 
     expect(screen.getByLabelText('메모')).toBeTruthy()
     expect(screen.getByRole('button', { name: '고치기 그만두기' })).toBeTruthy()
+  })
+})
+
+
+describe('PreviewCard — 현장에서 3탭에 바꾼다 (T10-23 · 결정 #53)', () => {
+  const DAYS = [
+    { id: 'd1', label: '1일차' },
+    { id: 'd2', label: '2일차' },
+  ]
+  const CANDIDATES = [
+    {
+      place: { ...place(), id: 'p3', name: '가시아방국수', lat: 33.503, lng: 126.5 },
+      meters: 334,
+      stars: 7,
+      placedLabel: null,
+    },
+    {
+      place: { ...place(), id: 'p4', name: '맛나식당', lat: 33.56, lng: 126.5 },
+      meters: 1240,
+      stars: 0,
+      placedLabel: '3일차 1번째에 있어요',
+    },
+  ]
+
+  function renderSwappable(props: Record<string, unknown> = {}) {
+    const onSwap = vi.fn().mockResolvedValue(undefined)
+    render(
+      <PreviewCard
+        place={place()}
+        variant="sheet"
+        days={DAYS}
+        placedCount={1}
+        swapOptions={CANDIDATES}
+        onSwap={onSwap}
+        {...props}
+      />,
+    )
+    return onSwap
+  }
+
+  it('일정에 있는 곳이면 바꾸는 문을 낸다', () => {
+    renderSwappable()
+
+    expect(screen.getByRole('button', { name: '다른 곳으로 바꾸기' })).toBeTruthy()
+  })
+
+  it('보관함에만 있는 곳에는 바꿀 자리가 없다', () => {
+    renderSwappable({ placedCount: 0 })
+
+    expect(screen.queryByRole('button', { name: '다른 곳으로 바꾸기' })).toBeNull()
+  })
+
+  it('누르면 이 자리에 대신 갈 곳이 거리와 함께 뜬다', () => {
+    renderSwappable()
+    fireEvent.click(screen.getByRole('button', { name: '다른 곳으로 바꾸기' }))
+
+    const list = screen.getByRole('list', { name: '흑돼지집 자리에 대신 갈 곳' })
+    const first = within(list).getAllByRole('button')[0]
+    expect(first.getAttribute('aria-label')).toContain('가시아방국수')
+    expect(first.textContent).toContain('334m')
+    expect(within(list).getByText('3일차 1번째에 있어요')).toBeTruthy()
+  })
+
+  it('후보를 누르면 그 자리에 넣는다 — 확인은 묻지 않는다', async () => {
+    const onSwap = renderSwappable()
+    fireEvent.click(screen.getByRole('button', { name: '다른 곳으로 바꾸기' }))
+
+    const list = screen.getByRole('list', { name: '흑돼지집 자리에 대신 갈 곳' })
+    await act(async () => {
+      fireEvent.click(within(list).getAllByRole('button')[0])
+    })
+
+    expect(onSwap).toHaveBeenCalledWith('p3')
+  })
+
+  it('바꾸고 나면 어디로 갔는지 말하고 되돌릴 문을 남긴다', async () => {
+    const onSwap = renderSwappable()
+    fireEvent.click(screen.getByRole('button', { name: '다른 곳으로 바꾸기' }))
+
+    const list = screen.getByRole('list', { name: '흑돼지집 자리에 대신 갈 곳' })
+    await act(async () => {
+      fireEvent.click(within(list).getAllByRole('button')[0])
+    })
+
+    expect(screen.getByText(/가시아방국수로 바꿨어요/)).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '되돌리기' }))
+    })
+
+    expect(onSwap).toHaveBeenLastCalledWith('p1')
   })
 })

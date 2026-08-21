@@ -91,7 +91,9 @@ function renderPane(props: Partial<Parameters<typeof TimelinePane>[0]> = {}) {
     onRemovePhoto: vi.fn().mockResolvedValue(undefined),
     onRemoveLeg: vi.fn().mockResolvedValue(undefined),
   }
-  render(<TimelinePane day={day()} label="1일차" places={PLACES} {...handlers} {...props} />)
+  render(
+    <TimelinePane day={day()} days={[day()]} label="1일차" places={PLACES} {...handlers} {...props} />,
+  )
   return handlers
 }
 
@@ -605,5 +607,87 @@ describe('TimelinePane — 이동시간은 자동이다 (결정 #45, 사용자 �
     renderPane()
 
     expect(screen.getByText(/예매한 기차·버스·비행기/)).toBeTruthy()
+  })
+})
+
+
+describe('TimelinePane — 이 자리에 대신 갈 곳 (T10-22 · 결정 #53)', () => {
+  // 기본 픽스처는 두 곳이 같은 좌표라 거리 순서를 만들 수 없다 — 여기서만 벌려 둔다
+  const HOTEL = { ...place('p2', '호텔제주'), lat: 33.6, lng: 126.5 }
+  const NEARBY = { ...place('p3', '가시아방국수'), lat: 33.503, lng: 126.5 }
+  const FAR = { ...place('p4', '먼국수'), lat: 33.56, lng: 126.5 }
+
+  function openSwap(places = [PLACES[0], HOTEL, NEARBY, FAR]) {
+    const handlers = renderPane({ places })
+    fireEvent.click(screen.getByRole('button', { name: '흑돼지집 작업 열기' }))
+    fireEvent.click(screen.getByRole('button', { name: '다른 곳으로 바꾸기' }))
+    return handlers
+  }
+
+  it('배치된 방문의 작업에 바꾸기가 있다', () => {
+    renderPane()
+    fireEvent.click(screen.getByRole('button', { name: '흑돼지집 작업 열기' }))
+
+    expect(screen.getByRole('button', { name: '다른 곳으로 바꾸기' })).toBeTruthy()
+  })
+
+  it('후보는 보관함에서 오고, 지금 그 자리의 장소는 빠진다', () => {
+    openSwap()
+
+    const list = screen.getByRole('list', { name: '흑돼지집 자리에 대신 갈 곳' })
+    const names = within(list)
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label') ?? '')
+
+    expect(names.some((name) => name.includes('흑돼지집'))).toBe(false)
+    expect(names.some((name) => name.includes('가시아방국수'))).toBe(true)
+  })
+
+  it('가까운 곳이 먼저 서고 거리를 함께 읽어 준다', () => {
+    openSwap()
+
+    const list = screen.getByRole('list', { name: '흑돼지집 자리에 대신 갈 곳' })
+    const first = within(list).getAllByRole('button')[0]
+
+    expect(first.getAttribute('aria-label')).toContain('가시아방국수')
+    expect(first.textContent).toMatch(/m|km/)
+  })
+
+  it('이미 이 날에 있는 곳은 어디 있는지 알린다 — 지우지 않는다 (#21)', () => {
+    openSwap()
+
+    const list = screen.getByRole('list', { name: '흑돼지집 자리에 대신 갈 곳' })
+    expect(within(list).getByText('이 날 2번째에 있어요')).toBeTruthy()
+  })
+
+  it('후보를 누르면 자리는 두고 장소만 바꾼다', async () => {
+    const handlers = openSwap()
+
+    const list = screen.getByRole('list', { name: '흑돼지집 자리에 대신 갈 곳' })
+    await act(async () => {
+      fireEvent.click(within(list).getAllByRole('button')[0])
+    })
+
+    expect(handlers.onUpdateStop).toHaveBeenCalledWith('s1', { place_id: 'p3' })
+  })
+
+  it('바꾼 뒤 되돌리기를 누르면 원래 장소로 돌아간다', async () => {
+    const handlers = openSwap()
+
+    const list = screen.getByRole('list', { name: '흑돼지집 자리에 대신 갈 곳' })
+    await act(async () => {
+      fireEvent.click(within(list).getAllByRole('button')[0])
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '되돌리기' }))
+    })
+
+    expect(handlers.onUpdateStop).toHaveBeenLastCalledWith('s1', { place_id: 'p1' })
+  })
+
+  it('보관함에 다른 곳이 없으면 다음 행동을 안내한다', () => {
+    openSwap([PLACES[0]])
+
+    expect(screen.getByText(/담아둔 후보가 없어요/)).toBeTruthy()
   })
 })

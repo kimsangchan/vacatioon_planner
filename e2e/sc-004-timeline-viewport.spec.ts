@@ -169,4 +169,60 @@ test.describe('SC-004 — 390×844 에서 하루 타임라인', () => {
     // SC-004 기준: 하루치가 1스크롤(뷰포트 2장) 안에 들어온다
     expect(metrics!.scrollHeight).toBeLessThanOrEqual(ONE_SCROLL_LIMIT)
   })
+
+  // T10-23·T10-24 (결정 #53) — 같은 390×844 에서 손가락으로 되는지를 잰다.
+  // jsdom 에는 레이아웃이 없어 유닛은 "있다"까지만 말한다(src/components/CLAUDE.md) — 픽셀은 여기서 잰다
+  test('자리는 두고 장소만 바꾼다 · 손가락 크기가 나온다', async ({ page }, testInfo) => {
+    await signInThroughUi(page, EMAIL)
+    await page.goto(`/trip/${tripId}`)
+
+    const nav = page.getByRole('navigation', { name: '화면 고르기' })
+    await nav.getByRole('button', { name: '일정' }).click()
+    await page.getByRole('button', { name: '1일차', exact: true }).click()
+    await expect(dayItems(page)).toHaveCount(11)
+
+    // 확정 체크는 22px 로 그려도 손가락 여유(::after)가 44px 를 채워야 한다.
+    // boundingBox 는 가짜요소를 못 재므로 **그 지점을 실제로 누가 받는지**로 확인한다
+    const checkbox = page.getByRole('checkbox', { name: '김만복김밥 확정' })
+    const box = (await checkbox.boundingBox())!
+    const hitOwner = await page.evaluate(
+      ({ x, y }) => {
+        const node = document.elementFromPoint(x, y)
+        return node?.closest('[role="checkbox"]')?.getAttribute('aria-label') ?? null
+      },
+      { x: box.x - 8, y: box.y + box.height / 2 },
+    )
+    expect(hitOwner).toBe('김만복김밥 확정')
+
+    // ── 교체: 행 ⋯ → 다른 곳으로 바꾸기 → 후보 (3탭)
+    await page.getByRole('button', { name: '김만복김밥 작업 열기' }).click()
+    await page.getByRole('button', { name: '다른 곳으로 바꾸기' }).click()
+
+    const candidates = page.getByRole('list', { name: '김만복김밥 자리에 대신 갈 곳' })
+    const first = candidates.getByRole('button').first()
+    const pickedName = (await first.getAttribute('aria-label'))!.replace('로 바꾸기', '')
+    await first.click()
+
+    // 자리(첫 항목)는 그대로고 장소만 갈렸다
+    await expect(dayItems(page).first()).toContainText(pickedName)
+    await expect(page.getByText(`${pickedName}로 바꿨어요`)).toBeVisible()
+
+    // 플랜 A 는 자리를 잃고 보관함으로 돌아간다 — 후보군을 따로 관리하지 않는 근거
+    await nav.getByRole('button', { name: '보관함' }).click()
+    const returned = page.getByRole('button', { name: /김만복김밥/ }).first()
+    await expect(returned).toBeVisible()
+
+    // ── 별표는 손가락 크기(44px)로 그려진다 (사용자 지적)
+    await returned.click()
+    const star = page.getByRole('radio', { name: '김만복김밥 별 3점' })
+    await expect(star).toBeVisible()
+    const starBox = (await star.boundingBox())!
+
+    const summary = `확정 히트 ${Math.round(box.width)}px 그림 · 별 ${Math.round(starBox.width)}×${Math.round(starBox.height)}px`
+    testInfo.annotations.push({ type: 'T10-24', description: summary })
+    console.log(`[T10-24] ${summary}`)
+
+    expect(starBox.width).toBeGreaterThanOrEqual(44)
+    expect(starBox.height).toBeGreaterThanOrEqual(44)
+  })
 })

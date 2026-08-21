@@ -30,7 +30,13 @@ export interface ListPaneProps {
   onUnassignStop?: (stopId: string) => Promise<void> | void
   onUpdateStop?: (
     stopId: string,
-    patch: { start_time?: string | null; cost_amount?: number | null; confirmed?: boolean },
+    patch: {
+      start_time?: string | null
+      cost_amount?: number | null
+      confirmed?: boolean
+      /** 자리는 두고 장소만 갈아끼운다 (결정 #53) */
+      place_id?: string
+    },
   ) => Promise<void> | void
   onReorderDay?: (dayId: string, orderedIds: string[]) => Promise<void> | void
   onSaveLeg?: (dayId: string, draft: LegDraft, legId?: string) => Promise<void> | void
@@ -309,6 +315,7 @@ export function ListPane({
       {activeDay ? (
         <TimelinePane
           day={activeDay}
+          days={days}
           label={dayLabel(activeDay)}
           onRouteChange={onRouteChange}
           places={places}

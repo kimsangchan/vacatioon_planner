@@ -15,15 +15,19 @@ import { CATEGORY_COLOR_VAR, type LatLng } from '@/lib/map/provider'
 import { LEG_MODE_LABEL, type LegDraft } from '@/lib/timeline/api'
 import { dayTotal, mergeDayItems, movedItemIds } from '@/lib/timeline/merge'
 import { routeSegments } from '@/lib/timeline/route'
+import { swapCandidates } from '@/lib/timeline/swap'
 import { formatDistance, formatDuration } from '@/lib/route/format'
 import { useDayRoute } from '@/lib/route/use-day-route'
 import { formatAmount, formatAmountInput, formatWon, parseAmountInput } from '@/lib/timeline/money'
 import type { DayRow, LegRow, PhotoRow, PlaceRow, StopRow } from '@/lib/trips/bundle'
 import { CategoryIcon } from './CategoryIcon'
 import { LegForm } from './LegForm'
+import { SwapList } from './SwapList'
 
 export interface TimelinePaneProps {
   day: DayRow
+  /** 교체 후보가 "몇 일차에 있어요"를 말하려면 하루만으로는 모자란다 (결정 #53). 없으면 이 하루만 본다 */
+  days?: DayRow[]
   /** '1일차' — 탭 라벨과 같은 말을 쓴다 */
   label: string
   places: PlaceRow[]
@@ -34,7 +38,13 @@ export interface TimelinePaneProps {
   onUnassignStop?: (stopId: string) => Promise<void> | void
   onUpdateStop?: (
     stopId: string,
-    patch: { start_time?: string | null; cost_amount?: number | null; confirmed?: boolean },
+    patch: {
+      start_time?: string | null
+      cost_amount?: number | null
+      confirmed?: boolean
+      /** 자리는 두고 장소만 갈아끼운다 (결정 #53) */
+      place_id?: string
+    },
   ) => Promise<void> | void
   onSaveLeg?: (dayId: string, draft: LegDraft, legId?: string) => Promise<void> | void
   /** 편집 폼(이동·시각·가격)을 펼친 순간 — 미리보기 시트와 강조 CTA 가 겹치지 않게 위에서 정리한다 (L-09) */
@@ -99,6 +109,7 @@ function timeLabel(value: string | null): string | null {
 
 export function TimelinePane({
   day,
+  days,
   label,
   places,
   highlightedId,
@@ -123,6 +134,11 @@ export function TimelinePane({
   const [pending, setPending] = useState<PendingConfirm | null>(null)
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
+  // 교체 (결정 #53) — 후보를 펼친 자리와, 방금 바꾼 것 되돌릴 실마리
+  const [swappingStopId, setSwappingStopId] = useState<string | null>(null)
+  const [swapped, setSwapped] = useState<{ stopId: string; fromPlaceId: string; toName: string } | null>(
+    null,
+  )
 
   const items = useMemo(() => mergeDayItems(day.stops, day.legs), [day.stops, day.legs])
   const total = dayTotal(day.stops, day.legs)
@@ -262,7 +278,7 @@ export function TimelinePane({
               aria-checked={stop.confirmed}
               aria-label={`${place?.name ?? '지운 장소'} 확정`}
               onClick={() => void onUpdateStop(stop.id, { confirmed: !stop.confirmed })}
-              className={`relative flex size-[22px] shrink-0 items-center justify-center rounded-[6px] border transition-colors duration-120 after:absolute after:-inset-2.5 ${
+              className={`relative flex size-[22px] shrink-0 items-center justify-center rounded-[6px] border transition-colors duration-120 after:absolute after:-inset-3 ${
                 stop.confirmed
                   ? 'border-transparent bg-brand text-white'
                   : 'border-line-strong bg-surface text-transparent'
@@ -369,6 +385,23 @@ export function TimelinePane({
                 시각·가격
               </button>
             )}
+            {onUpdateStop && (
+              <button
+                type="button"
+                onClick={() => {
+                  const opening = swappingStopId !== stop.id
+                  setSwappingStopId(opening ? stop.id : null)
+                  if (opening) {
+                    setSwapped(null)
+                    onEditorOpen?.()
+                  }
+                }}
+                className={TEXT_BUTTON}
+                aria-label="다른 곳으로 바꾸기"
+              >
+                다른 곳으로 바꾸기
+              </button>
+            )}
             {onUnassignStop && (
               <button
                 type="button"
@@ -380,6 +413,42 @@ export function TimelinePane({
               </button>
             )}
           </div>
+        )}
+
+        {swappingStopId === stop.id && onUpdateStop && (
+          <SwapList
+            candidates={swapCandidates({ days: days ?? [day], places }, stop.id)}
+            fromName={place?.name ?? '이 자리'}
+            onHover={onHover}
+            onPick={async (candidate) => {
+              await onUpdateStop(stop.id, { place_id: candidate.place.id })
+              setSwappingStopId(null)
+              setSwapped({
+                stopId: stop.id,
+                fromPlaceId: stop.place_id,
+                toName: candidate.place.name,
+              })
+            }}
+            onCancel={() => setSwappingStopId(null)}
+            cancelClassName={TEXT_BUTTON}
+          />
+        )}
+
+        {swapped?.stopId === stop.id && onUpdateStop && (
+          <p className="flex items-center justify-between gap-2 border-t border-line-subtle py-2 text-[13px] text-fg-2">
+            <span className="min-w-0 truncate">{swapped.toName}로 바꿨어요</span>
+            <button
+              type="button"
+              onClick={async () => {
+                await onUpdateStop(stop.id, { place_id: swapped.fromPlaceId })
+                setSwapped(null)
+              }}
+              className={`${TEXT_BUTTON} shrink-0`}
+              aria-label="되돌리기"
+            >
+              되돌리기
+            </button>
+          </p>
         )}
 
         {editingStopId === stop.id && onUpdateStop && (
