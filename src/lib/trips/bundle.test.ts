@@ -23,6 +23,7 @@ function place(id: string, category: PlaceRow['category']): PlaceRow {
     lng: 126.5,
     provider: 'naver',
     provider_link: null,
+    category_label: '',
     phone: '',
     opening_hours: 'Mon-Fri 09:00-18:00\nSat 10:00-15:00',
     memo: '',

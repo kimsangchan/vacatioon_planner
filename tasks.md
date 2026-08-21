@@ -176,6 +176,9 @@
   후보에도 하트를 받는다. pgTAP 3 + vitest 4
 - [x] T10-35 가만히 둬도 최신 (결정 #61, 2026-08-21) — 공유 15초 · 주인 30초 주기 조회,
   숨은 탭은 건너뛴다. Realtime 은 anon 권한을 열어야 해서 기각(#11). vitest 2
+- [x] T10-36 "이게 뭔지" 를 화면에서 답한다 (결정 #62, 2026-08-21) — `0020_place_category_label.sql`.
+  업종 원문 저장·표시 · 공유에 `provider_link` 복원 · `naverMapSearchUrl`(구+이름).
+  실측 근거: 25곳에 전화 0·영업시간 0·사진 0, provider_link 5곳(지도 아님). vitest 15 + pgTAP 3
 - [ ] T10-5b 이동시간(도보) — 외부 API 없이 좌표 거리로 추정. 지금은 "차로 …" 한 줄만 낸다
 - [x] T10-10 확정/미확정 + 확정된 것만 경로 (결정 #47, 2026-08-20) — `0011_stop_confirmed.sql`
   (기본값 true) + pgTAP 4, `routeSegments` 가 미확정을 건너뛴다, 타임라인 행에 22px 체크

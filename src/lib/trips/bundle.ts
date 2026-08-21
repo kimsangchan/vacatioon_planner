@@ -34,6 +34,8 @@ export interface PlaceRow {
   lng: number
   provider: PlaceProvider
   provider_link: string | null
+  /** 업종 원문 — "한식>국수" (결정 #62). 직접 찍은 곳은 빈 문자열 */
+  category_label: string
   /** 네이버 검색 결과가 비어 있으면 사용자가 직접 적을 수 있는 전화번호 */
   phone: string
   /** 공개 검색 결과와 별개로 사용자가 직접 적는 여러 줄 영업시간 */

@@ -32,6 +32,7 @@ function place(overrides: Partial<PlaceRow> = {}): PlaceRow {
     lng: 126.5312,
     provider: 'naver',
     provider_link: 'https://map.naver.com/p/1',
+    category_label: '',
     phone: '',
     opening_hours: '',
     memo: '',
@@ -256,17 +257,20 @@ describe('PreviewCard — 모바일 바텀시트 (FR-006 / 뎁스 2)', () => {
     expect(screen.getByRole('status').textContent).toContain('저장했어요')
   })
 
-  it('제공자 링크가 있을 때만 새 탭으로 여는 "네이버에서 보기"를 준다 (FR-009)', () => {
+  // 문구를 사실에 맞췄다 (결정 #62): 이 링크는 지도가 아니라 업체가 올린 인스타·홈페이지다
+  it('가게가 올린 링크가 있을 때만 새 탭으로 준다 (FR-009)', () => {
     const { unmount } = render(<PreviewCard variant="sheet" place={place()} />)
 
-    const link = screen.getByRole('link', { name: '네이버에서 보기' }) as HTMLAnchorElement
+    const link = screen.getByRole('link', { name: '가게 홈페이지·SNS' }) as HTMLAnchorElement
     expect(link.href).toBe('https://map.naver.com/p/1')
     expect(link.target).toBe('_blank')
     expect(link.rel).toContain('noreferrer')
 
     unmount()
     render(<PreviewCard variant="sheet" place={place({ provider: 'manual', provider_link: null })} />)
-    expect(screen.queryByRole('link', { name: '네이버에서 보기' })).toBeNull()
+    expect(screen.queryByRole('link', { name: '가게 홈페이지·SNS' })).toBeNull()
+    // 지도 링크는 링크가 없어도 항상 있다 — 막다른 길을 만들지 않는다
+    expect(screen.getByRole('link', { name: '네이버 지도에서 보기' })).toBeTruthy()
   })
 
   it('사진이 여러 장이면 대표를 바꿀 수 있다 (FR-004)', async () => {
@@ -813,5 +817,41 @@ describe('PreviewCard — 하던 일이 끝나기 전에 누른 것도 잃지 �
     })
 
     expect(order).toEqual(['save', 'photo'])
+  })
+})
+
+
+describe('PreviewCard — 이게 뭐 하는 데인지 알려 준다 (결정 #62)', () => {
+  it('업종을 그대로 보여 준다 — 아이콘만으로는 카페인지 밥집인지 모른다', () => {
+    render(<PreviewCard place={place({ category_label: '한식>국수' })} variant="sheet" />)
+
+    expect(screen.getByText('한식>국수')).toBeTruthy()
+  })
+
+  it('업종이 없으면 그 줄을 아예 내지 않는다 — 직접 찍은 곳이 그렇다', () => {
+    render(<PreviewCard place={place()} variant="sheet" />)
+
+    expect(screen.queryByText('업종')).toBeNull()
+  })
+
+  it('네이버 지도로 한 탭에 넘어간다 — 이름만으로는 엉뚱한 지역이 나온다', () => {
+    render(<PreviewCard place={place()} variant="sheet" />)
+
+    const link = screen.getByRole('link', { name: '네이버 지도에서 보기' })
+    expect(decodeURIComponent(link.getAttribute('href') ?? '')).toBe(
+      'https://map.naver.com/p/search/제주시 흑돼지집',
+    )
+  })
+
+  it('가게가 올린 링크는 그대로 연다 — 실제로는 인스타·홈페이지다', () => {
+    render(
+      <PreviewCard
+        place={place({ provider_link: 'https://www.instagram.com/heukdwaeji' })}
+        variant="sheet"
+      />,
+    )
+
+    const link = screen.getByRole('link', { name: '가게 홈페이지·SNS' })
+    expect(link.getAttribute('href')).toBe('https://www.instagram.com/heukdwaeji')
   })
 })

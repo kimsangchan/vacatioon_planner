@@ -28,6 +28,7 @@ function place(
     lng: 126.5,
     provider: 'naver',
     provider_link: null,
+    category_label: '',
     phone: '',
     opening_hours: '',
     memo: '',
@@ -888,6 +889,7 @@ describe('CanvasBoard — 지도에서 직접 담기 (FR-016)', () => {
       lng: 126.6,
       provider: 'manual',
       provider_link: null,
+      category_label: '',
       phone: '',
     })
     expect(screen.queryByTestId('manual-place-form')).toBeNull()

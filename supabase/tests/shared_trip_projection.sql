@@ -1,6 +1,6 @@
 begin;
 
-select plan(21);
+select plan(24);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 values ('00000000-0000-0000-0000-0000000000e5', 'authenticated', 'authenticated',
@@ -17,13 +17,14 @@ values ('29000000-0000-0000-0000-000000000001', '19000000-0000-0000-0000-0000000
 
 insert into public.places (
   id, trip_id, owner_id, category, name, address, road_address, lat, lng, provider,
-  phone, opening_hours, estimated_cost
+  phone, opening_hours, estimated_cost, provider_link, category_label
 )
 values (
   '39000000-0000-0000-0000-000000000001', '19000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-0000000000e5', 'restaurant', '공유 식당', '제주시 구주소',
-  '제주시 새주소', 33.499621, 126.531188, 'manual', '064-123-4567',
-  E'월-금 09:00-18:00\n토 10:00-15:00', 25000
+  '제주시 새주소', 33.499621, 126.531188, 'naver', '064-123-4567',
+  E'월-금 09:00-18:00\n토 10:00-15:00', 25000,
+  'https://www.instagram.com/shared_restaurant', '한식>국수'
 );
 
 insert into public.places (
@@ -206,6 +207,25 @@ select ok(
      where stop->'place'->>'name' = '아직 안 넣은 후보'
   ),
   '후보는 일차 안에 끼어들지 않는다 — 보관함은 보관함이다'
+);
+
+-- "이게 뭐 하는 데지" 에 답할 것을 함께 보낸다 (결정 #62)
+select is(
+  public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'places'->0->>'category_label',
+  '한식>국수',
+  '업종을 그대로 보낸다 — 아이콘만으로는 카페인지 밥집인지 모른다'
+);
+select is(
+  public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'places'->0->>'provider_link',
+  'https://www.instagram.com/shared_restaurant',
+  '업체가 스스로 공개한 주소(인스타·홈페이지)는 함께 보낸다'
+);
+select ok(
+  not (public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'places'->0 ? 'owner_id'),
+  '넓힌 것은 목록과 공개 정보지 내부 컬럼이 아니다'
 );
 
 select * from finish();

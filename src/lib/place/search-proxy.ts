@@ -42,6 +42,8 @@ export interface NormalizedPlace {
   lat: number
   lng: number
   categoryHint: PlaceCategory
+  /** 네이버가 주는 업종 원문 — "한식>국수". 아이콘만으로는 카페인지 밥집인지 모른다 (결정 #62) */
+  categoryLabel: string
   providerLink: string | null
   provider: 'naver'
 }
@@ -117,6 +119,7 @@ export function toNormalizedPlaces(items: NaverLocalItem[]): NormalizedPlaces {
       lat: coords.lat,
       lng: coords.lng,
       categoryHint: categoryHint(item.category),
+      categoryLabel: stripHtml(item.category ?? '').slice(0, 100),
       providerLink: item.link ? item.link : null,
       provider: 'naver',
     })

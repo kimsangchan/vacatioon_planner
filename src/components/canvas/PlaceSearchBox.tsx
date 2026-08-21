@@ -28,6 +28,8 @@ export interface PlaceDraft {
   /** 검색 결과는 naver, 지도에서 직접 찍은 곳은 manual (FR-016) */
   provider: 'naver' | 'manual'
   provider_link: string | null
+  /** 네이버 업종 원문 — "한식>국수" (결정 #62). 직접 찍은 곳은 빈 문자열 */
+  category_label: string
 }
 
 export interface PlaceSearchBoxProps {
@@ -159,6 +161,7 @@ export function PlaceSearchBox({
         lng: picked.lng,
         provider: 'naver',
         provider_link: picked.providerLink,
+        category_label: picked.categoryLabel,
         phone: picked.phone,
       })
       setPicked(null)

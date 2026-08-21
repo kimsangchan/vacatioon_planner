@@ -18,6 +18,8 @@ export interface NewPlace {
   lng: number
   provider: PlaceProvider
   provider_link: string | null
+  /** 네이버 업종 원문 (결정 #62). 직접 찍은 곳은 빈 문자열이다 */
+  category_label?: string
   phone?: string
   opening_hours?: string
   memo?: string

@@ -28,6 +28,7 @@ function place(
     lng,
     provider: 'naver',
     provider_link: null,
+    category_label: '',
     phone: '',
     opening_hours: '',
     memo: '',

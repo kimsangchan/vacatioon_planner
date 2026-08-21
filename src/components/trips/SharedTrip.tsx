@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { HeartVote } from '@/components/common/HeartVote'
+import { naverMapSearchUrl } from '@/lib/place/map-link'
 import { LEG_MODE_LABEL } from '@/lib/timeline/api'
 import { mergeDayItems } from '@/lib/timeline/merge'
 import { CategoryIcon } from '@/components/canvas/CategoryIcon'
@@ -62,6 +63,39 @@ interface Tally {
   hearts: number
   mine: boolean
   names: string[]
+}
+
+/** "여기가 뭐 하는 데지" 에 답하는 세 가지 (결정 #62) — 업종·지도·가게 링크 */
+function PlaceFacts({ place }: { place: SharedPlace }) {
+  return (
+    <>
+      {place.category_label !== '' && (
+        <span className="truncate text-[12px] leading-tight text-fg-3">{place.category_label}</span>
+      )}
+      <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
+        <a
+          href={naverMapSearchUrl(place)}
+          target="_blank"
+          rel="noreferrer noopener"
+          aria-label={`${place.name} 지도에서 보기`}
+          className="font-medium text-fg-2 underline underline-offset-4"
+        >
+          지도에서 보기
+        </a>
+        {place.provider_link && (
+          <a
+            href={place.provider_link}
+            target="_blank"
+            rel="noreferrer noopener"
+            aria-label={`${place.name} 홈페이지·SNS`}
+            className="font-medium text-fg-2 underline underline-offset-4"
+          >
+            홈페이지·SNS
+          </a>
+        )}
+      </span>
+    </>
+  )
 }
 
 function isInvalidShareError(error: { message?: string } | null): boolean {
@@ -353,6 +387,7 @@ function SharedTripForToken({ token }: { token: string }) {
                                 영업시간 {place.opening_hours}
                               </span>
                             ) : null}
+                            <PlaceFacts place={place} />
                             {place.phone ? (
                               <a
                                 href={`tel:${place.phone}`}
@@ -411,6 +446,7 @@ function SharedTripForToken({ token }: { token: string }) {
                           <span className="truncate text-[13px] leading-tight text-fg-3">
                             {place.road_address || place.address}
                           </span>
+                          <PlaceFacts place={place} />
                         </span>
                       </span>
                       <HeartVote

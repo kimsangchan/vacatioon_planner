@@ -11,6 +11,7 @@ import { ConfirmRow } from '@/components/common/ConfirmRow'
 import { HeartVote } from '@/components/common/HeartVote'
 import type { SwapCandidate } from '@/lib/timeline/swap'
 import { SwapList } from './SwapList'
+import { naverMapSearchUrl } from '@/lib/place/map-link'
 import type { HeartTally } from '@/lib/vote/api'
 import { CATEGORY_LABEL } from '@/lib/map/provider'
 import { PhotoError, photoErrorMessage, photoPublicUrl } from '@/lib/photo/upload'
@@ -451,6 +452,12 @@ export function PreviewCard({
       {/* 읽기 모드 — 저장해 둔 것을 보여 주기만 한다 (사용자 요청). */}
       {sheet && !editing && (
         <dl className="flex flex-col gap-1.5 text-[13px]">
+          {place.category_label !== '' && (
+            <div className="flex gap-2">
+              <dt className="w-14 shrink-0 text-fg-3">업종</dt>
+              <dd className="min-w-0 flex-1">{place.category_label}</dd>
+            </div>
+          )}
           {place.phone !== '' && (
             <div className="flex gap-2">
               <dt className="w-14 shrink-0 text-fg-3">전화</dt>
@@ -625,17 +632,28 @@ export function PreviewCard({
         </div>
       )}
 
-      {sheet && (photoButton !== null || place.provider_link !== null || onDeletePlace) && (
+      {sheet && (
         <div className="flex flex-wrap items-center gap-2">
           {photoButton}
+          {/* 지역검색은 지도 상세 링크를 주지 않는다 — 이름과 동네로 우리가 만든다 (결정 #62) */}
+          <a
+            href={naverMapSearchUrl(place)}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="flex min-h-8 items-center rounded-full border border-line px-3 text-sm"
+          >
+            네이버 지도에서 보기
+          </a>
           {place.provider_link && (
             <a
               href={place.provider_link}
               target="_blank"
               rel="noreferrer noopener"
+              // "네이버에서 보기" 라고 써 뒀지만 실제로 오는 값은 업체 인스타·홈페이지·카카오채널이다
+              // (운영 실측 25곳 중 5곳). 문구를 사실에 맞춘다
               className="flex min-h-8 items-center rounded-full border border-line px-3 text-sm"
             >
-              네이버에서 보기
+              가게 홈페이지·SNS
             </a>
           )}
           {/* 파괴적이지만 되돌릴 수 있는 일이다 — 빨간 강조 대신 보조 스타일로 둔다 */}

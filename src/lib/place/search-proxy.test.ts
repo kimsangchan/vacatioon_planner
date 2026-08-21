@@ -69,6 +69,7 @@ describe('toNormalizedPlaces', () => {
         lat: 34.8019423,
         lng: 126.3658809,
         categoryHint: 'restaurant',
+        categoryLabel: '음식점>한식',
         providerLink: 'https://map.naver.com/p/1',
         phone: '',
         provider: 'naver',

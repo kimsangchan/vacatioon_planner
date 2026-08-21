@@ -275,6 +275,7 @@ describe('SharedTrip — 보관함 후보도 같이 정한다 (결정 #60)', () 
       lng: 126.5,
       provider: 'manual' as const,
       provider_link: null,
+      category_label: '',
       phone: '',
       opening_hours: '',
       memo: '',
@@ -400,5 +401,98 @@ describe('SharedTrip — 가만히 둬도 최신이 된다 (결정 #61)', () => 
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+
+describe('SharedTrip — 링크 하나로 "여기 뭐야" 에 답한다 (결정 #62)', () => {
+  function placed(overrides: Record<string, unknown> = {}) {
+    const p = {
+      id: 'p1',
+      trip_id: 't1',
+      category: 'restaurant' as const,
+      name: '보그호프',
+      address: '부산광역시 남구 대연동 1',
+      road_address: '부산광역시 남구 수영로196번길 18',
+      lat: 35.13,
+      lng: 129.09,
+      provider: 'naver' as const,
+      provider_link: 'https://www.instagram.com/voghof',
+      category_label: '술집>이자카야',
+      phone: '',
+      opening_hours: '',
+      memo: '',
+      estimated_cost: null,
+      photos: [],
+      ...overrides,
+    }
+    return {
+      ...sharedBundle('부산 여행'),
+      days: [
+        {
+          id: 'd1',
+          trip_id: 't1',
+          date: '2026-09-01',
+          position: 0,
+          color: null,
+          stops: [
+            {
+              id: 's1',
+              day_id: 'd1',
+              place_id: p.id,
+              position: 0,
+              start_time: null,
+              cost_amount: null,
+              confirmed: true,
+              note: '',
+              place: p,
+            },
+          ],
+          legs: [],
+        },
+      ],
+      places: [p],
+    }
+  }
+
+  it('업종을 보여 준다 — 동행자가 술집인지 밥집인지 안다', async () => {
+    installRpc(placed())
+
+    render(<SharedTrip token={SHARE_ID} />)
+
+    expect(await screen.findByText('술집>이자카야')).toBeTruthy()
+  })
+
+  it('네이버 지도로 한 탭에 넘어간다', async () => {
+    installRpc(placed())
+
+    render(<SharedTrip token={SHARE_ID} />)
+    await screen.findByText('보그호프')
+
+    const link = screen.getByRole('link', { name: '보그호프 지도에서 보기' })
+    expect(decodeURIComponent(link.getAttribute('href') ?? '')).toBe(
+      'https://map.naver.com/p/search/남구 보그호프',
+    )
+  })
+
+  it('가게가 올린 링크가 있으면 함께 준다', async () => {
+    installRpc(placed())
+
+    render(<SharedTrip token={SHARE_ID} />)
+    await screen.findByText('보그호프')
+
+    expect(
+      screen.getByRole('link', { name: '보그호프 홈페이지·SNS' }).getAttribute('href'),
+    ).toBe('https://www.instagram.com/voghof')
+  })
+
+  it('가게 링크가 없으면 그 문만 빼고 지도는 남긴다', async () => {
+    installRpc(placed({ provider_link: null }))
+
+    render(<SharedTrip token={SHARE_ID} />)
+    await screen.findByText('보그호프')
+
+    expect(screen.queryByRole('link', { name: '보그호프 홈페이지·SNS' })).toBeNull()
+    expect(screen.getByRole('link', { name: '보그호프 지도에서 보기' })).toBeTruthy()
   })
 })
