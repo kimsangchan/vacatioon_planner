@@ -85,6 +85,12 @@ export interface DayRow {
   legs: LegRow[]
 }
 
+/**
+ * 핀을 그리는 데 필요한 것만. 공유 화면의 day 는 이동이 좁아(0017) `DayRow` 가 아니지만
+ * 핀은 stops·position·color 만 보므로 그대로 들어맞는다.
+ */
+export type DayPins = Pick<DayRow, 'id' | 'position' | 'color' | 'stops'>
+
 export interface TripBundle {
   id: string
   name: string
@@ -185,11 +191,11 @@ export function thumbPaths(bundle: TripBundle): string[] {
 // 핀의 두 채널 (결정 #41): **색 = 몇 일차인가**, **모양 = 무엇을 하는 곳인가**.
 // 일차에 배치된 곳은 일차 색 + 일차 번호를, 보관함은 카테고리 색 + 카테고리 아이콘을 단다.
 // 한 장소가 여러 일차에 있으면 가장 이른 일차를 단다 — 좌표가 같아 핀은 하나뿐이다.
-export function toPins(places: PlaceRow[], highlightedId: string | null, days: DayRow[]): Pin[] {
+export function toPins(places: PlaceRow[], highlightedId: string | null, days: DayPins[]): Pin[] {
   // 핀이 나르는 두 채널: **색 = 몇 일차**(#41) · **숫자 = 그 날 몇 번째 방문**(#49).
   // 예전에는 숫자도 일차였는데, 색이 이미 같은 말을 하고 있어 한 일차의 핀이 전부 같은 숫자였다 —
   // 그래서 지도만 보고는 어디부터 도는지 알 수 없었다 (사용자 지적).
-  const placed = new Map<string, { day: DayRow; order: number }>()
+  const placed = new Map<string, { day: DayPins; order: number }>()
   for (const day of [...days].sort((a, b) => a.position - b.position)) {
     const stops = [...(day.stops ?? [])].sort((a, b) => a.position - b.position)
     stops.forEach((stop, index) => {

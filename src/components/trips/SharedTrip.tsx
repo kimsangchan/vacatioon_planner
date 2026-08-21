@@ -10,6 +10,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { StarRating } from '@/components/common/StarRating'
+import { LEG_MODE_LABEL } from '@/lib/timeline/api'
+import { mergeDayItems } from '@/lib/timeline/merge'
 import { CategoryIcon } from '@/components/canvas/CategoryIcon'
 import { MapPane } from '@/components/canvas/MapPane'
 import { createMapProvider, type CreatedMapProvider } from '@/lib/map/create'
@@ -17,15 +19,30 @@ import { CATEGORY_COLOR_VAR } from '@/lib/map/provider'
 import { toBytea } from '@/lib/share/api'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { voterKey, type Stars } from '@/lib/vote/api'
-import type { DayRow, PlaceRow } from '@/lib/trips/bundle'
+import type { DayRow, LegRow, PlaceRow } from '@/lib/trips/bundle'
 
 type SharedPlace = PlaceRow
+
+/** 공유 링크가 받는 이동 — 예약번호·비용·메모·캡처는 오지 않는다 (0017) */
+type SharedLeg = Pick<
+  LegRow,
+  | 'id'
+  | 'day_id'
+  | 'mode'
+  | 'depart_at'
+  | 'arrive_at'
+  | 'arrive_day_offset'
+  | 'from_label'
+  | 'to_label'
+  | 'position'
+>
+type SharedDay = Omit<DayRow, 'legs'> & { legs: SharedLeg[] }
 
 interface SharedBundle {
   name: string
   start_date: string
   end_date: string
-  days: DayRow[]
+  days: SharedDay[]
   places: SharedPlace[]
 }
 
@@ -209,7 +226,18 @@ function SharedTripForToken({ token }: { token: string }) {
             일정은 고칠 수 없어요.
           </p>
 
-          {bundle.days.map((day, index) => (
+          {bundle.days.map((day, index) => {
+            // 순서의 진실은 stops∪legs 통합 position 하나다 (#15).
+            // 이동을 목록 끝에 몰아 두면 "밥 먹고 기차" 인지 "기차 타고 밥" 인지가 거짓말이 된다
+            const stops = day.stops ?? []
+            const legs = day.legs ?? []
+            const legById = new Map(legs.map((leg) => [leg.id, leg]))
+            const stopById = new Map(stops.map((stop) => [stop.id, stop]))
+            const items = mergeDayItems(
+              stops,
+              legs.map((leg) => ({ ...leg, cost_amount: null })),
+            )
+            return (
             <div key={day.id} className="flex flex-col gap-2">
               <h2 className="text-[13px] font-semibold text-fg-2">
                 {index + 1}일차
@@ -217,11 +245,34 @@ function SharedTripForToken({ token }: { token: string }) {
                   {day.date.replaceAll('-', '.')}
                 </span>
               </h2>
-              {day.stops.length === 0 ? (
+              {items.length === 0 ? (
                 <p className="text-[13px] text-fg-3">아직 담긴 곳이 없어요.</p>
               ) : (
                 <ul className="flex flex-col">
-                  {day.stops.map((stop) => {
+                  {items.map((item) => {
+                    if (item.kind === 'leg') {
+                      const leg = legById.get(item.id)
+                      if (!leg) return null
+                      return (
+                        <li
+                          key={leg.id}
+                          className="flex flex-col gap-0.5 px-2 py-2 text-[13px] text-fg-2"
+                        >
+                          <span className="font-medium text-fg">
+                            {LEG_MODE_LABEL[leg.mode]} ·{' '}
+                            <span className="tabular">
+                              {leg.depart_at.slice(0, 5)}→{leg.arrive_at.slice(0, 5)}
+                            </span>
+                            {leg.arrive_day_offset > 0 && ` +${leg.arrive_day_offset}일`}
+                          </span>
+                          <span className="truncate text-fg-3">
+                            {leg.from_label || '출발지 미정'} → {leg.to_label || '도착지 미정'}
+                          </span>
+                        </li>
+                      )
+                    }
+                    const stop = stopById.get(item.id)
+                    if (!stop) return null
                     const place = (
                       stop.place ?? bundle.places.find((item) => item.id === stop.place_id) ?? null
                     ) as SharedPlace | null
@@ -277,7 +328,8 @@ function SharedTripForToken({ token }: { token: string }) {
                 </ul>
               )}
             </div>
-          ))}
+            )
+          })}
         </aside>
 
         {/* 부모를 relative 로 두고 absolute 로 채운다 — flex 아이템 안에서 h-full 은 기준을 못 잡아

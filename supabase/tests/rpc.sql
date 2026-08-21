@@ -339,10 +339,15 @@ select is(
   2,
   '공유 번들이 day 아래 stops 를 중첩한다'
 );
-select is(
-  (select jsonb_array_length(public.get_shared_trip(token)->'days'->0->'legs') from shared_token),
-  0,
-  '공유 화면이 쓰지 않는 예약 이동 상세는 내보내지 않는다'
+-- 이동은 싣되 **예약번호·비용·메모·캡처는 뺀다** (0017). 자세한 단언은
+-- supabase/tests/shared_trip_projection.sql 에 있다 — 여기서는 예약번호가 안 새는 것만 지킨다.
+select ok(
+  (select not exists (
+     select 1
+       from jsonb_array_elements(public.get_shared_trip(token)->'days'->0->'legs') as leg
+      where leg ?| array['booking_ref', 'cost_amount', 'memo', 'photos']
+   ) from shared_token),
+  '공유한 이동에 예약번호·비용·메모·사진 경로가 섞이지 않는다'
 );
 select ok(
   (select bool_and(place->>'memo' = '')

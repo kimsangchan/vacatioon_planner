@@ -6,13 +6,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CreatedMapProvider } from '@/lib/map/create'
 import { DEFAULT_CENTER, DEFAULT_ZOOM, type LatLng, type PinEventKind } from '@/lib/map/provider'
-import { toPins, type DayRow, type PlaceRow } from '@/lib/trips/bundle'
+import { toPins, type DayPins, type PlaceRow } from '@/lib/trips/bundle'
 
 export interface MapPaneProps {
   created: CreatedMapProvider
   places: PlaceRow[]
   /** 핀 색·번호가 어느 일차인지에 달려 있다 (결정 #41) */
-  days: DayRow[]
+  days: DayPins[]
   highlightedId: string | null
   onPinEvent: (id: string, ev: PinEventKind) => void
   /** FR-016 — 모바일 길게 누르기 / 데스크톱 우클릭 */

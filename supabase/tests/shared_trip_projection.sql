@@ -1,6 +1,6 @@
 begin;
 
-select plan(13);
+select plan(18);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 values ('00000000-0000-0000-0000-0000000000e5', 'authenticated', 'authenticated',
@@ -32,6 +32,16 @@ insert into public.stops (
 values (
   '49000000-0000-0000-0000-000000000001', '29000000-0000-0000-0000-000000000001',
   '39000000-0000-0000-0000-000000000001', 3, '12:30', 21000, false, '창가 자리 요청'
+);
+
+insert into public.legs (
+  id, day_id, mode, depart_at, arrive_at, arrive_day_offset,
+  from_label, to_label, booking_ref, cost_amount, memo, position
+)
+values (
+  '59000000-0000-0000-0000-000000000001', '29000000-0000-0000-0000-000000000001',
+  'train', '09:00', '11:30', 0, '용산역', '목포역', 'ABC-12345678', 47500,
+  '창가 좌석으로 예약함', 1
 );
 
 set local role anon;
@@ -91,11 +101,47 @@ select is(
   '',
   '공유 화면이 쓰지 않는 자리 메모는 공개하지 않는다'
 );
+-- 동행자가 가장 알고 싶은 것은 "우리 몇 시 차 타?" 다 (SPEC 헤드라인).
+-- 시각·수단·구간은 내보내고, 예약번호·비용·메모·사진 경로는 계속 막는다.
 select is(
   jsonb_array_length(public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
     ->'days'->0->'legs'),
-  0,
-  '예약번호·이동 메모·사진 경로가 있는 이동 상세는 공개하지 않는다'
+  1,
+  '이동을 공유한다 — 시각과 구간이 없으면 공유가 일정이 아니다'
+);
+select is(
+  public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'days'->0->'legs'->0->>'mode',
+  'train',
+  '무엇을 타는지 알린다'
+);
+select is(
+  (public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'days'->0->'legs'->0->>'depart_at')
+  || '→' ||
+  (public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'days'->0->'legs'->0->>'arrive_at'),
+  '09:00:00→11:30:00',
+  '출발·도착 시각을 벽시계 값 그대로 알린다'
+);
+select is(
+  (public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'days'->0->'legs'->0->>'from_label')
+  || '→' ||
+  (public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'days'->0->'legs'->0->>'to_label'),
+  '용산역→목포역',
+  '어디서 어디로 가는지 알린다'
+);
+select ok(
+  not (public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'days'->0->'legs'->0 ? 'booking_ref'),
+  '예약번호는 링크 하나로 새면 안 된다 — 키 자체를 만들지 않는다'
+);
+select ok(
+  not (public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'days'->0->'legs'->0 ?| array['cost_amount', 'memo', 'photos']),
+  '이동의 비용·메모·사진 경로도 내보내지 않는다'
 );
 select is(
   public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))

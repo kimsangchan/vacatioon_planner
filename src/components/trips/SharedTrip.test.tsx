@@ -41,7 +41,9 @@ function sharedBundle(name: string) {
   }
 }
 
-function installRpc(...tripResponses: Array<ReturnType<typeof sharedBundle> | Promise<unknown>>) {
+// 이동이 붙은 번들도 넘긴다 — sharedBundle() 의 빈 배열에서 추론된 never[] 에 묶이면
+// 이동 픽스처를 못 준다
+function installRpc(...tripResponses: unknown[]) {
   const responses = [...tripResponses]
   rpc.mockImplementation((fn: string, args: Record<string, unknown>) => {
     if (fn === 'get_shared_votes') return Promise.resolve({ data: [], error: null })
@@ -190,5 +192,69 @@ describe('SharedTrip freshness', () => {
 
     expect(await screen.findByRole('heading', { name: '링크가 열리지 않아요' })).toBeTruthy()
     expect(screen.queryByRole('heading', { name: '곧 해제할 일정' })).toBeNull()
+  })
+})
+
+
+describe('SharedTrip — 몇 시 차 타는지 알려 준다 (결정 #58)', () => {
+  // 0016 이 이동을 통째로 비웠더니 "우리 몇 시 차 타?" 가 공유에서 사라졌다 (사용자 지적).
+  // 시각·수단·구간은 내보내고 예약번호·비용·메모·캡처는 계속 막는다 — 0017.
+  function withLeg(overrides: Record<string, unknown> = {}) {
+    return {
+      ...sharedBundle('제주 여행'),
+      days: [
+        {
+          id: 'd1',
+          trip_id: 't1',
+          date: '2026-09-01',
+          position: 0,
+          color: null,
+          stops: [],
+          legs: [
+            {
+              id: 'l1',
+              day_id: 'd1',
+              mode: 'train',
+              depart_at: '09:00:00',
+              arrive_at: '11:30:00',
+              arrive_day_offset: 0,
+              from_label: '용산역',
+              to_label: '목포역',
+              position: 0,
+              ...overrides,
+            },
+          ],
+        },
+      ],
+      places: [],
+    }
+  }
+
+  it('무엇을 언제 타고 어디서 어디로 가는지 낸다', async () => {
+    installRpc(withLeg())
+
+    render(<SharedTrip token={SHARE_ID} />)
+
+    expect(await screen.findByText(/09:00→11:30/)).toBeTruthy()
+    expect(screen.getByText(/기차/)).toBeTruthy()
+    expect(screen.getByText(/용산역/)).toBeTruthy()
+    expect(screen.getByText(/목포역/)).toBeTruthy()
+  })
+
+  it('익일 도착이면 그렇게 말한다 — 밤 기차를 하루로 착각하면 안 된다', async () => {
+    installRpc(withLeg({ depart_at: '23:00:00', arrive_at: '01:10:00', arrive_day_offset: 1 }))
+
+    render(<SharedTrip token={SHARE_ID} />)
+
+    expect(await screen.findByText(/\+1일/)).toBeTruthy()
+  })
+
+  it('출발지를 안 적었으면 빈칸이 아니라 미정이라고 쓴다', async () => {
+    installRpc(withLeg({ from_label: '', to_label: '' }))
+
+    render(<SharedTrip token={SHARE_ID} />)
+
+    expect(await screen.findByText(/출발지 미정/)).toBeTruthy()
+    expect(screen.getByText(/도착지 미정/)).toBeTruthy()
   })
 })
