@@ -2,41 +2,47 @@
 ## ▶ 지금 할 일 (새 세션은 이 블록부터 — SessionStart 훅이 자동 주입)
 
 **MVP 배포됨**: https://vacatioon-planner.vercel.app
-검증 기준선: vitest **552** · pgTAP **213** · E2E 4 · tsc 0 · lint 0 (2026-08-20 실측)
+검증 기준선: vitest **591**(unit 538 · integration 53) · pgTAP **214** · **E2E 5** · tsc 0 · lint 0
+(2026-08-21 실측). 원격 Supabase 는 **`0014` 까지 적용됨**
 
-### ⚠️ 배포 전에 반드시 — 원격 Supabase 에 `0013`·`0014` 선적용
+### 검색은 여기까지다 — 더 파지 마라 (결정 #56)
 
-운영에는 **`0012` 까지만** 들어가 있다. 이 두 개를 먼저 넣지 않고 배포하면 깨진다:
-- `0013` 없이 → 별점 4·5 를 누르면 CHECK 위반
-- `0014` 없이 → 장소 저장이 `phone` 컬럼을 못 찾아 실패
+네이버 지역검색은 **서버가 5건으로 자른다**. 실호출로 재확인했다(2026-08-21):
+`display=30` 도 `"display":5,"total":5` · "카페"도 total 5 · `start=6` 무시 · `sort=comment` 도 5.
+`total` 자체가 5라 "5개밖에 없다"가 아니라 **"5개만 준다"** 이다.
 
-**적용 방법**(CLI 로그인 없이 한 것): `.env` 의 `SUPABASE_PROJECT_REF`·`SUPABASE_DB_PASSWORD` 로
-`aws-0-ap-northeast-2.pooler.supabase.com:5432` / user `postgres.<ref>` 에 psql 접속.
-`db.<ref>.supabase.co` 는 **IPv6 전용**이라 도커 컨테이너에서 못 붙는다.
-적용 뒤 `supabase_migrations.schema_migrations` 에 버전 행도 함께 넣어야 CLI 가 어긋나지 않는다.
+**카카오 Local 전환은 약관으로 기각했다** — 타사 지도에 타사 POI 혼용은 위반 소지(01-recon §지도 API 약관).
+카카오 검색을 네이버 지도에 찍는 것이 정확히 그 조합이다. 지도까지 함께 카카오로 가면 약관은 깨끗하고
+결정 #2 덕에 교체 지점도 `lib/map/naver.ts` 한 파일이지만, **정말 답답해지기 전에는 가지 않는다**.
 
-### 눈으로 확인 못 한 것 (가장 먼저 할 일)
+지금 있는 것: 검색 버튼(엔터=submit) · 받은 5건을 지도 중심 거리순 정렬 · 거리 표기 (#55).
 
-방금 카드를 크게 바꿨는데 **실브라우저로 못 봤다**(브라우저 MCP 가 두 번 멈춰서). 유닛·E2E 는 통과.
+### 아직 눈으로 못 본 것
+
+E2E 가 390×844 에서 교체·별점 크기를 실측했지만(SC-004 파일), 아래는 여전히 사람 눈이 필요하다:
 - **PC**: 핀을 누르면 짧은 말풍선 → `자세히` → 좌측 패널 상세. 지도를 끌면 말풍선이 따라오나
-- **모바일(390×844)**: 핀을 누르면 아래에서 시트. 하단 메뉴를 덮지 않나
-- 카드가 **읽기로** 뜨고 연필로 열리나 · 별 다섯 개가 폭에 드나
+- 타임라인 행에서 `⋯` → `다른 곳으로 바꾸기` → 후보에 마우스를 올리면 지도 핀이 강조되나
+- 검색 결과의 거리 표기가 실제 지도 중심과 맞나 (`viewCenter()` 는 bounds 중점이다)
 
 ### 다음
 
-- **[다음] 실브라우저 확인 → 원격 마이그레이션 → 배포**
-- T10-5b 도보 이동시간 — 외부 API 없이 좌표 거리로 추정. 지금은 "차로 …" 한 줄뿐
-- T10-6 검색 결과 5건 상한 — 카카오 Local 전환이 유일한 길. 콘솔 차단은 이미 풀렸다
+- T10-5b 도보 이동시간 — `lib/geo/distance.ts`(하버사인)가 이번에 생겼다. 그걸 쓰면 된다
 - **[버그] T10-7** 로그인 직후 홈이 500 — `JWT issued at future`. 컨테이너 시계 1초 차로
   `getUser()` 는 통과하고 PostgREST 만 거부해 결정 #31 의 그물에 안 걸린다. L-06 위반
+- 커밋 안 됨 — T10-20~25 가 작업 트리에 그대로 있다 (커밋·푸시는 사용자 요청 시에만)
 
 ### 알아 두면 시간 아끼는 것
 
-- **통합 테스트는 vitest projects 로 갈라 놨다**(unit 병렬 / integration 직렬). 산발적 실패는 해결됐다
-- **dev 서버를 켜 둔 채 `npm run build` 금지** — `.next` 가 깨져 타입 에러처럼 보인다 (푸시 훅이 build 를 돈다)
-- **`db reset` 은 로컬을 다 지운다.** 이번에 세 번 겪었다 — 백업 먼저
-- 브라우저 MCP(`plugin:ecc:playwright`)가 응답 없이 멈추는 일이 잦다. E2E 는 자체 Playwright 라 멀쩡하다
-- Vercel CLI 는 로그인돼 있고 프로젝트도 링크됐다. `NCP_MAP_CLIENT_SECRET` 은 Production·Preview 등록 완료
+- **교체의 실체는 `stops.place_id` 한 칸이다** (결정 #53). 마이그레이션이 없다 —
+  `updateStop` 이 이미 PostgREST 직접 PATCH 이고 RLS 는 day 소유권만 본다.
+  경로·이동시간은 `use-day-route` 가 좌표 문자열을 키로 써서 **저절로** 다시 계산된다
+- **통합 테스트는 vitest projects 로 갈라 놨다**(unit 병렬 / integration 직렬)
+- **dev 서버를 켜 둔 채 `npm run build` 금지** — `.next` 가 깨져 타입 에러처럼 보인다
+- **`db reset` 은 로컬을 다 지운다** — 백업 먼저
+- E2E 는 자체 Playwright 라 멀쩡하다. 브라우저 MCP(`plugin:ecc:playwright`)는 자주 멈춘다
+- 원격 psql 은 풀러(`aws-0-ap-northeast-2.pooler.supabase.com:5432`)로 붙는다.
+  `db.<ref>.supabase.co` 는 IPv6 전용이라 도커에서 안 된다. psql 은 로컬 도커 이미지
+  `public.ecr.aws/supabase/postgres` 안에 있다
 
 ### 함정은 그 폴더의 CLAUDE.md 에 있다
 
