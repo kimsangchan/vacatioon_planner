@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { SharedTrip } from './SharedTrip'
+import { SHARED_REFRESH_MS, SharedTrip } from './SharedTrip'
 
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }))
 
@@ -347,5 +347,58 @@ describe('SharedTrip — 보관함 후보도 같이 정한다 (결정 #60)', () 
     await screen.findByText('넣어둔 식당')
 
     expect(screen.queryByRole('heading', { name: /보관함/ })).toBeNull()
+  })
+})
+
+
+describe('SharedTrip — 가만히 둬도 최신이 된다 (결정 #61)', () => {
+  // 주인이 일정을 고치면 동행자 화면이 **가만히 있어도** 따라와야 한다.
+  // Supabase Realtime 은 못 쓴다: 공유 화면은 anon 이고 anon 에는 테이블 권한이 아예 없다(0007).
+  // postgres_changes 는 RLS 를 그대로 타므로, 실시간을 켜려면 anon 에게 SELECT 를 열어야 한다 —
+  // 그건 bearer 링크 하나로 여행 전체가 열리는 일이라 #11 을 정면으로 깬다. 그래서 **주기 조회**다.
+  it('보고 있는 동안 주기적으로 다시 읽는다', async () => {
+    vi.useFakeTimers()
+    try {
+      const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+      installRpc(sharedBundle('처음 일정'), sharedBundle('주인이 고친 일정'))
+      render(<SharedTrip token={SHARE_ID} />)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(rpc.mock.calls.filter(([fn]) => fn === 'get_shared_trip')).toHaveLength(1)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SHARED_REFRESH_MS + 100)
+      })
+
+      expect(rpc.mock.calls.filter(([fn]) => fn === 'get_shared_trip')).toHaveLength(2)
+      visibility.mockRestore()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('탭이 숨겨져 있으면 부르지 않는다 — 안 보는 화면에 쿼터를 쓰지 않는다', async () => {
+    vi.useFakeTimers()
+    try {
+      const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+      installRpc(sharedBundle('처음 일정'))
+      render(<SharedTrip token={SHARE_ID} />)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      const before = rpc.mock.calls.filter(([fn]) => fn === 'get_shared_trip').length
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SHARED_REFRESH_MS * 3)
+      })
+
+      expect(rpc.mock.calls.filter(([fn]) => fn === 'get_shared_trip')).toHaveLength(before)
+      visibility.mockRestore()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

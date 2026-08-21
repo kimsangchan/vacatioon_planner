@@ -101,6 +101,13 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
   const bundleQuery = useQuery({
     queryKey: tripBundleKey(tripId),
     queryFn: () => fetchTripBundle(supabase, tripId),
+    // 동행자가 공유 링크에서 누른 하트가 **가만히 둬도** 들어오게 한다 (결정 #61).
+    // Realtime 을 못 쓰는 이유는 공유 화면과 같다(anon 에 테이블 권한이 없다, 0007) —
+    // 여기서도 같은 방식으로 맞춘다. 30초는 공유 화면(15초)보다 느슨하다:
+    // 주인은 자기가 고칠 때마다 이미 다시 읽고 있어 주기 조회는 남의 하트만 기다린다.
+    refetchInterval: 30_000,
+    // 숨은 탭에는 한 번도 안 나간다 (react-query 기본값이지만 의도를 남긴다)
+    refetchIntervalInBackground: false,
   })
 
   const refetchBundle = () => queryClient.invalidateQueries({ queryKey: tripBundleKey(tripId) })

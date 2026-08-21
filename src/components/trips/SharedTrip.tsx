@@ -46,6 +46,17 @@ interface SharedBundle {
   places: SharedPlace[]
 }
 
+/**
+ * 보고 있는 동안 다시 읽는 주기 (결정 #61).
+ *
+ * **Supabase Realtime 은 못 쓴다**: 공유 화면은 anon 이고 anon 에는 테이블 권한이 아예 없다(0007).
+ * postgres_changes 는 RLS 를 그대로 타므로 실시간을 켜려면 anon 에게 SELECT 를 열어야 하는데,
+ * 그러면 bearer 링크 하나로 여행 전체가 열린다 — 결정 #11 을 정면으로 깬다.
+ * 그래서 주기 조회다. 15초는 "고쳤는데 언제 반영되지" 를 안 묻게 하면서도
+ * 안 보는 탭에는 한 번도 안 나가는 값이다.
+ */
+export const SHARED_REFRESH_MS = 15_000
+
 interface Tally {
   place_id: string
   hearts: number
@@ -151,9 +162,17 @@ function SharedTripForToken({ token }: { token: string }) {
     }
     window.addEventListener('focus', refreshWhenFocused)
     document.addEventListener('visibilitychange', refreshWhenVisible)
+
+    // 가만히 둬도 최신이 되게 한다. 숨은 탭은 건너뛴다 — 안 보는 화면에 쿼터를 쓰지 않는다.
+    // 겹쳐 도는 것은 refresh 의 2초 스로틀과 in-flight 가드가 막는다
+    const tick = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refresh(true)
+    }, SHARED_REFRESH_MS)
+
     return () => {
       requestGeneration.current += 1
       window.clearTimeout(initialRefresh)
+      window.clearInterval(tick)
       window.removeEventListener('focus', refreshWhenFocused)
       document.removeEventListener('visibilitychange', refreshWhenVisible)
     }
