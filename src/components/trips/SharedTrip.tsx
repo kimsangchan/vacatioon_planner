@@ -203,6 +203,13 @@ function SharedTripForToken({ token }: { token: string }) {
     return <p className="px-5 py-12 text-fg-3">여행을 불러오는 중이에요.</p>
   }
 
+  // 아직 일차에 안 넣은 후보 — 동행자가 하트를 줄 대상이 "이미 정해진 곳" 뿐이면
+  // "어디 갈지 같이 정하자"(#46)가 성립하지 않는다 (결정 #60)
+  const assigned = new Set(
+    bundle.days.flatMap((day) => (day.stops ?? []).map((stop) => stop.place_id)),
+  )
+  const candidates = bundle.places.filter((place) => !assigned.has(place.id))
+
   const tallyOf = (placeId: string): Omit<Tally, 'place_id'> =>
     tallies.find((t) => t.place_id === placeId) ?? { hearts: 0, mine: false, names: [] }
 
@@ -352,6 +359,54 @@ function SharedTripForToken({ token }: { token: string }) {
             </div>
             )
           })}
+
+          {candidates.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <h2 className="text-[13px] font-semibold text-fg-2">
+                보관함
+                <span className="ml-1.5 font-normal text-fg-3">{candidates.length}곳</span>
+              </h2>
+              <p className="text-[12px] leading-relaxed text-fg-3">
+                아직 일정에 넣지 않은 곳이에요. 가고 싶은 곳에 하트를 눌러 주세요.
+              </p>
+              <ul className="flex flex-col">
+                {candidates.map((place) => {
+                  const tally = tallyOf(place.id)
+                  return (
+                    <li
+                      key={place.id}
+                      onMouseEnter={() => setHighlightedId(place.id)}
+                      onMouseLeave={() => setHighlightedId(null)}
+                      className="flex flex-col gap-1 rounded-m px-2 py-2 transition-colors duration-120 hover:bg-surface-2"
+                    >
+                      <span className="flex items-center gap-3">
+                        <CategoryIcon
+                          category={place.category}
+                          color={CATEGORY_COLOR_VAR[place.category]}
+                          size={14}
+                        />
+                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span className="truncate text-[17px] leading-tight font-semibold">
+                            {place.name}
+                          </span>
+                          <span className="truncate text-[13px] leading-tight text-fg-3">
+                            {place.road_address || place.address}
+                          </span>
+                        </span>
+                      </span>
+                      <HeartVote
+                        label={place.name}
+                        hearts={tally.hearts}
+                        mine={tally.mine}
+                        names={tally.names}
+                        onToggle={(hearted) => void heart(place.id, hearted)}
+                      />
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
         </aside>
 
         {/* 부모를 relative 로 두고 absolute 로 채운다 — flex 아이템 안에서 h-full 은 기준을 못 잡아

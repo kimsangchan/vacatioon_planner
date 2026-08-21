@@ -1,6 +1,6 @@
 begin;
 
-select plan(18);
+select plan(21);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 values ('00000000-0000-0000-0000-0000000000e5', 'authenticated', 'authenticated',
@@ -24,6 +24,15 @@ values (
   '00000000-0000-0000-0000-0000000000e5', 'restaurant', '공유 식당', '제주시 구주소',
   '제주시 새주소', 33.499621, 126.531188, 'manual', '064-123-4567',
   E'월-금 09:00-18:00\n토 10:00-15:00', 25000
+);
+
+insert into public.places (
+  id, trip_id, owner_id, category, name, address, road_address, lat, lng, provider
+)
+values (
+  '39000000-0000-0000-0000-000000000002', '19000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-0000000000e5', 'spot', '아직 안 넣은 후보', '제주시 구주소2',
+  '제주시 새주소2', 33.5, 126.53, 'manual'
 );
 
 insert into public.stops (
@@ -169,6 +178,34 @@ select is(
     ->'places'->0->>'phone',
   '064-999-0000',
   '같은 공유 토큰을 다시 조회하면 장소의 최신 값을 반환한다'
+);
+
+-- 보관함 후보도 공유한다 (결정 #60). 안 그러면 동행자는 **이미 정해진 곳**에만 하트를 줄 수 있고,
+-- "어디 갈지 같이 정하자"(#46)가 "정해진 곳 평가해 줘"가 된다.
+select is(
+  jsonb_array_length(public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'places'),
+  2,
+  '일정에 넣은 곳과 보관함 후보를 모두 공유한다'
+);
+select ok(
+  exists (
+    select 1
+      from jsonb_array_elements(public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+        ->'places') as place
+     where place->>'name' = '아직 안 넣은 후보'
+  ),
+  '아직 일정에 없는 후보도 이름으로 나온다'
+);
+select ok(
+  not exists (
+    select 1
+      from jsonb_array_elements(public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+        ->'days') as day,
+           jsonb_array_elements(day->'stops') as stop
+     where stop->'place'->>'name' = '아직 안 넣은 후보'
+  ),
+  '후보는 일차 안에 끼어들지 않는다 — 보관함은 보관함이다'
 );
 
 select * from finish();

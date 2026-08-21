@@ -258,3 +258,94 @@ describe('SharedTrip — 몇 시 차 타는지 알려 준다 (결정 #58)', () =
     expect(screen.getByText(/도착지 미정/)).toBeTruthy()
   })
 })
+
+
+describe('SharedTrip — 보관함 후보도 같이 정한다 (결정 #60)', () => {
+  // 사용자 신고: "보관함 내용 여전히 안 보인다". 동행자가 하트를 줄 대상이
+  // **이미 정해진 곳** 뿐이면 "어디 갈지 같이 정하자"(#46)가 성립하지 않는다.
+  function place(id: string, name: string) {
+    return {
+      id,
+      trip_id: 't1',
+      category: 'restaurant' as const,
+      name,
+      address: '제주시',
+      road_address: '제주시 노형로',
+      lat: 33.5,
+      lng: 126.5,
+      provider: 'manual' as const,
+      provider_link: null,
+      phone: '',
+      opening_hours: '',
+      memo: '',
+      estimated_cost: null,
+      photos: [],
+    }
+  }
+
+  function withCandidates() {
+    return {
+      ...sharedBundle('제주 여행'),
+      days: [
+        {
+          id: 'd1',
+          trip_id: 't1',
+          date: '2026-09-01',
+          position: 0,
+          color: null,
+          stops: [
+            {
+              id: 's1',
+              day_id: 'd1',
+              place_id: 'p1',
+              position: 0,
+              start_time: null,
+              cost_amount: null,
+              confirmed: true,
+              note: '',
+              place: place('p1', '넣어둔 식당'),
+            },
+          ],
+          legs: [],
+        },
+      ],
+      places: [place('p1', '넣어둔 식당'), place('p2', '아직 후보인 카페')],
+    }
+  }
+
+  it('아직 일정에 없는 후보를 보관함으로 보여 준다', async () => {
+    installRpc(withCandidates())
+
+    render(<SharedTrip token={SHARE_ID} />)
+
+    expect(await screen.findByText('아직 후보인 카페')).toBeTruthy()
+  })
+
+  it('후보에도 하트를 줄 수 있다 — 그래야 같이 정하는 것이다', async () => {
+    installRpc(withCandidates())
+
+    render(<SharedTrip token={SHARE_ID} />)
+    await screen.findByText('아직 후보인 카페')
+
+    expect(screen.getByRole('button', { name: '아직 후보인 카페 가고 싶어요' })).toBeTruthy()
+  })
+
+  it('일정에 넣은 곳은 보관함에 겹쳐 나오지 않는다', async () => {
+    installRpc(withCandidates())
+
+    render(<SharedTrip token={SHARE_ID} />)
+    await screen.findByText('아직 후보인 카페')
+
+    expect(screen.getAllByText('넣어둔 식당')).toHaveLength(1)
+  })
+
+  it('후보가 없으면 보관함 자리를 내지 않는다 — 빈 칸이 자리를 먹지 않는다', async () => {
+    const bundle = withCandidates()
+    installRpc({ ...bundle, places: [place('p1', '넣어둔 식당')] })
+
+    render(<SharedTrip token={SHARE_ID} />)
+    await screen.findByText('넣어둔 식당')
+
+    expect(screen.queryByRole('heading', { name: /보관함/ })).toBeNull()
+  })
+})

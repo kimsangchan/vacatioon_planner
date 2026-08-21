@@ -171,6 +171,9 @@
   (`voter_name` 20자 · `heart_shared_place` RPC · `get_shared_votes` 가 hearts·mine·names 를 낸다).
   `HeartVote` 가 `StarRating` 을 대체하고 공유 화면에 이름 칸이 생겼다(선택). 옛 1~5 표는
   하트 하나로 읽힌다. 교체 후보 2차 정렬도 하트 수로. pgTAP 12 + vitest 23 + E2E 하트 44×44 실측
+- [x] T10-34 보관함 후보도 공유한다 (결정 #60, 2026-08-21) — `0019_shared_trip_storage.sql`.
+  운영 실측: 장소 25개 중 6개만 나가고 있었다. 필터를 걷고 공유 화면에 보관함 자리를 뒀다.
+  후보에도 하트를 받는다. pgTAP 3 + vitest 4
 - [ ] T10-5b 이동시간(도보) — 외부 API 없이 좌표 거리로 추정. 지금은 "차로 …" 한 줄만 낸다
 - [x] T10-10 확정/미확정 + 확정된 것만 경로 (결정 #47, 2026-08-20) — `0011_stop_confirmed.sql`
   (기본값 true) + pgTAP 4, `routeSegments` 가 미확정을 건너뛴다, 타임라인 행에 22px 체크

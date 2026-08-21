@@ -329,10 +329,12 @@ select is(
   4,
   '공유 번들이 days 를 전부 중첩한다'
 );
+-- 보관함 후보도 함께 나간다 (결정 #60) — 동행자가 하트를 줄 대상이 "이미 정해진 곳" 뿐이면
+-- "같이 정하자"(#46)가 성립하지 않는다. 개인적인 것(메모·예상금액·사진)은 계속 뺀다
 select is(
   (select jsonb_array_length(public.get_shared_trip(token)->'places') from shared_token),
-  2,
-  '공유 번들은 일정에 배치된 places 만 중첩한다'
+  3,
+  '공유 번들은 여행의 살아 있는 장소를 전부 중첩한다 — 보관함 후보 포함'
 );
 select is(
   (select jsonb_array_length(public.get_shared_trip(token)->'days'->0->'stops') from shared_token),
