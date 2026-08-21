@@ -61,6 +61,9 @@ test.describe('여정 1 — 첫 여행 만들기 (스모크)', () => {
 
     // ④ 사진 1장 (FR-004 · E-05 — 원본이 아니라 리사이즈본·썸네일이 올라간다)
     await storageItem(page, '흑돼지 명가').click()
+    // 데스크톱에서 목록·핀을 누르면 먼저 **말풍선**이 뜬다 — 상세(사진·메모)는 '자세히' 뒤다 (결정 #52).
+    // 말풍선은 "여기가 어디인지"만 답하고 길어질 여지를 두지 않는다
+    await page.getByRole('button', { name: '자세히' }).click()
     const sheet = page.locator('[data-testid="preview-card"][data-variant="sheet"]')
     await expect(sheet).toBeVisible()
     await sheet.getByLabel('사진 담기').setInputFiles(PHOTO_PNG)
