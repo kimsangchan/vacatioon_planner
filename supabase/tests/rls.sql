@@ -1,6 +1,6 @@
 begin;
 
-select plan(22);
+select plan(23);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 values
@@ -101,6 +101,14 @@ select results_eq(
     select count(*)::int from u$$,
   $$values (0)$$,
   'cross-tenant place update affects 0 rows'
+);
+-- 교체(결정 #53)의 실체가 place_id UPDATE 라 여기에 함께 건다
+select results_eq(
+  $$with u as (update public.stops set place_id = '30000000-0000-0000-0000-0000000000a1'
+                where id = '40000000-0000-0000-0000-0000000000b2' returning 1)
+    select count(*)::int from u$$,
+  $$values (0)$$,
+  'cross-tenant stop place swap affects 0 rows'
 );
 
 -- 운영 테이블: GRANT 자체가 없어 접근 불가 (RPC 전용 — decision-log #11)

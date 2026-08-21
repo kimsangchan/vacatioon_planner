@@ -118,6 +118,23 @@ describe('E-07 배치·재정렬 + E-08 이동 (FR-007·FR-008)', () => {
     expect((failure as TimelineError).code).toBe('validation/cost-negative')
   })
 
+  it('자리는 두고 장소만 갈아끼운다 — 순서·시각·확정이 그대로다 (결정 #53)', async () => {
+    // 앞 테스트가 stopA 에 09:30 · 12,000원을 남겼다. 교체가 그걸 건드리면 안 된다
+    const swapped = await updateStop(client, stopA, { place_id: spotId })
+
+    expect(swapped.place_id).toBe(spotId)
+    expect(swapped.position).toBe(0)
+    expect(swapped.start_time).toBe('09:30:00')
+    expect(swapped.confirmed).toBe(true)
+
+    // 플랜 A 는 자리를 잃고 보관함으로 돌아간다 — 후보군을 따로 관리할 상태가 없는 이유다
+    const bundle = await fetchTripBundle(client, tripId)
+    expect(unassignedPlaces(bundle).map((place) => place.id)).toContain(restaurantId)
+
+    // 뒤 테스트들이 기대는 상태로 되돌린다 (같은 3동작이면 원상복구라는 설계이기도 하다)
+    await updateStop(client, stopA, { place_id: restaurantId })
+  })
+
   it('Leg 를 담으면 같은 Day 의 통합 시퀀스에 붙는다 (E-08)', async () => {
     const leg = await saveLeg(client, {
       id: legId,

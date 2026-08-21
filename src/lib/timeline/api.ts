@@ -34,8 +34,11 @@ export interface StopUpsert {
   note?: string
 }
 
+// place_id 가 여기 있는 이유 (결정 #53): 자리는 두고 **장소만** 갈아끼우는 것이 교체다.
+// 순서·시각·확정·메모는 자리의 것이라 남고, 사진·별표·예상금액은 장소를 따라간다.
+// 플랜 A 는 자리를 잃어 보관함으로 돌아간다 — 그래서 후보군을 따로 관리할 상태가 없다.
 export type StopPatch = Partial<
-  Pick<StopRow, 'start_time' | 'cost_amount' | 'confirmed' | 'note' | 'position'>
+  Pick<StopRow, 'start_time' | 'cost_amount' | 'confirmed' | 'note' | 'position' | 'place_id'>
 >
 
 // 폼이 만들어 내는 이동 한 건 — 자리(position)와 소속(day_id)은 호출자가 정한다
