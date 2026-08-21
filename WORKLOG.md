@@ -6,6 +6,9 @@
 ## Current State
 
 - Status: 배포됨 — https://vacatioon-planner.vercel.app
+  (2026-08-21 배포 `a458a07`: 커밋 6개(E2E 정정 · T10-24 · T10-20·21 · T10-22·23 · T10-25 · 문서)
+  → `npm run build` → master 푸시 → Vercel 자동 배포 Ready(24s), 운영 별칭 연결 확인.
+  스모크: `/login` 200 · `/` 307(로그인으로) · `/s/nope` 404 · `/api/directions` 405(GET 은 원래 불가, POST 전용))
   (2026-08-20 배포: 원격 Supabase `0010`·`0011`·`0012` 선적용 → Vercel 에 `NCP_MAP_CLIENT_SECRET`
   등록(Production·Preview) → master 푸시. 배포본 스모크: `/api/directions` 401 Problem JSON ·
   `/s/<hex>` 200 · `/s/nope` 404)
@@ -14,7 +17,7 @@
   tsc 0 · lint 0 (2026-08-21 실측)
 - 원격: `origin` = github.com/kimsangchan/vacatioon_planner — `master` 동기화됨
   (2026-08-11 의 "원격 없음·백업 0" 경고는 해소됨)
-- Last updated: 2026-08-21 (교체 기능 T10-20~23 · 손가락 크기 T10-24 · 검색 T10-25 — **미커밋**)
+- Last updated: 2026-08-21 (교체·손가락 크기·검색 **배포 완료** — `a458a07`)
 - 원격 Supabase **`0014` 까지 적용됨** (2026-08-21 — 별점 5점·전화번호)
 
 ## History (append; 최신이 위)
@@ -41,7 +44,7 @@
   ④ **덤으로 고친 것**: `journey-first-trip` E2E 가 **내 변경 이전부터** 깨져 있었다 — 결정 #52 로
   데스크톱 상세가 '자세히' 뒤로 갔는데 스펙이 목록 클릭만 하고 시트를 기다렸다. stash 로 clean 트리에서
   재현해 내 회귀가 아님을 확인한 뒤 고쳤다. E2E 4→5 전부 통과.
-  **미커밋** — 커밋·푸시는 사용자 요청 시에만.
+  커밋 6개로 나눠 배포까지 마쳤다 (`a458a07`).
   ⑤ **검색 제공자를 정리했다**(#56). 처음엔 카카오 Local 전환을 권했는데 **내가 틀렸다** —
   01-recon §지도 API 약관에 "타사 지도에 타사 POI 혼용은 위반 소지"가 이미 적혀 있었고, 카카오 검색을
   네이버 지도에 찍는 것이 정확히 그 조합이다. 사용자가 "가능하면 네이버로"라고 한 판단이 맞았다.
