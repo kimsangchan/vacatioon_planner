@@ -1,0 +1,106 @@
+-- Shared links are live views, not snapshots. Build the public projection from
+-- the current trip rows on every call while deliberately omitting owner_id,
+-- share_token, deleted_at, and other internal-only columns.
+
+create or replace function public.get_shared_trip(token bytea)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_trip public.trips;
+  v_bundle jsonb;
+begin
+  select * into v_trip
+    from public.trips t
+   where t.share_enabled
+     and t.share_token is not null
+     and t.deleted_at is null
+     and t.share_token = get_shared_trip.token;
+
+  if not found then
+    -- 예외와 같은 트랜잭션에서 카운터를 올리면 함께 롤백된다. 실패 계측은
+    -- 요청 경계(로그/엣지 rate limit)에서 맡기고, DB 함수는 동일한 오류만 낸다.
+    raise exception 'share/invalid-token';
+  end if;
+
+  with pj as (
+    select p.id,
+           p.name,
+           jsonb_build_object(
+             'id', p.id,
+             'category', p.category,
+             'name', p.name,
+             'address', p.address,
+             'road_address', p.road_address,
+             'lat', p.lat,
+             'lng', p.lng,
+             'provider', p.provider,
+             'provider_link', null,
+             'phone', p.phone,
+             'opening_hours', p.opening_hours,
+             -- 공유 화면이 쓰지 않는 개인 메모·예상 금액·사진 경로는 내보내지 않는다.
+             'memo', '',
+             'estimated_cost', null,
+             'photos', '[]'::jsonb
+           ) as obj
+      from public.places p
+     where p.trip_id = v_trip.id
+       and p.deleted_at is null
+       and exists (
+         select 1
+           from public.stops s
+           join public.days d on d.id = s.day_id
+          where s.place_id = p.id
+            and d.trip_id = v_trip.id
+       )
+  ),
+  dj as (
+    select d.position,
+           jsonb_build_object(
+             'id', d.id,
+             'date', d.date,
+             'position', d.position,
+             'color', d.color,
+             'stops', coalesce((
+               select jsonb_agg(jsonb_build_object(
+                        'id', s.id,
+                        'place_id', s.place_id,
+                        'position', s.position,
+                        'start_time', s.start_time,
+                        'cost_amount', null,
+                        'confirmed', s.confirmed,
+                        'note', '',
+                        'place', pj.obj
+                      ) order by s.position, s.id)
+                 from public.stops s
+                 left join pj on pj.id = s.place_id
+                where s.day_id = d.id
+             ), '[]'::jsonb),
+             -- 현재 공유 화면은 이동 상세를 렌더하지 않는다. 예약번호·메모·사진 경로를
+             -- bearer link 응답에 싣지 않도록 공개 계약에서는 빈 배열로 둔다.
+             'legs', '[]'::jsonb
+           ) as obj
+      from public.days d
+     where d.trip_id = v_trip.id
+  )
+  select jsonb_build_object(
+           'id', v_trip.id,
+           'name', v_trip.name,
+           'start_date', v_trip.start_date,
+           'end_date', v_trip.end_date,
+           'timezone', v_trip.timezone,
+           'created_at', v_trip.created_at,
+           'updated_at', v_trip.updated_at,
+           'days', coalesce((select jsonb_agg(dj.obj order by dj.position) from dj), '[]'::jsonb),
+           'places', coalesce((select jsonb_agg(pj.obj order by pj.name, pj.id) from pj), '[]'::jsonb)
+         )
+    into v_bundle;
+
+  return v_bundle;
+end;
+$$;
+
+revoke execute on function public.get_shared_trip(bytea) from public;
+grant execute on function public.get_shared_trip(bytea) to anon, authenticated;

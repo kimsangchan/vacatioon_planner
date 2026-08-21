@@ -37,7 +37,7 @@ export interface NormalizedPlace {
   name: string
   address: string
   roadAddress: string
-  /** 네이버가 주는 값. 영업시간은 어느 공개 API 도 주지 않아 담지 않는다 (01-recon) */
+  /** 네이버 검색 결과가 주는 전화번호. 영업시간은 저장한 뒤 사용자가 직접 적는다. */
   phone: string
   lat: number
   lng: number

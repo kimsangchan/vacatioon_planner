@@ -121,23 +121,74 @@ describe('SharedTrip freshness', () => {
     expect(sharedCalls[1]?.[1]).toEqual({ token: `\\x${SHARE_ID}` })
   })
 
-  it('does not let an older slow refresh overwrite a newer response', async () => {
-    const older = deferred<ReturnType<typeof sharedBundle>>()
-    const newer = deferred<ReturnType<typeof sharedBundle>>()
-    installRpc(sharedBundle('처음 일정'), older.promise, newer.promise)
+  it('does not start a second refresh while the current request is in flight', async () => {
+    const latest = deferred<ReturnType<typeof sharedBundle>>()
+    installRpc(sharedBundle('처음 일정'), latest.promise)
     render(<SharedTrip token={SHARE_ID} />)
     await screen.findByRole('heading', { name: '처음 일정' })
 
     act(() => window.dispatchEvent(new Event('focus')))
     fireEvent.click(screen.getByRole('button', { name: '최신 정보 새로고침' }))
+    expect(rpc.mock.calls.filter(([fn]) => fn === 'get_shared_trip')).toHaveLength(2)
 
-    await act(async () => newer.resolve(sharedBundle('가장 최신 일정')))
+    await act(async () => latest.resolve(sharedBundle('가장 최신 일정')))
     expect(await screen.findByRole('heading', { name: '가장 최신 일정' })).toBeTruthy()
+  })
 
-    await act(async () => older.resolve(sharedBundle('늦게 도착한 예전 일정')))
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: '가장 최신 일정' })).toBeTruthy()
+  it('coalesces focus and visibility refreshes while one automatic request is in flight', async () => {
+    const latest = deferred<ReturnType<typeof sharedBundle>>()
+    installRpc(sharedBundle('중복 전 일정'), latest.promise)
+    render(<SharedTrip token={SHARE_ID} />)
+    await screen.findByRole('heading', { name: '중복 전 일정' })
+
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+    act(() => {
+      window.dispatchEvent(new Event('focus'))
+      document.dispatchEvent(new Event('visibilitychange'))
     })
-    expect(screen.queryByRole('heading', { name: '늦게 도착한 예전 일정' })).toBeNull()
+    expect(rpc.mock.calls.filter(([fn]) => fn === 'get_shared_trip')).toHaveLength(2)
+
+    await act(async () => latest.resolve(sharedBundle('중복 없이 최신 일정')))
+    expect(await screen.findByRole('heading', { name: '중복 없이 최신 일정' })).toBeTruthy()
+    visibility.mockRestore()
+  })
+
+  it('keeps the last good bundle when a background refresh has a transient error', async () => {
+    let tripCall = 0
+    rpc.mockImplementation((fn: string) => {
+      if (fn === 'get_shared_votes') return Promise.resolve({ data: [], error: null })
+      tripCall += 1
+      return Promise.resolve(
+        tripCall === 1
+          ? { data: sharedBundle('마지막 정상 일정'), error: null }
+          : { data: null, error: { message: 'temporary network error' } },
+      )
+    })
+    render(<SharedTrip token={SHARE_ID} />)
+    await screen.findByRole('heading', { name: '마지막 정상 일정' })
+
+    fireEvent.click(screen.getByRole('button', { name: '최신 정보 새로고침' }))
+    await waitFor(() => expect(screen.getByRole('heading', { name: '마지막 정상 일정' })).toBeTruthy())
+    expect(screen.queryByText('링크가 열리지 않아요')).toBeNull()
+  })
+
+  it('clears stale content when the owner disables the share token', async () => {
+    let tripCall = 0
+    rpc.mockImplementation((fn: string) => {
+      if (fn === 'get_shared_votes') return Promise.resolve({ data: [], error: null })
+      tripCall += 1
+      return Promise.resolve(
+        tripCall === 1
+          ? { data: sharedBundle('곧 해제할 일정'), error: null }
+          : { data: null, error: { message: 'share/invalid-token' } },
+      )
+    })
+    render(<SharedTrip token={SHARE_ID} />)
+    await screen.findByRole('heading', { name: '곧 해제할 일정' })
+
+    fireEvent.click(screen.getByRole('button', { name: '최신 정보 새로고침' }))
+
+    expect(await screen.findByRole('heading', { name: '링크가 열리지 않아요' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: '곧 해제할 일정' })).toBeNull()
   })
 })

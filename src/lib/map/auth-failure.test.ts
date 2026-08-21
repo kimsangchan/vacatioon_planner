@@ -71,6 +71,7 @@ describe('인증 실패로 SDK 내부가 비어도 던지지 않는다', () => {
 
     const pin = {
       id: 'p1',
+      label: '해변',
       latLng: { lat: 37.5, lng: 127 },
       category: 'spot' as const,
       selected: false,

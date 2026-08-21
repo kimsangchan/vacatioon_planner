@@ -19,6 +19,7 @@ import {
   softDeletePlace,
   updatePlaceEstimatedCost,
   updatePlaceMemo,
+  updatePlaceOpeningHours,
   updatePlacePhone,
 } from '@/lib/place/api'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
@@ -192,6 +193,12 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
   const savePhone = useMutation({
     mutationFn: ({ placeId, phone }: { placeId: string; phone: string }) =>
       updatePlacePhone(supabase, placeId, phone),
+    onSuccess: refetchBundle,
+  })
+
+  const saveOpeningHours = useMutation({
+    mutationFn: ({ placeId, openingHours }: { placeId: string; openingHours: string }) =>
+      updatePlaceOpeningHours(supabase, placeId, openingHours),
     onSuccess: refetchBundle,
   })
 
@@ -476,6 +483,9 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
         }}
         onSavePhone={async (placeId, phone) => {
           await savePhone.mutateAsync({ placeId, phone })
+        }}
+        onSaveOpeningHours={async (placeId, openingHours) => {
+          await saveOpeningHours.mutateAsync({ placeId, openingHours })
         }}
         onSaveEstimatedCost={async (placeId, estimatedCost) => {
           await saveEstimatedCost.mutateAsync({ placeId, estimatedCost })

@@ -21,8 +21,8 @@
 | `days` | `EXISTS (SELECT 1 FROM trips t WHERE t.id = trip_id AND t.owner_id = auth.uid())` |
 | `stops`, `legs` | `EXISTS (… days d JOIN trips t ON t.id = d.trip_id WHERE d.id = day_id AND t.owner_id = auth.uid())` 2단 조인 |
 | `photos` | place 첨부: `EXISTS (… places p WHERE p.id = place_id AND p.owner_id = auth.uid())` / leg 첨부: legs→days→trips 3단 조인 소유 검증 (place_id·leg_id는 CHECK로 정확히 하나) |
-| `search_cache`, `api_usage` | 직접 접근 전면 deny — SECURITY DEFINER RPC 4종(`record_search_usage`·`store_search_cache`·`get_cached_search`·`get_stale_search`)만 접근하며, 이들의 EXECUTE는 **authenticated 롤 한정**(anon 호출 차단 — 카운터 조작·자기 DoS 방지). 공유 조회 실패 카운트는 별도 RPC가 아니라 `get_shared_trip` 내부에서 수행 (04 C-1 해소 경로) |
-| RPC EXECUTE 정책 | `get_shared_trip`만 anon 허용(공유 뷰 전제 — 대신 rate limit+내부 실패 카운터), 그 외 전 RPC는 authenticated 한정 |
+| `search_cache`, `api_usage` | 직접 접근 전면 deny — SECURITY DEFINER RPC 4종(`record_search_usage`·`store_search_cache`·`get_cached_search`·`get_stale_search`)만 접근하며, 이들의 EXECUTE는 **authenticated 롤 한정**(anon 호출 차단 — 카운터 조작·자기 DoS 방지). 공유 실패는 예외와 같은 트랜잭션에서 기록하면 롤백되므로 요청 로그/엣지 제한에서 계측한다 |
+| RPC EXECUTE 정책 | `get_shared_trip`만 anon 허용(128bit 공유 토큰 전제, 중복 자동 조회 억제; 서버 경계 rate limit은 운영 보강 대상), 그 외 전 RPC는 authenticated 한정 |
 | Storage `photos` 버킷 | 읽기 public(무작위 128bit 경로·목록 API 차단 — 결정 #12) / 쓰기·삭제 `auth.uid()` 소유 places 경유 검증 |
 | share-viewer | 테이블 접근 0 — `get_shared_trip(token)` SECURITY DEFINER RPC 하나만, SELECT 전용 |
 
@@ -33,14 +33,14 @@
 | E-01 | Supabase Auth `signInWithOtp` | email | 매직링크 + 6자리 OTP 코드 동시 발송(메일 템플릿에 `{{ .Token }}` 포함), `verifyOtp`로 코드 인증 — PWA 기본 플로우 (FR-001) | `auth/rate-limited` | 공개 |
 | E-02 | `POST rpc/create_trip` | id·name·start_date·end_date·timezone? | trip + 기간만큼 days 생성(단일 트랜잭션) | `validation/date-range` | owner |
 | E-03 | `GET /api/place-search?q=` | q(2자 이상) | `NormalizedPlace[]` ≤5건. 업스트림 = NCP NAVER API HUB `GET /search/v1/local`(X-NCP-APIGW 헤더 — 정정 #19: 개발자센터 검색 API 신규 등록 불가) | `search/quota-exceeded`(일 12,500 도달 시 429 — SC-008)·`search/upstream-error`(502, 캐시 폴백 `cached[]` 동봉 — `get_stale_search`가 5분 창을 무시하고 **최대 7일** 된 캐시까지 내준다. 정상 경로의 5분 판정(`get_cached_search`)은 불변: T5-3 완료·결정 #26)·`auth/required`(401)·`validation/query-too-short`(400)·`search/unavailable`(500 내부 오류, 원문 미노출) | owner |
-| E-04 | `POST places` (PostgREST) | id·trip_id·category·name·**address·road_address·lat·lng·provider·provider_link**·memo (manual 등록은 provider=`manual`·provider_link null — FR-016) | place | `validation/coords`(WGS84 범위 밖)·`conflict/duplicate` | owner |
+| E-04 | `POST places` (PostgREST) | id·trip_id·category·name·**address·road_address·lat·lng·provider·provider_link**·phone·opening_hours·memo (manual 등록은 provider=`manual`·provider_link null — FR-016) | place | `validation/coords`(WGS84 범위 밖)·`conflict/duplicate` | owner |
 | E-05 | Storage `photos/{uuid}/{uuid}.webp` PUT + `POST photos` | 리사이즈된 WebP ≤2MB, 첨부 대상 = place_id 또는 leg_id(정확히 하나 — 결정 #18) | photo(storage_path·thumb_path·is_cover) | `storage/too-large`·`storage/bad-mime`·`validation/parent-exclusive` | owner |
 | E-06 | `GET trips?id=eq.{id}&select=*,days(*,stops(*,place:places(*,photos(*))),legs(*,photos(*))),places(*,photos(*))` (PostgREST 단일 쿼리 — legs 임베드에 photos 포함, FR-018 예매 캡처) | trip id | **Trip Bundle** — 캔버스·타임라인·보관함 전체 (FR-005·006·011 데이터원, SW 오프라인 캐시 대상). places 임베드에 `deleted_at IS NULL` 필터 필수 — 삭제 Place의 핀·보관함 재등장 방지 (E-13의 places(count)도 동일) | `not-found` | owner |
 | E-07 | Stop 배치·해제 = `PUT stops` 배열 upsert (PostgREST) / 혼합(Stop∪Leg) 순서 재정렬 = `POST rpc/reorder_day_items(day_id, ordered_ids[])` — 두 테이블 갱신을 단일 트랜잭션으로(부분 실패 없음) | day_id·[{id, place_id, position, start_time?}] 또는 ordered_ids | 갱신된 stops / 재정렬 결과 | `validation/position-dup` | owner |
 | E-08 | `POST/PATCH/DELETE legs` (PostgREST) | mode·depart_at·arrive_at·arrive_day_offset·from_label·to_label·booking_ref·cost_amount·memo·position | leg | `validation/time-reversed`(offset 미지정 역전 — PRD 엣지)·`validation/cost-negative` | owner |
-| E-09 | `PATCH places` (PostgREST) | memo 등 부분 갱신, `deleted_at=null`로 되돌리기(FR-017) | place | `not-found` | owner |
+| E-09 | `PATCH places` (PostgREST) | memo·phone·opening_hours·estimated_cost 부분 갱신, `deleted_at=null`로 되돌리기(FR-017) | place | `not-found` | owner |
 | E-10 | `POST rpc/enable_share` / `rpc/disable_share` | trip_id | share_token(`gen_random_bytes(16)`) / 해제 확인 | `not-found` | owner |
-| E-11 | `GET rpc/get_shared_trip` | token | Trip Bundle 읽기전용 스냅샷(owner 식별정보 제외, 사진은 public URL이라 그대로 표시 가능 — 결정 #12) | `share/invalid-token`(403 — 해제·오타 구분 없음. 실패 시 RPC 내부에서 `api_usage` 카운터 증가 — 알람 #4) | share-viewer |
+| E-11 | `GET rpc/get_shared_trip` | token | 호출 시점의 **현재 일정 projection**. 공개 allowlist = 렌더 키용 row ID·provider, 여행 이름·기간·timezone·메타시각, day 날짜/순서/색, stop 순서/시각/확정, 일정에 배치된 장소의 이름·분류·주소·좌표·전화·영업시간. owner 식별정보, 보관함 후보, 메모·비용·사진 경로·예약번호는 제외. 열린 화면은 focus/visibility 복귀 또는 명시적 새로고침으로 재호출 | `share/invalid-token`(403 — 해제·오타 구분 없음) | share-viewer |
 | E-12 | `DELETE`/`PATCH` 각 리소스 | id | **trips·places = soft delete**(`deleted_at` 기록, 90일 내 복구 — FR-017) / **stops·legs·photos = hard delete** | `not-found` | owner |
 | E-13 | `GET trips?select=id,name,start_date,end_date,places(count)&deleted_at=is.null` | — | 여행 목록 (FR-014 홈 화면) | — | owner |
 | E-14 | `POST rpc/update_trip_dates` | trip_id·start_date·end_date | Day 증감 + 삭제 Day의 Stop 제거 + 결과 카운트(`removed_stops`=제거 Stop 수, `unassigned_places`=이번 변경으로 어느 Day에도 남지 않게 되어 보관함으로 돌아간 Place 수) — 단일 트랜잭션 (FR-015) | `validation/date-range` | owner |
@@ -118,6 +118,8 @@ erDiagram
         numeric lng
         text provider "naver|kakao|google|manual"
         text provider_link "상세 URL, manual이면 null"
+        text phone "사용자 직접 입력"
+        text opening_hours "사용자 직접 입력 여러 줄, 최대 2000자"
         text memo
         timestamptz deleted_at
     }

@@ -18,6 +18,7 @@ function place(id: string, estimated: number | null): PlaceRow {
     provider: 'naver',
     provider_link: null,
     phone: '',
+    opening_hours: '',
     memo: '',
     estimated_cost: estimated,
     photos: [],

@@ -2,8 +2,16 @@
 ## ▶ 지금 할 일 (새 세션은 이 블록부터 — SessionStart 훅이 자동 주입)
 
 **MVP 배포됨**: https://vacatioon-planner.vercel.app
-검증 기준선: vitest **591**(unit 538 · integration 53) · pgTAP **214** · **E2E 5** · tsc 0 · lint 0
+검증 기준선: vitest **635** · pgTAP **232** · **E2E 5** · tsc 0 · lint 0 · build 0
 (2026-08-21 실측). 원격 Supabase 는 **`0014` 까지 적용됨** · 운영 배포 **`a458a07`**
+
+### 로컬 완료 · 아직 배포 전
+
+- T10-27 영업시간 직접 입력(`0015`) — 빠른 입력 + 여러 줄 자유 수정
+- T10-28 보관함 전체·식당·숙박·스팟 필터 + 이름/주소 검색
+- T10-29 줌 14부터 SDK Marker 안에 장소명 — position·anchor 고정, 선택 핀은 항상 표시
+- T10-30 공유 링크 최신화(`0016`) — 수동·focus/visibility 갱신 + 최소 공개 projection
+- 배포 순서: 원격 Supabase `0015` → `0016` 적용 후 앱 배포·공유 링크 스모크
 
 ### 검색은 여기까지다 — 더 파지 마라 (결정 #56)
 

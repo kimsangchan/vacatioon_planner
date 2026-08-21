@@ -21,6 +21,7 @@ function place(
     provider: 'naver',
     provider_link: null,
     phone: '',
+    opening_hours: '',
     memo: '',
     estimated_cost: null,
     photos: [],

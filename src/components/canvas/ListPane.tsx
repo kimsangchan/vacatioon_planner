@@ -10,6 +10,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { DAY_COLORS, DAY_COLOR_LABEL, dayColorOf, dayColorVar, type DayColor } from '@/lib/map/day-color'
 import { CATEGORY_COLOR_VAR, CATEGORY_LABEL, type LatLng } from '@/lib/map/provider'
+import {
+  filterStoragePlaces,
+  storageCategoryCounts,
+  type StorageCategory,
+} from '@/lib/place/storage-filter'
 import { formatWon } from '@/lib/timeline/money'
 import { storageEstimate, tripBudget } from '@/lib/trips/budget'
 import type { LegDraft } from '@/lib/timeline/api'
@@ -54,6 +59,18 @@ export interface ListPaneProps {
 }
 
 const STORAGE_TAB = 'storage'
+const STORAGE_CATEGORIES: readonly StorageCategory[] = ['all', 'restaurant', 'lodging', 'spot']
+const STORAGE_CATEGORY_LABEL: Readonly<Record<StorageCategory, string>> = {
+  all: '전체',
+  restaurant: CATEGORY_LABEL.restaurant,
+  lodging: CATEGORY_LABEL.lodging,
+  spot: CATEGORY_LABEL.spot,
+}
+
+interface StorageFilterState {
+  category: StorageCategory
+  query: string
+}
 
 export function dayLabel(day: DayRow): string {
   return `${day.position + 1}일차`
@@ -82,8 +99,43 @@ export function ListPane({
 }: ListPaneProps) {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const itemsRef = useRef(new Map<string, HTMLElement>())
+  const scrolledNonce = useRef<number | null>(null)
   const [tab, setTab] = useState<string>(STORAGE_TAB)
   const [pickingFor, setPickingFor] = useState<string | null>(null)
+  const [storageFilter, setStorageFilter] = useState<StorageFilterState>({
+    category: 'all',
+    query: '',
+  })
+
+  const storageCategory = storageFilter.category
+  const storageQuery = storageFilter.query
+
+  const categoryCounts = storageCategoryCounts(unassigned)
+  const filteredStoragePlaces = filterStoragePlaces(unassigned, {
+    category: storageCategory,
+    query: storageQuery,
+  })
+
+  function resetStorageFilter() {
+    setStorageFilter({
+      category: 'all',
+      query: '',
+    })
+  }
+
+  function updateStorageCategory(category: StorageCategory) {
+    setStorageFilter({
+      category,
+      query: storageQuery,
+    })
+  }
+
+  function updateStorageQuery(query: string) {
+    setStorageFilter({
+      category: storageCategory,
+      query,
+    })
+  }
 
   // 핀을 누른 곳이 이미 배치돼 있으면 그 일차 탭을 열어 준다 — 강조만 하고 감추면 못 찾는다.
   // nonce 로 "이번 탭(누름)"을 한 번만 처리한다 — 저장 뒤 번들이 갱신됐다고 탭이 튀면 안 된다
@@ -95,6 +147,14 @@ export function ListPane({
     const day = inStorage
       ? null
       : days.find((d) => d.stops.some((stop) => stop.place_id === scrollTarget.id))
+    if (inStorage) {
+      // A pin is an external navigation request: clear filters so its list row can exist before scrolling.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronizes local view state to an external map event
+      setStorageFilter({
+        category: 'all',
+        query: '',
+      })
+    }
     setTab(day ? day.id : STORAGE_TAB)
   }, [scrollTarget, unassigned, days])
 
@@ -109,9 +169,12 @@ export function ListPane({
 
   // 탭이 바뀐 뒤에야 그 항목이 DOM 에 있다 — 두 값 모두를 의존성으로 둔 이유
   useEffect(() => {
-    if (!scrollTarget) return
-    itemsRef.current.get(scrollTarget.id)?.scrollIntoView({ block: 'nearest' })
-  }, [scrollTarget, tab])
+    if (!scrollTarget || scrolledNonce.current === scrollTarget.nonce) return
+    const item = itemsRef.current.get(scrollTarget.id)
+    if (!item) return
+    item.scrollIntoView({ block: 'nearest' })
+    scrolledNonce.current = scrollTarget.nonce
+  }, [scrollTarget, tab, storageCategory, storageQuery])
 
   function registerItem(placeId: string, node: HTMLElement | null) {
     if (node) itemsRef.current.set(placeId, node)
@@ -334,6 +397,43 @@ export function ListPane({
         />
       ) : (
         <section aria-label={`보관함 ${unassigned.length}곳`} className="flex flex-col gap-2 border-t border-line">
+          <div className="flex flex-col gap-3 pt-3">
+            <div role="group" aria-label="보관함 카테고리" className="flex gap-1.5 overflow-x-auto pb-0.5">
+              {STORAGE_CATEGORIES.map((category) => {
+                const selected = storageCategory === category
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => updateStorageCategory(category)}
+                    className={`min-h-9 shrink-0 rounded-full border px-3 text-sm font-medium transition-colors duration-[120ms] ${
+                      selected
+                        ? 'border-brand bg-brand text-white'
+                        : 'border-line bg-surface text-fg-2 hover:bg-surface-2'
+                    }`}
+                  >
+                    {STORAGE_CATEGORY_LABEL[category]} {categoryCounts[category]}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="storage-search" className="text-[13px] font-semibold text-fg-2">
+                보관함 검색
+              </label>
+              <input
+                id="storage-search"
+                type="search"
+                value={storageQuery}
+                onChange={(event) => updateStorageQuery(event.target.value)}
+                placeholder="이름이나 주소로 찾아보세요"
+                className="min-h-11 w-full rounded-m border border-line bg-surface px-3 text-base outline-none transition-colors duration-[120ms] placeholder:text-fg-4 focus:border-brand"
+              />
+            </div>
+          </div>
+
           {/* 보관함 소계는 여행 총액과 섞지 않는다 — 아직 일정에 없는 후보들이다 */}
           {storage.hasAny && (
             <p
@@ -348,8 +448,19 @@ export function ListPane({
             <p className="text-sm text-fg-2">
               아직 담아둔 곳이 없어요. 위에서 장소를 찾아 보관함에 담아 보세요.
             </p>
+          ) : filteredStoragePlaces.length === 0 ? (
+            <div className="flex flex-col items-start gap-2 rounded-m bg-surface-2 p-3">
+              <p role="status" className="text-sm text-fg-2">조건에 맞는 장소가 없어요.</p>
+              <button
+                type="button"
+                onClick={resetStorageFilter}
+                className="min-h-9 rounded-full border border-line bg-surface px-3 text-sm font-medium"
+              >
+                필터 초기화
+              </button>
+            </div>
           ) : (
-            <ul className="flex flex-col gap-1">{unassigned.map(renderStorageItem)}</ul>
+            <ul className="flex flex-col gap-1">{filteredStoragePlaces.map(renderStorageItem)}</ul>
           )}
         </section>
       )}

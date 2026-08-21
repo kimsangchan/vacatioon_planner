@@ -22,6 +22,7 @@ import type {
 
 const SDK_ORIGIN = 'https://oapi.map.naver.com/openapi/v3/maps.js'
 const SCRIPT_ID = 'ncp-maps-sdk'
+export const PLACE_LABEL_MIN_ZOOM = 14
 
 export function naverMapScriptUrl(clientId: string): string {
   return `${SDK_ORIGIN}?ncpKeyId=${encodeURIComponent(clientId)}`
@@ -58,6 +59,7 @@ export interface NaverBounds {
 
 export interface NaverMap {
   panTo(coord: unknown): void
+  getZoom(): number
   getProjection(): NaverProjection | null
   getBounds(): NaverBounds | null
   destroy(): void
@@ -65,6 +67,12 @@ export interface NaverMap {
 
 export interface NaverMarker {
   setMap(map: unknown): void
+  setIcon(icon: NaverMarkerIcon): void
+}
+
+export interface NaverMarkerIcon {
+  content: string
+  anchor: unknown
 }
 
 export interface NaverPolyline {
@@ -169,8 +177,12 @@ export class NaverMapProvider implements MapProvider {
   private maps: NaverMapsNamespace | null = null
   private map: NaverMap | null = null
   private markers: NaverMarker[] = []
+  private markerPins: Pin[] = []
+  private markerAnchors: unknown[] = []
+  private labelsVisible = false
   private routeLine: NaverPolyline | null = null
   private listeners: unknown[] = []
+  private markerListeners: unknown[] = []
   private pinHandlers: PinEventHandler[] = []
   private longPressHandlers: LongPressHandler[] = []
   private mapTapHandlers: LongPressHandler[] = []
@@ -185,6 +197,7 @@ export class NaverMapProvider implements MapProvider {
     const maps = await this.loadSdk()
     this.maps = maps
     this.map = new maps.Map(el, { center: new maps.LatLng(center.lat, center.lng), zoom })
+    this.labelsVisible = zoom >= PLACE_LABEL_MIN_ZOOM
 
     // FR-016: 모바일은 길게 누르기, 데스크톱은 우클릭 — 같은 콜백으로 모은다
     for (const type of ['longtap', 'rightclick']) {
@@ -213,6 +226,7 @@ export class NaverMapProvider implements MapProvider {
     for (const type of ['drag', 'bounds_changed', 'zoom_changed', 'center_changed', 'idle']) {
       this.listeners.push(
         maps.Event.addListener(this.map, type, () => {
+          if (type === 'zoom_changed') this.updateLabelVisibility()
           for (const handler of this.viewportHandlers) handler()
         }),
       )
@@ -227,24 +241,49 @@ export class NaverMapProvider implements MapProvider {
     // 던지는 대신 조용히 물러난다 (UI 는 onNaverAuthFailure 구독으로 이미 안내 중)
     try {
       for (const marker of this.markers) marker.setMap(null)
+      for (const listener of this.markerListeners) maps.Event.removeListener(listener)
       this.markers = []
+      this.markerPins = []
+      this.markerAnchors = []
+      this.markerListeners = []
+      this.labelsVisible = this.map.getZoom() >= PLACE_LABEL_MIN_ZOOM
 
       for (const pin of pins) {
+        const anchor = new maps.Point(pinSize(pin.selected) / 2, pinSize(pin.selected) / 2)
         const marker = new maps.Marker({
           position: new maps.LatLng(pin.latLng.lat, pin.latLng.lng),
           map: this.map,
           // 앵커는 원의 중심 — 크기가 바뀌면 같이 움직여야 핀이 좌표에서 떨어지지 않는다
           icon: {
-            content: pinContent(pin),
-            anchor: new maps.Point(pinSize(pin.selected) / 2, pinSize(pin.selected) / 2),
+            content: pinContent(pin, this.labelsVisible),
+            anchor,
           },
           zIndex: pin.selected ? 100 : 1,
         })
         this.markers.push(marker)
+        this.markerPins.push({ ...pin, latLng: { ...pin.latLng } })
+        this.markerAnchors.push(anchor)
         this.bindPinEvents(maps, marker, pin.id)
       }
     } catch {
+      for (const marker of this.markers) {
+        try {
+          marker.setMap(null)
+        } catch {
+          // SDK 일부가 이미 비워졌어도 나머지 정리는 계속한다
+        }
+      }
+      for (const listener of this.markerListeners) {
+        try {
+          maps.Event.removeListener(listener)
+        } catch {
+          // SDK 일부가 이미 비워졌어도 나머지 정리는 계속한다
+        }
+      }
       this.markers = []
+      this.markerPins = []
+      this.markerAnchors = []
+      this.markerListeners = []
     }
   }
 
@@ -339,13 +378,17 @@ export class NaverMapProvider implements MapProvider {
   destroy(): void {
     try {
       for (const listener of this.listeners) this.maps?.Event.removeListener(listener)
+      for (const listener of this.markerListeners) this.maps?.Event.removeListener(listener)
       for (const marker of this.markers) marker.setMap(null)
       this.routeLine?.setMap(null)
     } catch {
       // 인증 실패로 SDK 내부가 비어도 정리는 계속한다
     }
     this.listeners = []
+    this.markerListeners = []
     this.markers = []
+    this.markerPins = []
+    this.markerAnchors = []
     this.routeLine = null
     this.pinHandlers = []
     this.longPressHandlers = []
@@ -361,11 +404,30 @@ export class NaverMapProvider implements MapProvider {
       for (const handler of this.pinHandlers) handler(id, ev)
     }
 
-    this.listeners.push(
+    this.markerListeners.push(
       maps.Event.addListener(marker, 'mouseover', relay('hover')),
       maps.Event.addListener(marker, 'mouseout', relay('leave')),
       maps.Event.addListener(marker, 'click', relay('tap')),
     )
+  }
+
+  private updateLabelVisibility(): void {
+    if (!this.map) return
+
+    try {
+      const labelsVisible = this.map.getZoom() >= PLACE_LABEL_MIN_ZOOM
+      if (labelsVisible === this.labelsVisible) return
+
+      this.labelsVisible = labelsVisible
+      this.markers.forEach((marker, index) => {
+        const pin = this.markerPins[index]
+        const anchor = this.markerAnchors[index]
+        if (!pin || !anchor) return
+        marker.setIcon({ content: pinContent(pin, labelsVisible), anchor })
+      })
+    } catch {
+      // 인증 실패 뒤 SDK 내부가 비면 기존 핀을 그대로 둔다
+    }
   }
 }
 
@@ -376,7 +438,20 @@ export function pinSize(selected: boolean): number {
   return selected ? 26 : 20
 }
 
-function pinContent(pin: Pin): string {
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }
+    return entities[character]
+  })
+}
+
+function pinContent(pin: Pin, labelsVisible: boolean): string {
   const size = pinSize(pin.selected)
   const ring = pin.selected ? '3px solid var(--background)' : '2px solid var(--background)'
   const glyph =
@@ -387,11 +462,19 @@ function pinContent(pin: Pin): string {
         `height="${pin.selected ? 15 : 12}" fill="none" stroke="#fff" stroke-width="2.4" ` +
         `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
         `<path d="${CATEGORY_ICON_PATH[pin.category]}"/></svg>`
+  const label =
+    labelsVisible || pin.selected
+      ? `<span style="position:absolute;top:${size + 5}px;left:50%;transform:translateX(-50%);` +
+        `max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;` +
+        `padding:3px 7px;border-radius:6px;background:var(--background);` +
+        `color:var(--foreground);font-size:12px;font-weight:600;line-height:16px;` +
+        `box-shadow:0 1px 4px rgba(0,0,0,.28);pointer-events:none">${escapeHtml(pin.label)}</span>`
+      : ''
 
   return (
-    `<div style="width:${size}px;height:${size}px;border-radius:9999px;` +
+    `<div style="position:relative;width:${size}px;height:${size}px;border-radius:9999px;` +
     `background:${pin.color};border:${ring};display:flex;align-items:center;` +
     `justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.35);` +
-    `transition:width 120ms,height 120ms">${glyph}</div>`
+    `transition:width 120ms,height 120ms">${glyph}${label}</div>`
   )
 }

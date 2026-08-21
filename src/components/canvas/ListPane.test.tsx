@@ -24,6 +24,7 @@ function place(
     provider: 'naver',
     provider_link: null,
     phone: '',
+    opening_hours: '',
     memo: '',
     estimated_cost: null,
     photos: [],
@@ -110,5 +111,55 @@ describe('ListPane — 보관함 분류와 검색', () => {
     expect(query.value).toBe('')
     expect(screen.getByRole('button', { name: '전체 4' }).getAttribute('aria-pressed')).toBe('true')
     expect(within(storage()).getAllByTestId(/place-item-/)).toHaveLength(4)
+  })
+
+  it('핀으로 찾은 장소가 검색과 카테고리에 가려져 있으면 두 조건을 모두 초기화한다', () => {
+    const view = renderPane()
+
+    fireEvent.click(screen.getByRole('button', { name: '숙박 1' }))
+    fireEvent.change(screen.getByLabelText('보관함 검색'), { target: { value: '호텔' } })
+    expect(screen.queryByTestId('place-item-p1')).toBeNull()
+
+    view.rerender(
+      <ListPane
+        unassigned={places}
+        days={[]}
+        places={places}
+        highlightedId="p1"
+        scrollTarget={{ id: 'p1', nonce: 1 }}
+        onHover={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    )
+
+    expect((screen.getByLabelText('보관함 검색') as HTMLInputElement).value).toBe('')
+    expect(screen.getByRole('button', { name: '전체 4' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByTestId('place-item-p1')).toBeTruthy()
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled()
+
+    view.rerender(
+      <ListPane
+        unassigned={places}
+        days={[]}
+        places={places}
+        highlightedId={null}
+        scrollTarget={null}
+        onHover={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    )
+
+    expect((screen.getByLabelText('보관함 검색') as HTMLInputElement).value).toBe('')
+    expect(screen.getByRole('button', { name: '전체 4' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('핀 위치로 한 번 스크롤한 뒤 필터를 조작해도 같은 핀으로 다시 끌려가지 않는다', () => {
+    renderPane({ id: 'p1', nonce: 1 })
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: '식당 2' }))
+    fireEvent.change(screen.getByLabelText('보관함 검색'), { target: { value: '흑돼지' } })
+
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1)
   })
 })

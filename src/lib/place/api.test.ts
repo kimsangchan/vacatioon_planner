@@ -80,6 +80,15 @@ describe('updatePlaceOpeningHours - user-authored multiline business hours', () 
       updatePlaceOpeningHours(client as never, 'p1', 'Mon-Fri 09:00-18:00'),
     ).rejects.toMatchObject({ code: 'not-found' })
   })
+
+  it('rejects more than 2000 characters before sending them to the database', async () => {
+    const { client, calls } = fakeClient({ data: null })
+
+    await expect(
+      updatePlaceOpeningHours(client as never, 'p1', 'a'.repeat(2001)),
+    ).rejects.toMatchObject({ code: 'validation/opening-hours' })
+    expect(calls).toEqual([])
+  })
 })
 
 describe('updatePlaceMemo — E-09 부분 갱신 (FR-009)', () => {

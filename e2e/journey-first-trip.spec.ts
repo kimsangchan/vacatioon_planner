@@ -59,6 +59,13 @@ test.describe('여정 1 — 첫 여행 만들기 (스모크)', () => {
     })
     expect(search.calls()).toBeGreaterThan(0) // 실 네이버가 아니라 픽스처를 탔다
 
+    // 장소가 많아져도 보관함에서 분류를 바로 좁힌다. 지도 핀은 그대로 두고 목록만 거른다.
+    await page.getByRole('button', { name: '식당 1' }).click()
+    await expect(storageItem(page, '흑돼지 명가')).toBeVisible()
+    await expect(storageItem(page, '바다뷰 호텔')).toHaveCount(0)
+    await page.getByRole('button', { name: '전체 3' }).click()
+    await expect(storageItem(page, '바다뷰 호텔')).toBeVisible()
+
     // ④ 사진 1장 (FR-004 · E-05 — 원본이 아니라 리사이즈본·썸네일이 올라간다)
     await storageItem(page, '흑돼지 명가').click()
     // 데스크톱에서 목록·핀을 누르면 먼저 **말풍선**이 뜬다 — 상세(사진·메모)는 '자세히' 뒤다 (결정 #52).
@@ -66,6 +73,14 @@ test.describe('여정 1 — 첫 여행 만들기 (스모크)', () => {
     await page.getByRole('button', { name: '자세히' }).click()
     const sheet = page.locator('[data-testid="preview-card"][data-variant="sheet"]')
     await expect(sheet).toBeVisible()
+
+    // 공개 검색이 주지 않는 영업시간은 사용자가 빠른 입력으로 직접 적고 그대로 저장한다.
+    await sheet.getByRole('button', { name: '고치기' }).click()
+    await sheet.getByRole('button', { name: '평일/주말', exact: true }).click()
+    await sheet.getByRole('button', { name: '저장하기' }).click()
+    await expect(sheet).toContainText('평일 09:00–18:00')
+    await expect(sheet).toContainText('주말 10:00–17:00')
+
     await sheet.getByLabel('사진 담기').setInputFiles(PHOTO_PNG)
     await expect(sheet.getByText('사진을 담았어요.')).toBeVisible()
     await expect(sheet.getByRole('img', { name: '흑돼지 명가 사진' }).first()).toBeVisible()

@@ -28,6 +28,8 @@ export interface PreviewCardProps {
   onSaveMemo?: (memo: string) => Promise<void> | void
   /** 예상 금액 (결정 #39). 원 단위 정수, 비우면 null — 실제 지출(Stop)과 다른 값이다 */
   onSaveEstimatedCost?: (estimatedCost: number | null) => Promise<void> | void
+  /** 공개 검색 결과와 별개로 사용자가 직접 적는 여러 줄 영업시간 */
+  onSaveOpeningHours?: (openingHours: string) => Promise<void> | void
   /**
    * 전화번호는 **손으로 적는다** — 네이버 지역검색의 `telephone` 은 항상 빈 문자열이다
    * (2026-08-21 실호출 10건 전부. 결정 #52 의 "네이버가 준다"는 틀렸다)
@@ -55,6 +57,13 @@ export interface PreviewCardProps {
 const SMALL_BUTTON =
   'flex min-h-8 items-center rounded-full border border-line px-2 text-xs'
 
+const OPENING_HOURS_TEMPLATES = [
+  { label: '매일 09:00–18:00', value: '매일 09:00–18:00' },
+  { label: '평일/주말', value: '평일 09:00–18:00\n주말 10:00–17:00' },
+  { label: '24시간', value: '24시간' },
+  { label: '예약제', value: '예약제' },
+] as const
+
 // 되돌릴 수 없는 일(사진 hard delete)과 미리 알려야 하는 일(Stop 동반 삭제)만 여기를 거친다
 interface PendingConfirm {
   message: string
@@ -73,6 +82,7 @@ export function PreviewCard({
   onRemovePhoto,
   onSaveMemo,
   onSaveEstimatedCost,
+  onSaveOpeningHours,
   onSavePhone,
   starSize,
   days = [],
@@ -86,8 +96,16 @@ export function PreviewCard({
   const fileInputId = useId()
   const memoInputId = useId()
   const amountInputId = useId()
+  const openingHoursInputId = useId()
   const phoneInputId = useId()
   const [memo, setMemo] = useState(place.memo)
+  const [openingHoursDraft, setOpeningHoursDraft] = useState({
+    value: place.opening_hours,
+    dirty: false,
+  })
+  const openingHours = openingHoursDraft.dirty
+    ? openingHoursDraft.value
+    : place.opening_hours
   const [phone, setPhone] = useState(place.phone)
   // 화면에는 콤마가 붙은 문자열로 두고, 저장할 때만 정수로 되돌린다 (#17)
   const [amount, setAmount] = useState(
@@ -230,7 +248,7 @@ export function PreviewCard({
           )}
         </div>
 
-        {sheet && (onSaveMemo || onSaveEstimatedCost || onSavePhone) && (
+        {sheet && (onSaveMemo || onSaveEstimatedCost || onSaveOpeningHours || onSavePhone) && (
           <button
             type="button"
             aria-pressed={editing}
@@ -420,9 +438,7 @@ export function PreviewCard({
         </div>
       )}
 
-      {/* 읽기 모드 — 저장해 둔 것을 보여 주기만 한다 (사용자 요청).
-          영업시간은 어느 공개 API 도 주지 않아(01-recon — 카카오 공식 답변) 담지 못한다.
-          대신 네이버 상세로 넘길 링크를 둔다 — 거기 영업시간이 있다 */}
+      {/* 읽기 모드 — 저장해 둔 것을 보여 주기만 한다 (사용자 요청). */}
       {sheet && !editing && (
         <dl className="flex flex-col gap-1.5 text-[13px]">
           {place.phone !== '' && (
@@ -433,6 +449,12 @@ export function PreviewCard({
                   {place.phone}
                 </a>
               </dd>
+            </div>
+          )}
+          {place.opening_hours.trim() !== '' && (
+            <div className="flex gap-2">
+              <dt className="w-14 shrink-0 text-fg-3">영업시간</dt>
+              <dd className="min-w-0 flex-1 whitespace-pre-wrap">{place.opening_hours}</dd>
             </div>
           )}
           {place.memo.trim() !== '' && (
@@ -459,7 +481,6 @@ export function PreviewCard({
                 >
                   네이버에서 열기
                 </a>
-                <span className="ml-1.5 text-fg-4">영업시간은 여기서 봐요</span>
               </dd>
             </div>
           )}
@@ -468,7 +489,9 @@ export function PreviewCard({
 
       {/* 메모와 예상 금액은 한 폼·한 버튼이다 — 카드에서 다 고친다는 게 이 표면의 쓸모이고,
           강조 CTA 는 화면당 하나여야 한다 (L-09). 안 바꾼 값은 보내지 않는다 */}
-      {sheet && editing && (onSaveMemo || onSaveEstimatedCost || onSavePhone) && (
+      {sheet &&
+        editing &&
+        (onSaveMemo || onSaveEstimatedCost || onSaveOpeningHours || onSavePhone) && (
         <div className="flex flex-col gap-2">
           {onSaveMemo && (
             <>
@@ -523,6 +546,49 @@ export function PreviewCard({
             </>
           )}
 
+          {onSaveOpeningHours && (
+            <>
+              <label htmlFor={openingHoursInputId} className="text-sm font-medium">
+                영업시간
+              </label>
+              <div
+                role="group"
+                aria-label="영업시간 빠른 입력"
+                className="flex flex-wrap gap-1.5"
+              >
+                {OPENING_HOURS_TEMPLATES.map((template) => (
+                  <button
+                    key={template.label}
+                    type="button"
+                    onClick={() => setOpeningHoursDraft({ value: template.value, dirty: true })}
+                    className={SMALL_BUTTON}
+                  >
+                    {template.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  aria-label="영업시간 지우기"
+                  onClick={() => setOpeningHoursDraft({ value: '', dirty: true })}
+                  className={SMALL_BUTTON}
+                >
+                  지우기
+                </button>
+              </div>
+              <textarea
+                id={openingHoursInputId}
+                rows={3}
+                maxLength={2000}
+                value={openingHours}
+                onChange={(event) =>
+                  setOpeningHoursDraft({ value: event.target.value, dirty: true })
+                }
+                placeholder="예: 월–금 09:00–18:00, 토요일 휴무"
+                className="min-h-20 rounded-m border border-line bg-surface-2 px-3 py-2 text-base outline-none transition-colors duration-120 placeholder:text-fg-4 focus:border-[1.5px] focus:border-brand focus:bg-surface"
+              />
+            </>
+          )}
+
           <button
             type="button"
             disabled={busy}
@@ -534,6 +600,12 @@ export function PreviewCard({
                   await onSaveEstimatedCost(next)
                 }
                 if (onSavePhone && phone.trim() !== place.phone) await onSavePhone(phone.trim())
+                if (onSaveOpeningHours && openingHoursDraft.dirty) {
+                  if (openingHours !== place.opening_hours) {
+                    await onSaveOpeningHours(openingHours)
+                  }
+                  setOpeningHoursDraft({ value: openingHours.trim(), dirty: false })
+                }
               }, '저장했어요.')
             }
             className="flex min-h-10 w-fit items-center rounded-m bg-brand px-4 text-[15px] font-semibold text-white transition-opacity duration-[120ms] hover:opacity-90"

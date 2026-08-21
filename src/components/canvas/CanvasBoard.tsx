@@ -89,6 +89,8 @@ export interface CanvasBoardProps {
   onSaveMemo?: (placeId: string, memo: string) => Promise<void>
   /** 예상 금액 (결정 #39) — 실제 지출(Stop)과 다른 값이다 */
   onSaveEstimatedCost?: (placeId: string, estimatedCost: number | null) => Promise<void>
+  /** 공개 검색 결과와 별개로 사용자가 직접 적는 여러 줄 영업시간 */
+  onSaveOpeningHours?: (placeId: string, openingHours: string) => Promise<void>
   /** 전화번호는 손으로 적는다 — 네이버가 주지 않는다 (2026-08-21 실호출 확인) */
   onSavePhone?: (placeId: string, phone: string) => Promise<void>
   /** 일차 색 고르기 (결정 #41) — 지도 핀 색이 여기서 정해진다 */
@@ -131,6 +133,7 @@ export function CanvasBoard({
   onSetCover,
   onSaveMemo,
   onSaveEstimatedCost,
+  onSaveOpeningHours,
   onSavePhone,
   onSetDayColor,
   onAddLegPhoto,
@@ -402,6 +405,11 @@ export function CanvasBoard({
             }
             onRemovePhoto={onRemovePhoto}
             onSaveMemo={onSaveMemo ? (memo) => onSaveMemo(detailPlace.id, memo) : undefined}
+            onSaveOpeningHours={
+              onSaveOpeningHours
+                ? (openingHours) => onSaveOpeningHours(detailPlace.id, openingHours)
+                : undefined
+            }
             onSavePhone={onSavePhone ? (phone) => onSavePhone(detailPlace.id, phone) : undefined}
             // 시트는 모바일만이 아니다 — 데스크톱 오른쪽 패널(380px)도 같은 시트라
             // 44px 별 다섯이 패널을 넘었다 (사용자 지적). 마우스로 닿는 자리는 compact

@@ -8,7 +8,7 @@
 //
 // 지도를 함께 내는 이유: 어디를 가는지 목록만으로는 안 읽힌다 — 이 앱이 지도를 주인공으로 둔 이유와 같다.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { StarRating } from '@/components/common/StarRating'
 import { CategoryIcon } from '@/components/canvas/CategoryIcon'
 import { MapPane } from '@/components/canvas/MapPane'
@@ -19,12 +19,14 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { voterKey, type Stars } from '@/lib/vote/api'
 import type { DayRow, PlaceRow } from '@/lib/trips/bundle'
 
+type SharedPlace = PlaceRow
+
 interface SharedBundle {
   name: string
   start_date: string
   end_date: string
   days: DayRow[]
-  places: PlaceRow[]
+  places: SharedPlace[]
 }
 
 interface Tally {
@@ -34,12 +36,23 @@ interface Tally {
   mine: number
 }
 
-export function SharedTrip({ token }: { token: string }) {
+function isInvalidShareError(error: { message?: string } | null): boolean {
+  return error?.message?.includes('share/invalid-token') ?? false
+}
+
+function SharedTripForToken({ token }: { token: string }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), [])
   const [created] = useState<CreatedMapProvider>(() => createMapProvider())
   const [bundle, setBundle] = useState<SharedBundle | null>(null)
   const [tallies, setTallies] = useState<Tally[]>([])
   const [failed, setFailed] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const requestGeneration = useRef(0)
+  const voteRevision = useRef(0)
+  const hasBundle = useRef(false)
+  const refreshInFlight = useRef(false)
+  const lastAutomaticRefresh = useRef(0)
+  const invalidShare = useRef(false)
   // 이 브라우저의 표 주인 (결정 #46). 서버에는 localStorage 가 없어 그때만 null 이다 —
   // 별표는 목록이 도착한 뒤에 그려지므로 하이드레이션과 부딪히지 않는다
   const [me] = useState<string | null>(() =>
@@ -47,30 +60,86 @@ export function SharedTrip({ token }: { token: string }) {
   )
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!me) return
-    let alive = true
-    void (async () => {
-      const [trip, votes] = await Promise.all([
-        supabase.rpc('get_shared_trip', { token: toBytea(token) }),
-        supabase.rpc('get_shared_votes', { token: toBytea(token), voter_key: me }),
-      ])
-      if (!alive) return
-      // 해제·오타를 구분하지 않는다 — 링크를 준 사람에게 물어보라는 말이 유일한 다음 행동이다
-      if (trip.error || !trip.data) {
-        setFailed(true)
+  const refresh = useCallback(async (automatic = false) => {
+    if (refreshInFlight.current) return
+    if (automatic) {
+      const now = Date.now()
+      if (
+        invalidShare.current ||
+        now - lastAutomaticRefresh.current < 2_000
+      ) {
         return
       }
-      setBundle(trip.data as SharedBundle)
-      setTallies((votes.data as Tally[] | null) ?? [])
-    })()
-    return () => {
-      alive = false
+      lastAutomaticRefresh.current = now
     }
-  }, [supabase, token, me])
+
+    refreshInFlight.current = true
+    const generation = ++requestGeneration.current
+    const votesAtRevision = voteRevision.current
+    setRefreshing(true)
+
+    // 일정 조회는 공개 토큰만으로 가능해야 한다. 별표 조회가 실패해도 일정은 보여 준다.
+    const tripRequest = supabase.rpc('get_shared_trip', { token: toBytea(token) })
+    const votesRequest = me
+      ? supabase.rpc('get_shared_votes', { token: toBytea(token), voter_key: me })
+      : null
+
+    try {
+      const trip = await tripRequest
+      if (generation !== requestGeneration.current) return
+
+      // 이미 읽은 일정이 있으면 일시적인 갱신 오류 때문에 화면을 지우지 않는다.
+      if (trip.error || !trip.data) {
+        if (!hasBundle.current || isInvalidShareError(trip.error)) {
+          hasBundle.current = false
+          invalidShare.current = isInvalidShareError(trip.error)
+          setBundle(null)
+          setFailed(true)
+        }
+        return
+      }
+
+      hasBundle.current = true
+      invalidShare.current = false
+      setFailed(false)
+      setBundle(trip.data as SharedBundle)
+
+      if (votesRequest) {
+        const votes = await votesRequest
+        if (
+          generation === requestGeneration.current &&
+          votesAtRevision === voteRevision.current &&
+          !votes.error
+        ) {
+          setTallies((votes.data as Tally[] | null) ?? [])
+        }
+      }
+    } finally {
+      refreshInFlight.current = false
+      if (generation === requestGeneration.current) setRefreshing(false)
+    }
+  }, [me, supabase, token])
+
+  useEffect(() => {
+    const initialRefresh = window.setTimeout(() => void refresh(), 0)
+
+    const refreshWhenFocused = () => void refresh(true)
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refresh(true)
+    }
+    window.addEventListener('focus', refreshWhenFocused)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => {
+      requestGeneration.current += 1
+      window.clearTimeout(initialRefresh)
+      window.removeEventListener('focus', refreshWhenFocused)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
+  }, [refresh])
 
   async function vote(placeId: string, stars: 0 | Stars) {
     if (!me) return
+    voteRevision.current += 1
     // 화면부터 먼저 움직인다 — 별을 눌렀는데 아무 반응이 없으면 한 번 더 누른다
     setTallies((was) => {
       const previous = was.find((t) => t.place_id === placeId)
@@ -84,12 +153,13 @@ export function SharedTrip({ token }: { token: string }) {
       }
       return [...rest, next]
     })
-    await supabase.rpc('vote_shared_place', {
+    const result = await supabase.rpc('vote_shared_place', {
       token: toBytea(token),
       place_id: placeId,
       voter_key: me,
       stars,
     })
+    if (result.error) void refresh()
   }
 
   if (failed) {
@@ -112,14 +182,24 @@ export function SharedTrip({ token }: { token: string }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex items-baseline gap-3 border-b border-line px-4 py-3 md:px-5">
+      <header className="flex items-center gap-3 border-b border-line px-4 py-3 md:px-5">
         <h1 className="truncate text-[18px] font-semibold">{bundle.name}</h1>
         <span className="tabular shrink-0 text-[13px] text-fg-3">
           {bundle.start_date.replaceAll('-', '.')} ~ {bundle.end_date.replaceAll('-', '.')}
         </span>
-        <span className="ml-auto shrink-0 rounded-full bg-surface-2 px-2.5 py-1 text-[12px] font-medium text-fg-3">
+        <span className="ml-auto hidden shrink-0 rounded-full bg-surface-2 px-2.5 py-1 text-[12px] font-medium text-fg-3 sm:inline-flex">
           같이 보는 중
         </span>
+        <button
+          type="button"
+          onClick={() => void refresh(false)}
+          aria-label="최신 정보 새로고침"
+          aria-busy={refreshing}
+          disabled={refreshing}
+          className="shrink-0 rounded-m border border-line px-3 py-1.5 text-[12px] font-medium text-fg-2 transition-colors hover:bg-surface-2"
+        >
+          {refreshing ? '새로고침 중' : '새로고침'}
+        </button>
       </header>
 
       <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
@@ -142,8 +222,9 @@ export function SharedTrip({ token }: { token: string }) {
               ) : (
                 <ul className="flex flex-col">
                   {day.stops.map((stop) => {
-                    const place =
+                    const place = (
                       stop.place ?? bundle.places.find((item) => item.id === stop.place_id) ?? null
+                    ) as SharedPlace | null
                     if (!place) return null
                     const tally = tallyOf(place.id)
                     return (
@@ -168,6 +249,19 @@ export function SharedTrip({ token }: { token: string }) {
                             <span className="truncate text-[13px] leading-tight text-fg-3">
                               {place.road_address || place.address}
                             </span>
+                            {place.opening_hours ? (
+                              <span className="whitespace-pre-line text-[12px] leading-relaxed text-fg-3">
+                                영업시간 {place.opening_hours}
+                              </span>
+                            ) : null}
+                            {place.phone ? (
+                              <a
+                                href={`tel:${place.phone}`}
+                                className="w-fit text-[12px] font-medium text-fg-2 underline underline-offset-4"
+                              >
+                                {place.phone}
+                              </a>
+                            ) : null}
                           </span>
                         </span>
                         <StarRating
@@ -202,4 +296,8 @@ export function SharedTrip({ token }: { token: string }) {
       </section>
     </div>
   )
+}
+
+export function SharedTrip({ token }: { token: string }) {
+  return <SharedTripForToken key={token} token={token} />
 }

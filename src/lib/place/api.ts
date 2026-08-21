@@ -19,6 +19,7 @@ export interface NewPlace {
   provider: PlaceProvider
   provider_link: string | null
   phone?: string
+  opening_hours?: string
   memo?: string
 }
 
@@ -33,12 +34,19 @@ export interface SavedPlace {
   lng: number
   provider: PlaceProvider
   provider_link: string | null
+  phone: string
+  opening_hours: string
   memo: string
   /** 원 단위 정수 — 이 장소에서 쓸 것 같은 돈 (결정 #39). 실제 지출은 stops.cost_amount */
   estimated_cost: number | null
 }
 
-export type PlaceErrorCode = 'conflict/duplicate' | 'validation/coords' | 'not-found' | 'unknown'
+export type PlaceErrorCode =
+  | 'conflict/duplicate'
+  | 'validation/coords'
+  | 'validation/opening-hours'
+  | 'not-found'
+  | 'unknown'
 
 export class PlaceError extends Error {
   readonly code: PlaceErrorCode
@@ -56,6 +64,7 @@ export class PlaceError extends Error {
 const MESSAGES: Record<PlaceErrorCode, string> = {
   'conflict/duplicate': '이미 담아둔 곳이에요. 보관함에서 확인해 주세요.',
   'validation/coords': '좌표가 국내 범위를 벗어났어요. 지도에서 위치를 확인해 주세요.',
+  'validation/opening-hours': '영업시간은 2,000자 안으로 적어 주세요.',
   'not-found': '그 장소를 찾지 못했어요. 보관함에서 다시 골라 주세요.',
   unknown: '보관함에 담지 못했어요. 잠시 뒤에 다시 해 주세요.',
 }
@@ -83,12 +92,28 @@ export function toPlaceError(error: DataLayerError, existingPlaceId?: string): P
 }
 
 const SAVED_COLUMNS =
-  'id,trip_id,category,name,address,road_address,lat,lng,provider,provider_link,memo,estimated_cost'
+  'id,trip_id,category,name,address,road_address,lat,lng,provider,provider_link,phone,opening_hours,memo,estimated_cost'
+
+const OPENING_HOURS_MAX_LENGTH = 2000
+
+function normalizeOpeningHours(openingHours: string): string {
+  const normalized = openingHours.trim()
+  if (Array.from(normalized).length > OPENING_HOURS_MAX_LENGTH) {
+    throw new PlaceError('validation/opening-hours')
+  }
+  return normalized
+}
 
 export async function savePlace(client: SupabaseClient, input: NewPlace): Promise<SavedPlace> {
+  const openingHours =
+    input.opening_hours === undefined ? undefined : normalizeOpeningHours(input.opening_hours)
   const { data, error } = await client
     .from('places')
-    .insert({ memo: '', ...input })
+    .insert({
+      memo: '',
+      ...input,
+      ...(openingHours === undefined ? {} : { opening_hours: openingHours }),
+    })
     .select(SAVED_COLUMNS)
     .single()
 
@@ -149,6 +174,23 @@ export async function updatePlacePhone(
   const { error } = await client
     .from('places')
     .update({ phone: phone.trim() })
+    .eq('id', placeId)
+    .select('id')
+    .single()
+
+  if (error) throw toPlaceError(error)
+}
+
+/** 사용자가 적은 여러 줄 영업시간. 바깥 공백만 걷고 줄바꿈과 내부 간격은 보존한다. */
+export async function updatePlaceOpeningHours(
+  client: SupabaseClient,
+  placeId: string,
+  openingHours: string,
+): Promise<void> {
+  const normalized = normalizeOpeningHours(openingHours)
+  const { error } = await client
+    .from('places')
+    .update({ opening_hours: normalized })
     .eq('id', placeId)
     .select('id')
     .single()

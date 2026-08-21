@@ -1,6 +1,6 @@
 begin;
 
-select plan(4);
+select plan(5);
 
 -- Business hours are authored by the user. Keep the storage contract deliberately
 -- simple: plain multiline text, not provider-shaped JSON.
@@ -29,6 +29,16 @@ select col_default_is(
   'opening_hours',
   '',
   'opening_hours defaults to an empty string'
+);
+select ok(
+  exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.places'::regclass
+      and conname = 'places_opening_hours_length_check'
+      and pg_get_constraintdef(oid) like '%char_length(opening_hours) <= 2000%'
+  ),
+  'opening_hours is limited to 2000 characters'
 );
 
 select * from finish();

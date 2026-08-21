@@ -12,8 +12,8 @@
   (2026-08-20 배포: 원격 Supabase `0010`·`0011`·`0012` 선적용 → Vercel 에 `NCP_MAP_CLIENT_SECRET`
   등록(Production·Preview) → master 푸시. 배포본 스모크: `/api/directions` 401 Problem JSON ·
   `/s/<hex>` 200 · `/s/nope` 404)
-- Focus: 다음 할 일은 `NEXT.md`가 단일 출처. 작업 트리 clean (`c821f76`)
-- 검증 기준선: vitest **591**(unit 538 · integration 53) · pgTAP **214** · **E2E 5 통과** ·
+- Focus: T10-27~30 구현·로컬 검증 완료. `0015`·`0016` 원격 적용과 배포는 아직
+- 검증 기준선: vitest **635** · pgTAP **232** · **E2E 5 통과** ·
   tsc 0 · lint 0 (2026-08-21 실측)
 - 원격: `origin` = github.com/kimsangchan/vacatioon_planner — `master` 동기화됨
   (2026-08-11 의 "원격 없음·백업 0" 경고는 해소됨)
@@ -21,6 +21,11 @@
 - 원격 Supabase **`0014` 까지 적용됨** (2026-08-21 — 별점 5점·전화번호)
 
 ## History (append; 최신이 위)
+
+- 2026-08-21 — 영업시간 직접 입력·보관함 필터/검색·줌 14 장소명·공유 라이브 갱신을 구현했다
+  (결정 #58~#61, T10-27~30). 라벨은 React 오버레이가 아니라 같은 Naver SDK Marker 안에 넣어
+  줌·이동에도 좌표와 anchor가 변하지 않는다. 공유는 스냅샷 저장 문제가 아니었다 — 열린 화면의
+  단발 조회와 오래된 RPC projection을 `0016` + 수동·focus/visibility 갱신으로 바로잡았다.
 
 - 2026-08-21 (오후) — **대체 후보를 만들지 않고 교체를 만들었다** (결정 #53·#54·#55).
   ① **교체**(#53) — 요구는 "2일차 2번에 후보군을 묶어 두고 갈아끼우기"였다. 설계를 Fable 에게

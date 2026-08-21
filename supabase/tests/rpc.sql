@@ -331,8 +331,8 @@ select is(
 );
 select is(
   (select jsonb_array_length(public.get_shared_trip(token)->'places') from shared_token),
-  3,
-  '공유 번들이 보관함 places 를 중첩한다'
+  2,
+  '공유 번들은 일정에 배치된 places 만 중첩한다'
 );
 select is(
   (select jsonb_array_length(public.get_shared_trip(token)->'days'->0->'stops') from shared_token),
@@ -341,18 +341,18 @@ select is(
 );
 select is(
   (select jsonb_array_length(public.get_shared_trip(token)->'days'->0->'legs') from shared_token),
-  1,
-  '공유 번들이 day 아래 legs 를 중첩한다'
+  0,
+  '공유 화면이 쓰지 않는 예약 이동 상세는 내보내지 않는다'
 );
-select is(
-  (select jsonb_array_length(public.get_shared_trip(token)->'days'->0->'legs'->0->'photos') from shared_token),
-  1,
-  '공유 번들이 leg 사진을 중첩한다 (FR-018)'
+select ok(
+  (select bool_and(place->>'memo' = '')
+     from shared_token, jsonb_array_elements(public.get_shared_trip(token)->'places') place),
+  '공유 장소의 개인 메모는 비워 둔다'
 );
-select is(
-  (select jsonb_array_length(public.get_shared_trip(token)->'places'->0->'photos') from shared_token),
-  1,
-  '공유 번들이 place 사진을 중첩한다'
+select ok(
+  (select bool_and(jsonb_array_length(place->'photos') = 0)
+     from shared_token, jsonb_array_elements(public.get_shared_trip(token)->'places') place),
+  '공유 장소의 사진 경로는 내보내지 않는다'
 );
 select throws_like(
   $$select public.get_shared_trip(decode('00112233445566778899aabbccddeeff', 'hex'))$$,

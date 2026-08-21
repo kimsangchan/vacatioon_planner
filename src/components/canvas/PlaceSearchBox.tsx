@@ -21,7 +21,7 @@ export interface PlaceDraft {
   name: string
   address: string
   road_address: string
-  /** 있으면 카드에서 바로 걸 수 있다. 영업시간은 어느 API 도 주지 않는다 (01-recon) */
+  /** 있으면 카드에서 바로 걸 수 있다. 영업시간은 저장한 뒤 사용자가 직접 적는다. */
   phone: string
   lat: number
   lng: number

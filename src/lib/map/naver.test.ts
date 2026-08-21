@@ -99,7 +99,9 @@ function fakeSdk() {
 }
 
 describe('NaverMapProvider — 핀 모양 (결정 #41)', () => {
-  async function pinned(pin: Parameters<NaverMapProvider['setPins']>[0][number]) {
+  async function pinned(
+    pin: Parameters<InstanceType<typeof NaverMapProvider>['setPins']>[0][number],
+  ) {
     const sdk = fakeSdk()
     const provider = new NaverMapProvider({
       clientId: 'KEY123',

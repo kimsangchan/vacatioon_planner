@@ -12,6 +12,8 @@ export type PinEventKind = 'hover' | 'tap' | 'leave'
 
 export interface Pin {
   id: string
+  /** 지도 핀에 붙여 보여 줄 장소 이름 */
+  label: string
   latLng: LatLng
   category: PlaceCategory
   selected: boolean

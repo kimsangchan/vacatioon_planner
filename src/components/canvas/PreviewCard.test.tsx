@@ -33,6 +33,7 @@ function place(overrides: Partial<PlaceRow> = {}): PlaceRow {
     provider: 'naver',
     provider_link: 'https://map.naver.com/p/1',
     phone: '',
+    opening_hours: '',
     memo: '',
     estimated_cost: null,
     photos: [],
@@ -429,13 +430,21 @@ describe('PreviewCard — 읽기가 기본, 연필로 고친다 (사용자 요�
     expect(screen.getByText(/20,000/)).toBeTruthy()
   })
 
-  it('영업시간은 담지 못하니 네이버 상세로 넘긴다 — 어느 공개 API 도 주지 않는다', () => {
-    render(<PreviewCard place={place()} variant="sheet" onSaveMemo={vi.fn()} />)
+  it('적어 둔 여러 줄 영업시간을 읽기 화면에 그대로 내고 네이버 상세 링크도 남긴다', () => {
+    render(
+      <PreviewCard
+        place={place({ opening_hours: '평일 09:00–18:00\n주말 10:00–17:00' })}
+        variant="sheet"
+        onSaveMemo={vi.fn()}
+      />,
+    )
 
     expect(screen.getByRole('link', { name: '네이버에서 열기' }).getAttribute('href')).toBe(
       'https://map.naver.com/p/1',
     )
-    expect(screen.getByText(/영업시간은 여기서/)).toBeTruthy()
+    const hours = screen.getByText('영업시간').nextElementSibling as HTMLElement
+    expect(hours.textContent).toBe('평일 09:00–18:00\n주말 10:00–17:00')
+    expect(hours.className).toContain('whitespace-pre-wrap')
   })
 
   it('연필을 누르면 입력창이 나온다', () => {
@@ -445,6 +454,118 @@ describe('PreviewCard — 읽기가 기본, 연필로 고친다 (사용자 요�
 
     expect(screen.getByLabelText('메모')).toBeTruthy()
     expect(screen.getByRole('button', { name: '고치기 그만두기' })).toBeTruthy()
+  })
+})
+
+describe('PreviewCard — 영업시간을 편하게 적는다 (사용자 요청)', () => {
+  it('같은 장소의 최신 영업시간을 다시 받으면 편집값도 최신 상태로 연다', () => {
+    const onSaveOpeningHours = vi.fn()
+    const { rerender } = render(
+      <PreviewCard
+        place={place({ opening_hours: '매일 09:00–18:00' })}
+        variant="sheet"
+        onSaveOpeningHours={onSaveOpeningHours}
+      />,
+    )
+
+    rerender(
+      <PreviewCard
+        place={place({ opening_hours: '매일 10:00–19:00' })}
+        variant="sheet"
+        onSaveOpeningHours={onSaveOpeningHours}
+      />,
+    )
+    openEdit()
+
+    expect((screen.getByLabelText('영업시간') as HTMLTextAreaElement).value).toBe(
+      '매일 10:00–19:00',
+    )
+  })
+
+  it('직접 적는 동안 재조회되어도 아직 저장하지 않은 내용은 덮어쓰지 않는다', () => {
+    const onSaveOpeningHours = vi.fn()
+    const { rerender } = render(
+      <PreviewCard
+        place={place({ opening_hours: '매일 09:00–18:00' })}
+        variant="sheet"
+        onSaveOpeningHours={onSaveOpeningHours}
+      />,
+    )
+    openEdit()
+    fireEvent.change(screen.getByLabelText('영업시간'), {
+      target: { value: '화요일 예약제' },
+    })
+
+    rerender(
+      <PreviewCard
+        place={place({ opening_hours: '매일 10:00–19:00' })}
+        variant="sheet"
+        onSaveOpeningHours={onSaveOpeningHours}
+      />,
+    )
+
+    expect((screen.getByLabelText('영업시간') as HTMLTextAreaElement).value).toBe(
+      '화요일 예약제',
+    )
+  })
+
+  it('빠른 입력으로 자주 쓰는 형식을 채우고 여러 줄 그대로 저장한다', async () => {
+    const onSaveOpeningHours = vi.fn().mockResolvedValue(undefined)
+    render(
+      <PreviewCard
+        place={place()}
+        variant="sheet"
+        onSaveOpeningHours={onSaveOpeningHours}
+      />,
+    )
+
+    openEdit()
+    fireEvent.click(screen.getByRole('button', { name: '평일/주말' }))
+
+    expect((screen.getByLabelText('영업시간') as HTMLTextAreaElement).value).toBe(
+      '평일 09:00–18:00\n주말 10:00–17:00',
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '저장하기' }))
+    })
+
+    expect(onSaveOpeningHours).toHaveBeenCalledWith(
+      '평일 09:00–18:00\n주말 10:00–17:00',
+    )
+  })
+
+  it.each([
+    ['매일 09:00–18:00', '매일 09:00–18:00'],
+    ['24시간', '24시간'],
+    ['예약제', '예약제'],
+  ])('%s 빠른 입력을 제공한다', (buttonName, expected) => {
+    render(<PreviewCard place={place()} variant="sheet" onSaveOpeningHours={vi.fn()} />)
+
+    openEdit()
+    fireEvent.click(screen.getByRole('button', { name: buttonName }))
+
+    expect((screen.getByLabelText('영업시간') as HTMLTextAreaElement).value).toBe(expected)
+  })
+
+  it('정해진 형식이 아닌 여러 줄도 직접 적을 수 있고 한 번에 지운다', () => {
+    render(
+      <PreviewCard
+        place={place({ opening_hours: '월요일 휴무' })}
+        variant="sheet"
+        onSaveOpeningHours={vi.fn()}
+      />,
+    )
+
+    openEdit()
+    const input = screen.getByLabelText('영업시간')
+    fireEvent.change(input, { target: { value: '화–금 11:30–21:00\n브레이크 15:00–17:00' } })
+    expect((input as HTMLTextAreaElement).value).toBe(
+      '화–금 11:30–21:00\n브레이크 15:00–17:00',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '영업시간 지우기' }))
+    expect((input as HTMLTextAreaElement).value).toBe('')
   })
 })
 

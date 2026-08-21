@@ -34,8 +34,10 @@ export interface PlaceRow {
   lng: number
   provider: PlaceProvider
   provider_link: string | null
-  /** 네이버가 주는 전화번호. 영업시간은 어느 공개 API 도 주지 않는다 (01-recon) */
+  /** 네이버 검색 결과가 비어 있으면 사용자가 직접 적을 수 있는 전화번호 */
   phone: string
+  /** 공개 검색 결과와 별개로 사용자가 직접 적는 여러 줄 영업시간 */
+  opening_hours: string
   memo: string
   /** 원 단위 정수 — 이 장소에서 쓸 것 같은 돈. 실제 지출(stops.cost_amount)과 다른 값이다 (결정 #39) */
   estimated_cost: number | null
@@ -200,6 +202,7 @@ export function toPins(places: PlaceRow[], highlightedId: string | null, days: D
     const at = placed.get(place.id)
     return {
       id: place.id,
+      label: place.name,
       latLng: { lat: Number(place.lat), lng: Number(place.lng) },
       category: place.category,
       selected: place.id === highlightedId,

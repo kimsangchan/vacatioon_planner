@@ -29,6 +29,7 @@ function place(
     provider: 'naver',
     provider_link: null,
     phone: '',
+    opening_hours: '',
     memo: '',
     estimated_cost: null,
     photos,
@@ -479,6 +480,25 @@ describe('CanvasBoard — 미리보기 (FR-006 / SC-002)', () => {
     })
 
     expect(onSaveMemo).toHaveBeenCalledWith('p1', '예약 필요')
+  })
+
+  it('시트에서 고친 여러 줄 영업시간을 그 장소에 저장한다', async () => {
+    const onSaveOpeningHours = vi.fn().mockResolvedValue(undefined)
+    await renderBoard({ onSaveOpeningHours })
+
+    await act(async () => provider.emitPinEvent('p1', 'tap'))
+    fireEvent.click(screen.getByRole('button', { name: '고치기' }))
+    fireEvent.change(screen.getByLabelText('영업시간'), {
+      target: { value: '평일 09:00–18:00\n주말 예약제' },
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '저장하기' }))
+    })
+
+    expect(onSaveOpeningHours).toHaveBeenCalledWith(
+      'p1',
+      '평일 09:00–18:00\n주말 예약제',
+    )
   })
 })
 

@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(13);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 values ('00000000-0000-0000-0000-0000000000e5', 'authenticated', 'authenticated',
@@ -50,10 +50,10 @@ select is(
   '공유 장소에 전화번호를 투영한다'
 );
 select is(
-  (public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
-    ->'places'->0->>'estimated_cost')::integer,
-  25000,
-  '공유 장소에 예상 금액을 투영한다'
+  public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'places'->0->'estimated_cost',
+  'null'::jsonb,
+  '공유 화면이 쓰지 않는 예상 금액은 공개하지 않는다'
 );
 select is(
   public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
@@ -74,10 +74,10 @@ select is(
   '공유 방문에 시작 시각을 투영한다'
 );
 select is(
-  (public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
-    ->'days'->0->'stops'->0->>'cost_amount')::integer,
-  21000,
-  '공유 방문에 실제 지출을 투영한다'
+  public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'days'->0->'stops'->0->'cost_amount',
+  'null'::jsonb,
+  '공유 화면이 쓰지 않는 실제 지출은 공개하지 않는다'
 );
 select is(
   (public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
@@ -88,8 +88,14 @@ select is(
 select is(
   public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
     ->'days'->0->'stops'->0->>'note',
-  '창가 자리 요청',
-  '공유 방문에 자리 메모를 투영한다'
+  '',
+  '공유 화면이 쓰지 않는 자리 메모는 공개하지 않는다'
+);
+select is(
+  jsonb_array_length(public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'days'->0->'legs'),
+  0,
+  '예약번호·이동 메모·사진 경로가 있는 이동 상세는 공개하지 않는다'
 );
 select is(
   public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
