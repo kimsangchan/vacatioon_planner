@@ -212,13 +212,13 @@ test.describe('SC-004 — 390×844 에서 하루 타임라인', () => {
     const returned = page.getByRole('button', { name: /김만복김밥/ }).first()
     await expect(returned).toBeVisible()
 
-    // ── 별표는 손가락 크기(44px)로 그려진다 (사용자 지적)
+    // ── 하트는 손가락 크기(44px)로 그려진다 (결정 #59 · #54 의 교훈을 그대로)
     await returned.click()
-    const star = page.getByRole('radio', { name: '김만복김밥 별 3점' })
+    const star = page.getByRole('button', { name: /김만복김밥 가고 싶어요/ })
     await expect(star).toBeVisible()
     const starBox = (await star.boundingBox())!
 
-    const summary = `확정 히트 ${Math.round(box.width)}px 그림 · 별 ${Math.round(starBox.width)}×${Math.round(starBox.height)}px`
+    const summary = `확정 히트 ${Math.round(box.width)}px 그림 · 하트 ${Math.round(starBox.width)}×${Math.round(starBox.height)}px`
     testInfo.annotations.push({ type: 'T10-24', description: summary })
     console.log(`[T10-24] ${summary}`)
 

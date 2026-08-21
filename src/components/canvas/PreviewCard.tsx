@@ -8,10 +8,10 @@
 
 import { useId, useRef, useState } from 'react'
 import { ConfirmRow } from '@/components/common/ConfirmRow'
-import { StarRating } from '@/components/common/StarRating'
+import { HeartVote } from '@/components/common/HeartVote'
 import type { SwapCandidate } from '@/lib/timeline/swap'
 import { SwapList } from './SwapList'
-import type { Stars } from '@/lib/vote/api'
+import type { HeartTally } from '@/lib/vote/api'
 import { CATEGORY_LABEL } from '@/lib/map/provider'
 import { PhotoError, photoErrorMessage, photoPublicUrl } from '@/lib/photo/upload'
 import { formatAmount, formatAmountInput, parseAmountInput } from '@/lib/timeline/money'
@@ -44,14 +44,14 @@ export interface PreviewCardProps {
   onSwap?: (placeId: string) => Promise<void> | void
   onDeletePlace?: () => Promise<void> | void
   onClose?: () => void
-  /** 별표 협의 (결정 #46) — 내가 준 별과 모두의 합. 없으면 별표를 아예 내지 않는다 */
-  vote?: { mine: number; total: number; voters: number }
-  onVote?: (stars: 0 | Stars) => void
+  /** 하트 (결정 #59) — 몇 명이 가고 싶어하고 누가 눌렀나. 없으면 하트를 아예 내지 않는다 */
+  heart?: HeartTally
+  onHeart?: (hearted: boolean) => void
   /**
-   * 별 크기. 시트는 모바일만이 아니다 — **데스크톱 오른쪽 패널도 같은 시트**라
-   * 44px 다섯이면 380px 패널을 넘는다(사용자 지적). 마우스로 닿는 자리는 compact.
+   * 하트 크기. 시트는 모바일만이 아니다 — **데스크톱 오른쪽 패널도 같은 시트**라
+   * 마우스로 닿는 자리는 compact 로 줄인다 (#54 에서 별 다섯이 패널을 넘었다).
    */
-  starSize?: 'touch' | 'compact'
+  heartSize?: 'touch' | 'compact'
 }
 
 const SMALL_BUTTON =
@@ -73,8 +73,8 @@ interface PendingConfirm {
 
 export function PreviewCard({
   place,
-  vote,
-  onVote,
+  heart,
+  onHeart,
   variant,
   placedCount = 0,
   onAddPhoto,
@@ -84,7 +84,7 @@ export function PreviewCard({
   onSaveEstimatedCost,
   onSaveOpeningHours,
   onSavePhone,
-  starSize,
+  heartSize,
   days = [],
   onAssign,
   onUnassign,
@@ -243,14 +243,14 @@ export function PreviewCard({
             </span>
             <span className="truncate">{place.road_address || place.address}</span>
           </p>
-          {sheet && vote && (
-            <StarRating
+          {sheet && heart && (
+            <HeartVote
               label={place.name}
-              size={starSize}
-              mine={vote.mine}
-              total={vote.total}
-              voters={vote.voters}
-              onChange={onVote}
+              size={heartSize}
+              hearts={heart.hearts}
+              mine={heart.mine}
+              names={heart.names}
+              onToggle={onHeart}
             />
           )}
           {!sheet && memoFirstLine !== '' && (

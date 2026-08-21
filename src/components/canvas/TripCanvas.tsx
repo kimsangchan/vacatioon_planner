@@ -53,7 +53,7 @@ import {
 import { dateChangeNotice } from '@/lib/trips/dates'
 import { shortPeriod } from '@/lib/trips/dates'
 import { disableShare, enableShare, toHex } from '@/lib/share/api'
-import { saveMyVote, voterKey, type Stars } from '@/lib/vote/api'
+import { saveMyHeart, voterKey, voterName } from '@/lib/vote/api'
 import { ShareButton } from '@/components/trips/ShareButton'
 import { CanvasBoard } from './CanvasBoard'
 import type { PlaceDraft } from './PlaceSearchBox'
@@ -116,9 +116,15 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
     onSuccess: refetchBundle,
   })
 
-  const votePlace = useMutation({
-    mutationFn: ({ placeId, stars }: { placeId: string; stars: 0 | Stars }) =>
-      saveMyVote(supabase, { placeId, voterKey: voterKey(window.localStorage), stars }),
+  // 하트 (결정 #59) — 이름은 브라우저에 적어 둔 것을 그대로 쓴다. 주인도 공유 화면과 같은 이름이다
+  const heartPlace = useMutation({
+    mutationFn: ({ placeId, hearted }: { placeId: string; hearted: boolean }) =>
+      saveMyHeart(supabase, {
+        placeId,
+        voterKey: voterKey(window.localStorage),
+        voterName: voterName(window.localStorage),
+        hearted,
+      }),
     onSuccess: refetchBundle,
   })
 
@@ -442,7 +448,7 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
           return saved.id
         }}
         onAssignPlace={(placeId, dayId) => guard(() => assignPlace.mutateAsync({ placeId, dayId }))}
-        onVotePlace={(placeId, stars) => guard(() => votePlace.mutateAsync({ placeId, stars }))}
+        onHeartPlace={(placeId, hearted) => guard(() => heartPlace.mutateAsync({ placeId, hearted }))}
         onUnassignStop={(stopId) => guard(() => unassignStop.mutateAsync(stopId))}
         onUpdateStop={(stopId, patch) => guard(() => changeStop.mutateAsync({ stopId, patch }))}
         onReorderDay={(dayId, orderedIds) =>

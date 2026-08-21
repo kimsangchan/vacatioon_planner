@@ -19,7 +19,91 @@ export type Stars = 1 | 2 | 3 | 4 | 5
 export interface VoteRow {
   place_id: string
   voter_key: string
+  /** 공유 화면에서 한 번 적어 둔 이름. 빈 문자열이면 이름 없이 수에만 든다 (0018) */
+  voter_name?: string
+  /** 옛 1~5 세기. 하트는 1 로 쓰고, 표가 있으면 곧 하트다 (결정 #59) */
   stars: number
+}
+
+/** 하트 집계 (결정 #59) — 묻는 것은 하나라 셀 것도 하나다: 몇 명이 가고 싶어하나 */
+export interface HeartTally {
+  hearts: number
+  mine: boolean
+  names: string[]
+}
+
+const VOTER_NAME_STORAGE = 'trip-canvas:voter-name'
+/** DB CHECK 와 같은 경계 (0018) */
+export const VOTER_NAME_MAX = 20
+
+/** 이 브라우저가 적어 둔 이름. 안 적었으면 빈 문자열 — 이름을 강요하지 않는다 (#46 계정 기각과 같은 결) */
+export function voterName(storage: Pick<Storage, 'getItem' | 'setItem'>): string {
+  return storage.getItem(VOTER_NAME_STORAGE) ?? ''
+}
+
+export function saveVoterName(
+  storage: Pick<Storage, 'getItem' | 'setItem'>,
+  name: string,
+): string {
+  const trimmed = name.trim().slice(0, VOTER_NAME_MAX)
+  storage.setItem(VOTER_NAME_STORAGE, trimmed)
+  return trimmed
+}
+
+export function tallyHearts(votes: VoteRow[], me: string): HeartTally {
+  let hearts = 0
+  let mine = false
+  const names: string[] = []
+  for (const vote of votes) {
+    hearts += 1
+    if (vote.voter_key === me) mine = true
+    const name = (vote.voter_name ?? '').trim()
+    if (name !== '') names.push(name)
+  }
+  return { hearts, mine, names }
+}
+
+/** 공유 링크로 들어온 사람의 하트 — 토큰·소속 검증은 서버(RPC)가 한다 */
+export async function saveSharedHeart(
+  supabase: SupabaseClient,
+  input: { token: string; placeId: string; voterKey: string; voterName: string; hearted: boolean },
+): Promise<void> {
+  const { error } = await supabase.rpc('heart_shared_place', {
+    // PostgREST 는 bytea 를 백슬래시-x 접두 hex 로 받는다
+    token: '\\x' + input.token,
+    place_id: input.placeId,
+    voter_key: input.voterKey,
+    voter_name: input.voterName,
+    hearted: input.hearted,
+  })
+  if (error) throw error
+}
+
+/** 주인이 자기 여행에 하트를 준다 (RLS 경유) */
+export async function saveMyHeart(
+  supabase: SupabaseClient,
+  input: { placeId: string; voterKey: string; voterName: string; hearted: boolean },
+): Promise<void> {
+  if (!input.hearted) {
+    const { error } = await supabase
+      .from('place_votes')
+      .delete()
+      .eq('place_id', input.placeId)
+      .eq('voter_key', input.voterKey)
+    if (error) throw error
+    return
+  }
+
+  const { error } = await supabase.from('place_votes').upsert(
+    {
+      place_id: input.placeId,
+      voter_key: input.voterKey,
+      voter_name: input.voterName.slice(0, VOTER_NAME_MAX),
+      stars: 1,
+    },
+    { onConflict: 'place_id,voter_key' },
+  )
+  if (error) throw error
 }
 
 /** 이 브라우저의 표 주인. 없으면 만들어 남긴다 — 서버가 발급하지 않는다 */

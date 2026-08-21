@@ -167,6 +167,10 @@
 - [x] T10-32 공유에 이동 시각을 싣는다 (결정 #58, 2026-08-21) — `0017_shared_trip_legs.sql`.
   시각·수단·구간만 내보내고 예약번호·비용·메모·캡처는 키를 만들지 않는다. 공유 화면은
   `mergeDayItems` 로 통합 position 순서에 끼워 그린다. pgTAP 6 + vitest 3
+- [x] T10-33 별표 → 하트 + 누가 눌렀는지 (결정 #59, 2026-08-21) — `0018_place_hearts.sql`
+  (`voter_name` 20자 · `heart_shared_place` RPC · `get_shared_votes` 가 hearts·mine·names 를 낸다).
+  `HeartVote` 가 `StarRating` 을 대체하고 공유 화면에 이름 칸이 생겼다(선택). 옛 1~5 표는
+  하트 하나로 읽힌다. 교체 후보 2차 정렬도 하트 수로. pgTAP 12 + vitest 23 + E2E 하트 44×44 실측
 - [ ] T10-5b 이동시간(도보) — 외부 API 없이 좌표 거리로 추정. 지금은 "차로 …" 한 줄만 낸다
 - [x] T10-10 확정/미확정 + 확정된 것만 경로 (결정 #47, 2026-08-20) — `0011_stop_confirmed.sql`
   (기본값 true) + pgTAP 4, `routeSegments` 가 미확정을 건너뛴다, 타임라인 행에 22px 체크

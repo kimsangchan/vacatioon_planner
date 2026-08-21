@@ -8,20 +8,20 @@
 //
 // 별점을 여기 두는 이유: 협의(#46)는 훑어보며 하는 일이라 자세히 열기 전에 눌러야 값이 있다.
 
-import { StarRating } from '@/components/common/StarRating'
+import { HeartVote } from '@/components/common/HeartVote'
 import { CATEGORY_LABEL } from '@/lib/map/provider'
 import type { PlaceRow } from '@/lib/trips/bundle'
-import type { Stars } from '@/lib/vote/api'
+import type { HeartTally } from '@/lib/vote/api'
 
 export interface PinBubbleProps {
   place: PlaceRow
-  vote?: { mine: number; total: number; voters: number }
-  onVote?: (stars: 0 | Stars) => void
+  heart?: HeartTally
+  onHeart?: (hearted: boolean) => void
   onExpand: () => void
   onClose: () => void
 }
 
-export function PinBubble({ place, vote, onVote, onExpand, onClose }: PinBubbleProps) {
+export function PinBubble({ place, heart, onHeart, onExpand, onClose }: PinBubbleProps) {
   return (
     <div
       data-testid="pin-bubble"
@@ -57,15 +57,15 @@ export function PinBubble({ place, vote, onVote, onExpand, onClose }: PinBubbleP
       </div>
 
       <div className="flex items-center justify-between gap-2">
-        {vote ? (
-          <StarRating
+        {heart ? (
+          <HeartVote
             label={place.name}
             // 말풍선은 마우스로만 닿는다 — 손가락 크기로 키우면 길어져 #52 를 깬다
             size="compact"
-            mine={vote.mine}
-            total={vote.total}
-            voters={vote.voters}
-            onChange={onVote}
+            hearts={heart.hearts}
+            mine={heart.mine}
+            names={heart.names}
+            onToggle={onHeart}
           />
         ) : (
           <span />

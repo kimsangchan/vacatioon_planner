@@ -12,7 +12,7 @@ import { createMapProvider, type CreatedMapProvider } from '@/lib/map/create'
 import type { DayColor } from '@/lib/map/day-color'
 import type { LatLng, PinEventKind, ScreenPoint } from '@/lib/map/provider'
 import { prefetchThumbnails } from '@/lib/photo/prefetch'
-import { tallyVotes, voterKey, type Stars } from '@/lib/vote/api'
+import { tallyHearts, voterKey } from '@/lib/vote/api'
 import { photoPublicUrl } from '@/lib/photo/upload'
 import type { LegDraft } from '@/lib/timeline/api'
 import {
@@ -103,7 +103,7 @@ export interface CanvasBoardProps {
   // T7-1·T7-2 — 배치·순서·이동 (FR-007·FR-008)
   onAssignPlace?: (placeId: string, dayId: string) => Promise<void>
   /** 별표 협의 (결정 #46) — 0 은 취소다 */
-  onVotePlace?: (placeId: string, stars: 0 | Stars) => Promise<void>
+  onHeartPlace?: (placeId: string, hearted: boolean) => Promise<void>
   onUnassignStop?: (stopId: string) => Promise<void>
   onUpdateStop?: (
     stopId: string,
@@ -141,7 +141,7 @@ export function CanvasBoard({
   onRemoveLeg,
   onDeletePlace,
   onAssignPlace,
-  onVotePlace,
+  onHeartPlace,
   onUnassignStop,
   onUpdateStop,
   onReorderDay,
@@ -353,8 +353,8 @@ export function CanvasBoard({
   // 카드가 커지면 지도 위에서 스크롤이 생겨 정작 지도를 가린다. 모바일은 핀에 붙는 카드 그대로다 (#40·#43).
   // 두 벌 렌더하지 않고 자바스크립트로 하나만 고르는 이유: 이 카드 안에는 id 가 박힌 입력이 있어
   // 문서에 같은 id 가 둘 생기면 라벨이 엉뚱한 입력에 붙는다 (#42 에서 겪은 것)
-  const detailVote =
-    detailPlace && myVoterKey ? tallyVotes(detailPlace.place_votes ?? [], myVoterKey) : undefined
+  const detailHeart =
+    detailPlace && myVoterKey ? tallyHearts(detailPlace.place_votes ?? [], myVoterKey) : undefined
 
   // 이번에 연 장소의 자리일 때만 쓴다
   const anchorPoint = anchor && anchor.id === detailId ? anchor.point : null
@@ -391,8 +391,10 @@ export function CanvasBoard({
           <PreviewCard
             key={detailPlace.id}
             variant="sheet"
-            vote={detailVote}
-            onVote={onVotePlace ? (stars) => void onVotePlace(detailPlace.id, stars) : undefined}
+            heart={detailHeart}
+            onHeart={
+              onHeartPlace ? (hearted) => void onHeartPlace(detailPlace.id, hearted) : undefined
+            }
             place={detailPlace}
             placedCount={placedCount(detailPlace.id)}
             onClose={() => {
@@ -413,7 +415,7 @@ export function CanvasBoard({
             onSavePhone={onSavePhone ? (phone) => onSavePhone(detailPlace.id, phone) : undefined}
             // 시트는 모바일만이 아니다 — 데스크톱 오른쪽 패널(380px)도 같은 시트라
             // 44px 별 다섯이 패널을 넘었다 (사용자 지적). 마우스로 닿는 자리는 compact
-            starSize={isDesktop ? 'compact' : 'touch'}
+            heartSize={isDesktop ? 'compact' : 'touch'}
             onSaveEstimatedCost={
               onSaveEstimatedCost
                 ? (amount) => onSaveEstimatedCost(detailPlace.id, amount)
@@ -489,8 +491,10 @@ export function CanvasBoard({
           >
             <PinBubble
               place={detailPlace}
-              vote={detailVote}
-              onVote={onVotePlace ? (stars) => void onVotePlace(detailPlace.id, stars) : undefined}
+              heart={detailHeart}
+              onHeart={
+                onHeartPlace ? (hearted) => void onHeartPlace(detailPlace.id, hearted) : undefined
+              }
               onExpand={() => setExpanded(true)}
               onClose={closeDetail}
             />

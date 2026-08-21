@@ -9,7 +9,7 @@
 // 지도를 함께 내는 이유: 어디를 가는지 목록만으로는 안 읽힌다 — 이 앱이 지도를 주인공으로 둔 이유와 같다.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { StarRating } from '@/components/common/StarRating'
+import { HeartVote } from '@/components/common/HeartVote'
 import { LEG_MODE_LABEL } from '@/lib/timeline/api'
 import { mergeDayItems } from '@/lib/timeline/merge'
 import { CategoryIcon } from '@/components/canvas/CategoryIcon'
@@ -18,7 +18,7 @@ import { createMapProvider, type CreatedMapProvider } from '@/lib/map/create'
 import { CATEGORY_COLOR_VAR } from '@/lib/map/provider'
 import { toBytea } from '@/lib/share/api'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
-import { voterKey, type Stars } from '@/lib/vote/api'
+import { saveVoterName, voterKey, voterName, VOTER_NAME_MAX } from '@/lib/vote/api'
 import type { DayRow, LegRow, PlaceRow } from '@/lib/trips/bundle'
 
 type SharedPlace = PlaceRow
@@ -48,9 +48,9 @@ interface SharedBundle {
 
 interface Tally {
   place_id: string
-  total: number
-  voters: number
-  mine: number
+  hearts: number
+  mine: boolean
+  names: string[]
 }
 
 function isInvalidShareError(error: { message?: string } | null): boolean {
@@ -62,6 +62,11 @@ function SharedTripForToken({ token }: { token: string }) {
   const [created] = useState<CreatedMapProvider>(() => createMapProvider())
   const [bundle, setBundle] = useState<SharedBundle | null>(null)
   const [tallies, setTallies] = useState<Tally[]>([])
+  // 이름은 **한 번만** 적는다. 계정은 만들지 않는다 (#46) — 브라우저에 남을 뿐이다.
+  // 안 적어도 하트는 눌린다: 그러면 수에만 들고 이름으로는 안 불린다
+  const [name, setName] = useState(() =>
+    typeof window === 'undefined' ? '' : voterName(window.localStorage),
+  )
   const [failed, setFailed] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const requestGeneration = useRef(0)
@@ -154,27 +159,31 @@ function SharedTripForToken({ token }: { token: string }) {
     }
   }, [refresh])
 
-  async function vote(placeId: string, stars: 0 | Stars) {
+  async function heart(placeId: string, hearted: boolean) {
     if (!me) return
     voteRevision.current += 1
-    // 화면부터 먼저 움직인다 — 별을 눌렀는데 아무 반응이 없으면 한 번 더 누른다
+    // 화면부터 먼저 움직인다 — 눌렀는데 아무 반응이 없으면 한 번 더 누른다
     setTallies((was) => {
       const previous = was.find((t) => t.place_id === placeId)
-      const mine = previous?.mine ?? 0
+      const wasMine = previous?.mine ?? false
       const rest = was.filter((t) => t.place_id !== placeId)
-      const next = {
-        place_id: placeId,
-        total: (previous?.total ?? 0) - mine + stars,
-        voters: (previous?.voters ?? 0) + (mine === 0 && stars > 0 ? 1 : 0) - (mine > 0 && stars === 0 ? 1 : 0),
-        mine: stars,
-      }
-      return [...rest, next]
+      const others = (previous?.names ?? []).filter((n) => n !== name || !wasMine)
+      return [
+        ...rest,
+        {
+          place_id: placeId,
+          hearts: (previous?.hearts ?? 0) + (hearted ? (wasMine ? 0 : 1) : wasMine ? -1 : 0),
+          mine: hearted,
+          names: hearted && name !== '' ? [...others, name] : others,
+        },
+      ]
     })
-    const result = await supabase.rpc('vote_shared_place', {
+    const result = await supabase.rpc('heart_shared_place', {
       token: toBytea(token),
       place_id: placeId,
       voter_key: me,
-      stars,
+      voter_name: name,
+      hearted,
     })
     if (result.error) void refresh()
   }
@@ -194,8 +203,8 @@ function SharedTripForToken({ token }: { token: string }) {
     return <p className="px-5 py-12 text-fg-3">여행을 불러오는 중이에요.</p>
   }
 
-  const tallyOf = (placeId: string) =>
-    tallies.find((t) => t.place_id === placeId) ?? { total: 0, voters: 0, mine: 0 }
+  const tallyOf = (placeId: string): Omit<Tally, 'place_id'> =>
+    tallies.find((t) => t.place_id === placeId) ?? { hearts: 0, mine: false, names: [] }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -222,9 +231,22 @@ function SharedTripForToken({ token }: { token: string }) {
       <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
         <aside className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto border-line px-4 py-4 md:w-[380px] md:flex-none md:border-r md:px-6">
           <p className="text-[13px] leading-relaxed text-fg-2">
-            가고 싶은 곳에 <strong className="font-semibold text-fg">별표</strong>를 남겨 주세요.
+            가고 싶은 곳에 <strong className="font-semibold text-fg">하트</strong>를 눌러 주세요.
             일정은 고칠 수 없어요.
           </p>
+
+          {/* 이름을 한 번 적어 두면 하트에 이름이 붙는다. 안 적어도 누를 수 있다 —
+              계정을 만들지 않는 도구라 이름도 강요하지 않는다 (#46) */}
+          <label className="flex items-center gap-2 text-[13px] text-fg-2">
+            <span className="shrink-0">이름</span>
+            <input
+              value={name}
+              maxLength={VOTER_NAME_MAX}
+              placeholder="안 적어도 괜찮아요"
+              onChange={(event) => setName(saveVoterName(window.localStorage, event.target.value))}
+              className="min-h-11 min-w-0 flex-1 rounded-m border border-line bg-surface-2 px-3 text-base outline-none transition-colors duration-120 placeholder:text-fg-4 focus:border-[1.5px] focus:border-brand focus:bg-surface"
+            />
+          </label>
 
           {bundle.days.map((day, index) => {
             // 순서의 진실은 stops∪legs 통합 position 하나다 (#15).
@@ -315,12 +337,12 @@ function SharedTripForToken({ token }: { token: string }) {
                             ) : null}
                           </span>
                         </span>
-                        <StarRating
+                        <HeartVote
                           label={place.name}
+                          hearts={tally.hearts}
                           mine={tally.mine}
-                          total={tally.total}
-                          voters={tally.voters}
-                          onChange={(stars) => void vote(place.id, stars)}
+                          names={tally.names}
+                          onToggle={(hearted) => void heart(place.id, hearted)}
                         />
                       </li>
                     )

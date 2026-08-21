@@ -2,7 +2,7 @@
 //
 // 후보를 미리 등록해 두지 않는다 — **보관함에 담은 것이 곧 후보군**이다 (#8 수집≠배치).
 // 목록을 여는 순간 그 자리 기준으로 줄을 세운다:
-//   같은 카테고리 먼저 → 가까운 순 → 별 많은 순 → 이름순(동률에서 흔들리지 않게)
+//   같은 카테고리 먼저 → 가까운 순 → 하트 많은 순 → 이름순(동률에서 흔들리지 않게)
 // 카테고리를 맨 앞에 둔 이유: 점심 자리에 300m 카페가 800m 밥집보다 위로 오면 안 된다.
 
 import { describe, expect, it } from 'vitest'
@@ -120,7 +120,7 @@ describe('swapCandidates — 이 자리에 대신 갈 곳', () => {
     ])
   })
 
-  it('거리가 같으면 별을 많이 받은 곳이 먼저다', () => {
+  it('거리가 같으면 하트를 많이 받은 곳이 먼저다', () => {
     const trip = bundle(
       [day('day-1', 0, [stop('s1', '플랜A', 0)])],
       [
@@ -132,7 +132,7 @@ describe('swapCandidates — 이 자리에 대신 갈 곳', () => {
 
     const found = swapCandidates(trip, 's1')
     expect(found.map((item) => item.place.id)).toEqual(['표많은집', '표적은집'])
-    expect(found[0].stars).toBe(9)
+    expect(found[0].hearts).toBe(2)
   })
 
   it('거리를 미터로 함께 준다 — 표기는 화면이 정한다', () => {

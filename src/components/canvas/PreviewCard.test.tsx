@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { PhotoError } from '@/lib/photo/upload'
 import type { PhotoRow, PlaceRow } from '@/lib/trips/bundle'
-import { STAR_COMPACT_CLASS, STAR_TAP_CLASS } from '@/components/common/StarRating'
+import { HEART_COMPACT_CLASS, HEART_TAP_CLASS } from '@/components/common/HeartVote'
 import { PreviewCard } from './PreviewCard'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321'
@@ -579,13 +579,13 @@ describe('PreviewCard — 현장에서 3탭에 바꾼다 (T10-23 · 결정 #53)'
     {
       place: { ...place(), id: 'p3', name: '가시아방국수', lat: 33.503, lng: 126.5 },
       meters: 334,
-      stars: 7,
+      hearts: 2,
       placedLabel: null,
     },
     {
       place: { ...place(), id: 'p4', name: '맛나식당', lat: 33.56, lng: 126.5 },
       meters: 1240,
-      stars: 0,
+      hearts: 0,
       placedLabel: '3일차 1번째에 있어요',
     },
   ]
@@ -661,26 +661,35 @@ describe('PreviewCard — 현장에서 3탭에 바꾼다 (T10-23 · 결정 #53)'
 })
 
 
-describe('PreviewCard — 좁은 패널에서 별이 넘치지 않는다 (사용자 지적)', () => {
-  const VOTE = { mine: 3, total: 7, voters: 2 }
+describe('PreviewCard — 좁은 패널에서 넘치지 않는다 (사용자 지적)', () => {
+  const HEART = { hearts: 2, mine: true, names: ['민수'] }
 
-  it('데스크톱 오른쪽 패널은 compact — 44px 다섯이면 380px 패널을 넘는다', () => {
+  it('데스크톱 오른쪽 패널은 compact — 380px 패널을 넘으면 안 된다', () => {
     render(
-      <PreviewCard place={place()} variant="sheet" starSize="compact" vote={VOTE} onVote={vi.fn()} />,
+      <PreviewCard
+        place={place()}
+        variant="sheet"
+        heartSize="compact"
+        heart={HEART}
+        onHeart={vi.fn()}
+      />,
     )
 
-    for (const star of screen.getAllByRole('radio')) {
-      expect(star.className).toContain(STAR_COMPACT_CLASS)
-      expect(star.className).not.toContain(STAR_TAP_CLASS)
-    }
+    const button = screen.getByRole('button', { name: /가고 싶어요/ })
+    expect(button.className).toContain(HEART_COMPACT_CLASS)
+    expect(button.className).not.toContain(HEART_TAP_CLASS)
   })
 
   it('따로 말하지 않으면 손가락 크기다 — 모바일 시트가 기본이다', () => {
-    render(<PreviewCard place={place()} variant="sheet" vote={VOTE} onVote={vi.fn()} />)
+    render(<PreviewCard place={place()} variant="sheet" heart={HEART} onHeart={vi.fn()} />)
 
-    for (const star of screen.getAllByRole('radio')) {
-      expect(star.className).toContain(STAR_TAP_CLASS)
-    }
+    expect(screen.getByRole('button', { name: /가고 싶어요/ }).className).toContain(HEART_TAP_CLASS)
+  })
+
+  it('누가 눌렀는지 카드에서 바로 읽힌다', () => {
+    render(<PreviewCard place={place()} variant="sheet" heart={HEART} onHeart={vi.fn()} />)
+
+    expect(screen.getByText('민수 외 1명이 가고 싶어해요')).toBeTruthy()
   })
 })
 

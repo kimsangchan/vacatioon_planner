@@ -128,23 +128,24 @@ insert into public.place_votes (place_id, voter_key, stars) values
 
 set local role anon;
 
+-- 하트로 바뀐 뒤(#59) 합계는 **표 수**다. 옛 1~5 표도 그대로 하트 하나로 읽힌다
 select is(
   (public.get_shared_votes(decode('deadbeefdeadbeefdeadbeefdeadbeef','hex'), 'browser-aaaaaaaa')
-     -> 0 ->> 'total')::int,
-  4,
-  '장소별로 접어 합계를 준다 — 화면이 쓰는 단위는 표 하나가 아니라 장소 하나다');
-
-select is(
-  (public.get_shared_votes(decode('deadbeefdeadbeefdeadbeefdeadbeef','hex'), 'browser-aaaaaaaa')
-     -> 0 ->> 'voters')::int,
+     -> 0 ->> 'hearts')::int,
   2,
-  '몇 사람이 눌렀는지도 함께 준다 — 3점 하나와 1점 셋은 다른 뜻이다');
+  '장소별로 접어 하트 수를 준다 — 화면이 쓰는 단위는 표 하나가 아니라 장소 하나다');
 
 select is(
   (public.get_shared_votes(decode('deadbeefdeadbeefdeadbeefdeadbeef','hex'), 'browser-aaaaaaaa')
-     -> 0 ->> 'mine')::int,
-  3,
-  '내 표는 서버가 대조해 알려 준다 — 남의 키를 내보내면 그 키로 남의 표를 덮을 수 있다');
+     -> 0 ->> 'mine')::boolean,
+  true,
+  '내가 눌렀는지는 서버가 대조해 알려 준다 — 남의 키를 내보내면 그 키로 남의 표를 덮을 수 있다');
+
+select is(
+  public.get_shared_votes(decode('deadbeefdeadbeefdeadbeefdeadbeef','hex'), 'browser-aaaaaaaa')
+     -> 0 -> 'names',
+  '[]'::jsonb,
+  '이름을 안 적은 옛 표는 이름 없이 수에만 든다');
 
 select throws_like(
   $$select public.get_shared_votes(decode('baadf00dbaadf00dbaadf00dbaadf00d','hex'), 'browser-aaaaaaaa')$$,

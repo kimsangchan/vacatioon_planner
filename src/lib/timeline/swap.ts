@@ -20,8 +20,8 @@ export interface SwapCandidate {
   place: PlaceRow
   /** 지금 그 자리에서의 직선 거리(미터). 표기는 화면이 `formatDistance` 로 정한다 */
   meters: number
-  /** 별 합계 (결정 #46) — 동행자 의견이 순위의 2차 기준이다 */
-  stars: number
+  /** 하트 수 (결정 #59) — 동행자 의견이 순위의 2차 기준이다 */
+  hearts: number
   /** 이미 배치돼 있으면 그 자리를 알린다. 지우지 않는다 — 두 번 가는 것은 #21 이 허용한다 */
   placedLabel: string | null
 }
@@ -38,8 +38,8 @@ function placedAt(days: DayRow[]): Map<string, { day: DayRow; order: number }> {
   return placed
 }
 
-const starsOf = (place: PlaceRow) =>
-  (place.place_votes ?? []).reduce((sum, vote) => sum + vote.stars, 0)
+// 표가 있으면 하트다 — 옛 1~5 표도 하나로 센다 (결정 #59)
+const heartsOf = (place: PlaceRow) => (place.place_votes ?? []).length
 
 export function swapCandidates(source: SwapSource, stopId: string): SwapCandidate[] {
   const days = source.days ?? []
@@ -61,7 +61,7 @@ export function swapCandidates(source: SwapSource, stopId: string): SwapCandidat
       return {
         place,
         meters: distanceMeters(origin, { lat: Number(place.lat), lng: Number(place.lng) }),
-        stars: starsOf(place),
+        hearts: heartsOf(place),
         placedLabel: at
           ? `${at.day.id === here.day.id ? '이 날' : `${at.day.position + 1}일차`} ${at.order}번째에 있어요`
           : null,
@@ -73,7 +73,7 @@ export function swapCandidates(source: SwapSource, stopId: string): SwapCandidat
       const sameB = b.place.category === from.category ? 0 : 1
       if (sameA !== sameB) return sameA - sameB
       if (a.meters !== b.meters) return a.meters - b.meters
-      if (a.stars !== b.stars) return b.stars - a.stars
+      if (a.hearts !== b.hearts) return b.hearts - a.hearts
       // 동률에서 순서가 흔들리면 "아까 위에 있던 게 어디 갔지"가 된다
       return a.place.name.localeCompare(b.place.name, 'ko')
     })

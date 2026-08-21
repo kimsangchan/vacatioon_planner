@@ -189,6 +189,8 @@
   --color-danger: var(--tds-bg-danger);
   --color-success: var(--tds-fg-success);
   --color-star: var(--yellow-500);
+  /* 하트 (결정 #59). 위험(danger)과 같은 빨강을 쓰지 않는 이유: 이건 경고가 아니라 애정이다 */
+  --color-heart: var(--red-500);
 
   --color-pin-restaurant: var(--pin-restaurant);
   --color-pin-lodging: var(--pin-lodging);
