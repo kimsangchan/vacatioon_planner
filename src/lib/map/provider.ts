@@ -47,6 +47,11 @@ export interface MapProvider {
    * 핀에 붙어 따라다니는 표면(장소 카드)이 이걸 쓴다 — 화면 모서리 고정은 지도 위 카드가 아니다.
    */
   project(latLng: LatLng): ScreenPoint | null
+  /**
+   * 지금 보고 있는 화면의 한가운데. 지도가 아직 안 떴으면 null.
+   * 검색 결과를 "이 부근" 순으로 세우는 데 쓴다 — 네이버 지역검색은 좌표로 걸러 주지 않는다
+   */
+  viewCenter(): LatLng | null
   /** 지도가 움직여(이동·확대축소) 투영이 달라질 때. 구독 해제 함수를 돌려준다 */
   onViewportChange(cb: () => void): () => void
   /**

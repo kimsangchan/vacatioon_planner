@@ -22,6 +22,7 @@ import {
   type PlaceRow,
   type TripBundle,
 } from '@/lib/trips/bundle'
+import { swapCandidates } from '@/lib/timeline/swap'
 import { ListPane, dayLabel } from './ListPane'
 import { ManualPlaceForm } from './ManualPlaceForm'
 import { MapPane } from './MapPane'
@@ -102,7 +103,13 @@ export interface CanvasBoardProps {
   onUnassignStop?: (stopId: string) => Promise<void>
   onUpdateStop?: (
     stopId: string,
-    patch: { start_time?: string | null; cost_amount?: number | null; confirmed?: boolean },
+    patch: {
+      start_time?: string | null
+      cost_amount?: number | null
+      confirmed?: boolean
+      /** 자리는 두고 장소만 갈아끼운다 (결정 #53) */
+      place_id?: string
+    },
   ) => Promise<void>
   onReorderDay?: (dayId: string, orderedIds: string[]) => Promise<void>
   onSaveLeg?: (dayId: string, draft: LegDraft, legId?: string) => Promise<void>
@@ -137,6 +144,8 @@ export function CanvasBoard({
   createProvider,
 }: CanvasBoardProps) {
   const [created] = useState<CreatedMapProvider>(() => (createProvider ?? createMapProvider)())
+  // 검색 결과를 "지금 보고 있는 지도" 순으로 세우는 기준점 — 함수를 고정해야 검색이 다시 걸리지 않는다
+  const viewCenter = useCallback(() => created.provider.viewCenter(), [created])
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
   // 어느 장소의 자리인지 함께 들고 있는다 — 다른 장소를 열었을 때 낡은 위치가 한 프레임 비치지 않게
@@ -366,6 +375,12 @@ export function CanvasBoard({
     }
   })()
 
+  // 지금 보고 있는 장소가 앉아 있는 자리 (#21 — 여러 번 담았으면 먼저 만나는 것)
+  const detailStop = detailPlace
+    ? (bundle.days.flatMap((day) => day.stops).find((stop) => stop.place_id === detailPlace.id) ??
+      null)
+    : null
+
   const previewCard = detailPlace ? (
           <PreviewCard
             key={detailPlace.id}
@@ -402,6 +417,14 @@ export function CanvasBoard({
                       .find((item) => item.place_id === detailPlace.id)
                     if (stop) await onUnassignStop(stop.id)
                   }
+                : undefined
+            }
+            // 현장 3탭 교체 (결정 #53) — 핀 탭 → 바꾸기 → 후보 탭.
+            // 자리를 고르는 규칙은 빼기와 같다: 먼저 만나는 방문 하나 (#21)
+            swapOptions={detailStop ? swapCandidates(bundle, detailStop.id) : []}
+            onSwap={
+              onUpdateStop && detailStop
+                ? (placeId) => onUpdateStop(detailStop.id, { place_id: placeId })
                 : undefined
             }
             onDeletePlace={
@@ -673,6 +696,7 @@ export function CanvasBoard({
             아래는 하단 메뉴 자리를 비워 둔다 */}
         <div className="absolute inset-x-3 top-3 z-30 max-h-[calc(100%-5.5rem)] overflow-y-auto overscroll-contain rounded-2xl bg-background/95 p-2 shadow-3 backdrop-blur md:inset-x-auto md:top-4 md:left-4 md:max-h-[calc(100%-3rem)] md:w-[328px] md:bg-background md:shadow-none md:backdrop-blur-none">
         <PlaceSearchBox
+          getCenter={viewCenter}
           onSave={saveAndOpen}
           onShowExisting={revealInList}
           onEditorOpen={closeDetail}

@@ -4,8 +4,10 @@
 //   ① 검색어 입력(디바운스 300ms 뒤 자동 검색) ② 결과 선택 ③ 카테고리 확정
 // 카테고리 버튼을 누르는 순간 보관함에 담긴다 — 확인 대화상자를 끼우면 결정이 4지점이 된다.
 
-import { useEffect, useRef, useState } from 'react'
-import { CATEGORY_LABEL, CATEGORY_ORDER } from '@/lib/map/provider'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { CATEGORY_LABEL, CATEGORY_ORDER, type LatLng } from '@/lib/map/provider'
+import { distanceMeters } from '@/lib/geo/distance'
+import { formatDistance } from '@/lib/route/format'
 import { PlaceError, placeErrorMessage } from '@/lib/place/api'
 import type { PlaceCategory } from '@/lib/place/category'
 import type { NormalizedPlace } from '@/lib/place/search-proxy'
@@ -36,6 +38,14 @@ export interface PlaceSearchBoxProps {
   onPickOnMap?: () => void
   /** 카테고리 확정 칩(강조)을 펼친 순간 — 캔버스가 미리보기 시트를 닫는다 (L-09) */
   onEditorOpen?: () => void
+  /**
+   * 지금 보고 있는 지도의 한가운데. 검색을 **거는 순간** 한 번 읽어 결과를 가까운 순으로 세운다
+   * (사용자 지적: "전혀 상관없는 지역이 나오던데").
+   * 지도가 움직일 때마다 다시 읽지 않는 이유: 고르는 중에 목록 순서가 저 혼자 바뀌면 못 고른다.
+   *
+   * **넘길 때 함수를 고정하라**(`useCallback`). 매 렌더 새로 만들면 검색이 다시 걸린다.
+   */
+  getCenter?: () => LatLng | null
 }
 
 interface Failure {
@@ -51,10 +61,13 @@ export function PlaceSearchBox({
   onShowExisting,
   onPickOnMap,
   onEditorOpen,
+  getCenter,
 }: PlaceSearchBoxProps) {
   const [query, setQuery] = useState('')
   const [attempt, setAttempt] = useState(0)
   const [results, setResults] = useState<NormalizedPlace[] | null>(null)
+  // 결과와 함께 굳혀 둔 기준점 — 이걸로 거리를 재고 순서를 세운다
+  const [origin, setOrigin] = useState<LatLng | null>(null)
   const [picked, setPicked] = useState<NormalizedPlace | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const [failure, setFailure] = useState<Failure | null>(null)
@@ -62,58 +75,61 @@ export function PlaceSearchBox({
   // 늦게 도착한 응답이 최신 결과를 덮지 않게 한다
   const runRef = useRef(0)
 
+  // 검색은 두 갈래로 걸린다 — 타이핑 뒤 300ms 자동, 또는 검색 버튼·엔터로 즉시.
+  // 두 갈래가 같은 함수를 타야 "버튼을 눌렀는데 다른 결과"가 안 생긴다
+  const search = useCallback(async (q: string) => {
+    const run = ++runRef.current
+    try {
+      const response = await fetch(`/api/place-search?q=${encodeURIComponent(q)}`, {
+        headers: { accept: 'application/json' },
+      })
+      if (run !== runRef.current) return
+
+      if (!response.ok) {
+        const problem = (await response.json().catch(() => null)) as { detail?: string } | null
+        setResults(null)
+        setPicked(null)
+        setNote(null)
+        setFailure({
+          kind: 'search',
+          message: problem?.detail ?? '검색을 처리하지 못했어요. 잠시 뒤에 다시 해 주세요.',
+        })
+        return
+      }
+
+      const places = (await response.json()) as NormalizedPlace[]
+      if (run !== runRef.current) return
+
+      setFailure(null)
+      setPicked(null)
+      setOrigin(getCenter?.() ?? null)
+      setResults(places.slice(0, MAX_RESULTS))
+      setNote(
+        places.length === 0
+          ? '찾은 곳이 없어요. 다른 이름으로 찾아보거나, 지도를 길게 눌러 직접 찍을 수 있어요.'
+          : null,
+      )
+    } catch {
+      if (run !== runRef.current) return
+      setResults(null)
+      setNote(null)
+      setFailure({
+        kind: 'search',
+        message: '검색 서버에 닿지 못했어요. 잠시 뒤에 다시 검색해 주세요.',
+      })
+    }
+  }, [getCenter])
+
   // 두 글자 미만이면 서버를 부르지 않는다 — 400(validation/query-too-short)을 미리 막는다
   useEffect(() => {
     const trimmed = query.trim()
     if (trimmed.length < MIN_QUERY_LENGTH) return
 
-    async function search(q: string) {
-      const run = ++runRef.current
-      try {
-        const response = await fetch(`/api/place-search?q=${encodeURIComponent(q)}`, {
-          headers: { accept: 'application/json' },
-        })
-        if (run !== runRef.current) return
-
-        if (!response.ok) {
-          const problem = (await response.json().catch(() => null)) as { detail?: string } | null
-          setResults(null)
-          setPicked(null)
-          setNote(null)
-          setFailure({
-            kind: 'search',
-            message: problem?.detail ?? '검색을 처리하지 못했어요. 잠시 뒤에 다시 해 주세요.',
-          })
-          return
-        }
-
-        const places = (await response.json()) as NormalizedPlace[]
-        if (run !== runRef.current) return
-
-        setFailure(null)
-        setPicked(null)
-        setResults(places.slice(0, MAX_RESULTS))
-        setNote(
-          places.length === 0
-            ? '찾은 곳이 없어요. 다른 이름으로 찾아보거나, 지도를 길게 눌러 직접 찍을 수 있어요.'
-            : null,
-        )
-      } catch {
-        if (run !== runRef.current) return
-        setResults(null)
-        setNote(null)
-        setFailure({
-          kind: 'search',
-          message: '검색 서버에 닿지 못했어요. 잠시 뒤에 다시 검색해 주세요.',
-        })
-      }
-    }
-
     const timer = setTimeout(() => {
       void search(trimmed)
     }, SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [query, attempt])
+  }, [query, attempt, search])
 
   function changeQuery(value: string) {
     setQuery(value)
@@ -162,6 +178,19 @@ export function PlaceSearchBox({
     }
   }
 
+  // 네이버 지역검색은 좌표로 걸러 주지 않는다 — 받은 5건을 **여기서** 지도 부근 순으로 세운다
+  const ranked =
+    results === null
+      ? null
+      : origin === null
+        ? results.map((place) => ({ place, meters: null as number | null }))
+        : results
+            .map((place) => ({
+              place,
+              meters: distanceMeters(origin, { lat: place.lat, lng: place.lng }),
+            }))
+            .sort((a, b) => (a.meters ?? 0) - (b.meters ?? 0))
+
   const existingPlaceId = failure?.existingPlaceId
   // 0건은 막다른 길이 아니다 — 지도에서 직접 찍는 길로 이어 준다 (FR-016 / L-06)
   const noResults = results !== null && results.length === 0
@@ -175,7 +204,19 @@ export function PlaceSearchBox({
       </label>
       {/* 지우는 버튼은 입력 안에 얹는다. type=search 의 네이티브 X 는 브라우저마다 있거나 없어서
           모바일에서는 기대할 수 없다 — 직접 둔다. 적은 게 없으면 내지 않는다 */}
-      <div className="relative flex">
+      {/* role=search 로 감싸는 이유: 모바일 키보드의 '검색' 키(=submit)가 곧 이 버튼이다.
+          자동 검색(300ms)은 그대로 두고, 누르면 기다리지 않고 건다 */}
+      <form
+        role="search"
+        onSubmit={(event) => {
+          event.preventDefault()
+          const trimmed = query.trim()
+          if (trimmed.length < MIN_QUERY_LENGTH) return
+          void search(trimmed)
+        }}
+        className="flex gap-2"
+      >
+      <div className="relative flex flex-1">
         <span
           aria-hidden
           className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-fg-4"
@@ -217,12 +258,21 @@ export function PlaceSearchBox({
           </button>
         )}
       </div>
+        <button
+          type="submit"
+          aria-label="검색"
+          disabled={query.trim().length < MIN_QUERY_LENGTH}
+          className="min-h-12 shrink-0 rounded-m border border-line px-4 text-sm font-medium text-fg-2 transition-colors duration-120 hover:bg-surface-2 disabled:opacity-40"
+        >
+          검색
+        </button>
+      </form>
 
       {/* 고르고 나면 목록을 접는다 — 결과 다섯 줄이 그대로 남으면 아래의 "어디에 담을까요"가
           화면 밖으로 밀려 정작 담지를 못한다 (사용자 지적). 고른 것은 아래 카드가 이름으로 되짚어 준다 */}
-      {results && results.length > 0 && !picked && (
+      {ranked && ranked.length > 0 && !picked && (
         <ul className="flex flex-col gap-1">
-          {results.map((place) => {
+          {ranked.map(({ place, meters }) => {
             return (
               <li key={`${place.name}-${place.lat}-${place.lng}`}>
                 <button
@@ -246,8 +296,16 @@ export function PlaceSearchBox({
                       {CATEGORY_LABEL[place.categoryHint]}
                     </span>
                   </span>
-                  <span className="text-sm text-fg-2">
-                    {place.roadAddress || place.address}
+                  <span className="flex w-full items-baseline gap-2 text-sm text-fg-2">
+                    <span className="min-w-0 flex-1 truncate">
+                      {place.roadAddress || place.address}
+                    </span>
+                    {/* 엉뚱한 지역이 섞여 와도 숫자가 먼저 말한다 (사용자 지적) */}
+                    {meters !== null && (
+                      <span className="tabular shrink-0 text-[12px] text-fg-3">
+                        {formatDistance(meters)}
+                      </span>
+                    )}
                   </span>
                 </button>
               </li>

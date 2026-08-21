@@ -277,6 +277,21 @@ export class NaverMapProvider implements MapProvider {
     }
   }
 
+  // getCenter 를 새로 끌어오지 않고 bounds 의 중점을 쓴다 — 이미 투영에서 쓰는 문이라 표면이 안 늘어난다
+  viewCenter(): LatLng | null {
+    if (!this.map) return null
+    try {
+      const bounds = this.map.getBounds()
+      if (!bounds) return null
+      const ne = bounds.getNE()
+      const sw = bounds.getSW()
+      return { lat: (ne.lat() + sw.lat()) / 2, lng: (ne.lng() + sw.lng()) / 2 }
+    } catch {
+      // 인증 실패 뒤 SDK 가 네임스페이스를 비우는 일이 있다 (src/components/CLAUDE.md)
+      return null
+    }
+  }
+
   panTo(latLng: LatLng): void {
     if (!this.maps || !this.map) return
     try {

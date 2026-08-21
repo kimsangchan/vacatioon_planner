@@ -66,6 +66,10 @@ export class FakeMapProvider implements MapProvider {
     return this.mounted ? this.projection(latLng) : null
   }
 
+  viewCenter(): LatLng | null {
+    return this.mounted ? this.center : null
+  }
+
   onViewportChange(cb: () => void): () => void {
     this.viewportHandlers.push(cb)
     return () => {

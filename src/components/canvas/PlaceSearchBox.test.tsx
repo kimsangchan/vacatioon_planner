@@ -312,3 +312,80 @@ describe('PlaceSearchBox — 고르면 목록을 접는다 (사용자 지적)', 
     expect(screen.queryByRole('button', { name: '다시 고르기' })).toBeNull()
   })
 })
+
+
+describe('PlaceSearchBox — 검색 버튼과 지도 부근 (사용자 지적)', () => {
+  // 성산(126.94)과 흑돼지집(126.53)은 40km 넘게 떨어져 있다 — 지도 중심을 어디 두느냐로 순서가 갈린다
+  const NEAR_SEONGSAN = () => ({ lat: 33.46, lng: 126.94 })
+
+  it('검색창 오른쪽에 누를 수 있는 검색 버튼이 있다', () => {
+    render(<PlaceSearchBox onSave={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: '검색' })).toBeTruthy()
+  })
+
+  it('버튼을 누르면 기다리지 않고 찾는다', async () => {
+    fetchMock.mockResolvedValue(jsonOnce([SEONGSAN]))
+    render(<PlaceSearchBox onSave={vi.fn()} />)
+
+    type('일출봉')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '검색' }))
+    })
+
+    expect(fetchMock).toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: /성산일출봉/ })).toBeTruthy()
+  })
+
+  it('엔터로도 찾는다 — 모바일 키보드의 검색 키가 그것이다', async () => {
+    fetchMock.mockResolvedValue(jsonOnce([SEONGSAN]))
+    render(<PlaceSearchBox onSave={vi.fn()} />)
+
+    type('일출봉')
+    await act(async () => {
+      fireEvent.submit(screen.getByRole('search'))
+    })
+
+    expect(fetchMock).toHaveBeenCalled()
+  })
+
+  it('지금 보고 있는 지도에서 가까운 곳부터 세운다', async () => {
+    fetchMock.mockResolvedValue(jsonOnce([HEUKDWAEJI, SEONGSAN]))
+    render(<PlaceSearchBox onSave={vi.fn()} getCenter={NEAR_SEONGSAN} />)
+
+    type('제주')
+    await tick(400)
+
+    const names = screen
+      .getAllByRole('button')
+      .map((button) => button.textContent ?? '')
+      .filter((name) => name.includes('성산일출봉') || name.includes('흑돼지집'))
+
+    expect(names[0]).toContain('성산일출봉')
+  })
+
+  it('얼마나 먼지 함께 읽어 준다 — 엉뚱한 지역이면 숫자가 먼저 말한다', async () => {
+    fetchMock.mockResolvedValue(jsonOnce([HEUKDWAEJI, SEONGSAN]))
+    render(<PlaceSearchBox onSave={vi.fn()} getCenter={NEAR_SEONGSAN} />)
+
+    type('제주')
+    await tick(400)
+
+    expect(screen.getByText(/km/)).toBeTruthy()
+  })
+
+  it('지도 중심을 모르면 받은 순서 그대로 둔다', async () => {
+    fetchMock.mockResolvedValue(jsonOnce([HEUKDWAEJI, SEONGSAN]))
+    render(<PlaceSearchBox onSave={vi.fn()} />)
+
+    type('제주')
+    await tick(400)
+
+    const names = screen
+      .getAllByRole('button')
+      .map((button) => button.textContent ?? '')
+      .filter((name) => name.includes('성산일출봉') || name.includes('흑돼지집'))
+
+    expect(names[0]).toContain('흑돼지집')
+  })
+})
