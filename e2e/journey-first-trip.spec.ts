@@ -78,6 +78,12 @@ test.describe('여정 1 — 첫 여행 만들기 (스모크)', () => {
     await sheet.getByRole('button', { name: '고치기' }).click()
     await sheet.getByRole('button', { name: '평일/주말', exact: true }).click()
     await sheet.getByRole('button', { name: '저장하기' }).click()
+    await expect(sheet.getByText('저장했어요.')).toBeVisible()
+
+    // **입력창이 아니라 읽기 화면**을 본다. 편집을 열어 둔 채 toContainText 로 재면
+    // 타이핑한 값이 그대로 잡혀 저장이 실패해도 통과한다 — 실제로 그런 상태였다
+    await sheet.getByRole('button', { name: '고치기 그만두기' }).click()
+    await expect(sheet.getByRole('textbox', { name: '영업시간' })).toHaveCount(0)
     await expect(sheet).toContainText('평일 09:00–18:00')
     await expect(sheet).toContainText('주말 10:00–17:00')
 

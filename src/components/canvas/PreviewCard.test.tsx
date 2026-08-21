@@ -713,3 +713,96 @@ describe('PreviewCard — 전화번호는 손으로 적는다 (사용자 지적)
     expect(screen.queryByText('전화')).toBeNull()
   })
 })
+
+
+describe('PreviewCard — 하던 일이 끝나기 전에 누른 것도 잃지 않는다 (E2E 가 잡은 회귀)', () => {
+  // `run()` 이 `if (busy) return` 으로 **조용히 버렸다**. 저장하기를 누르고 곧바로 사진을 담으면
+  // 아무 일도 안 일어나고 이유도 안 알려 줬다 — 게다가 파일 입력은 이미 비워져 재시도도 막혔다.
+  it('저장이 끝나기 전에 고른 사진도 담긴다', async () => {
+    let finishSave: () => void = () => {}
+    const onSaveMemo = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSave = resolve
+        }),
+    )
+    const onAddPhoto = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <PreviewCard
+        place={place()}
+        variant="sheet"
+        onSaveMemo={onSaveMemo}
+        onAddPhoto={onAddPhoto}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '고치기' }))
+    fireEvent.change(screen.getByLabelText('메모'), { target: { value: '9시 전에 가기' } })
+    fireEvent.click(screen.getByRole('button', { name: '저장하기' }))
+    // busy 가 **화면에 반영된 뒤에** 골라야 옛 가드(`if (busy) return`)를 실제로 지나간다.
+    // 이 한 틱을 안 주면 테스트가 통과해 버린다 — 거짓 초록불이었다
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    // 저장이 아직 끝나지 않은 사이에 사진을 고른다
+    const file = new File(['x'], 'photo.png', { type: 'image/png' })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('사진 담기'), { target: { files: [file] } })
+    })
+
+    await act(async () => {
+      finishSave()
+      await Promise.resolve()
+    })
+
+    expect(onSaveMemo).toHaveBeenCalledWith('9시 전에 가기')
+    expect(onAddPhoto).toHaveBeenCalledWith(file)
+  })
+
+  it('먼저 시킨 일이 끝난 뒤에 다음 일이 간다 — 순서가 뒤집히지 않는다', async () => {
+    const order: string[] = []
+    let finishSave: () => void = () => {}
+    const onSaveMemo = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSave = () => {
+            order.push('save')
+            resolve()
+          }
+        }),
+    )
+    const onAddPhoto = vi.fn(async () => {
+      order.push('photo')
+    })
+
+    render(
+      <PreviewCard
+        place={place()}
+        variant="sheet"
+        onSaveMemo={onSaveMemo}
+        onAddPhoto={onAddPhoto}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '고치기' }))
+    fireEvent.change(screen.getByLabelText('메모'), { target: { value: '메모' } })
+    fireEvent.click(screen.getByRole('button', { name: '저장하기' }))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('사진 담기'), {
+        target: { files: [new File(['x'], 'p.png', { type: 'image/png' })] },
+      })
+    })
+
+    await act(async () => {
+      finishSave()
+      await Promise.resolve()
+    })
+
+    expect(order).toEqual(['save', 'photo'])
+  })
+})

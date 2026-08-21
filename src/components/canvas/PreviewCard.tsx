@@ -6,7 +6,7 @@
 // 둘 다 라우트가 아니다 — 캔버스(뎁스 1) 위의 뎁스 2 표면이다 (SC-003).
 // 썸네일은 캔버스가 열릴 때 이미 받아 뒀다(lib/photo/prefetch.ts) — 여기서 네트워크를 타지 않는다.
 
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { ConfirmRow } from '@/components/common/ConfirmRow'
 import { StarRating } from '@/components/common/StarRating'
 import type { SwapCandidate } from '@/lib/timeline/swap'
@@ -127,24 +127,34 @@ export function PreviewCard({
   const [swapped, setSwapped] = useState<{ fromPlaceId: string; toName: string } | null>(null)
   const memoFirstLine = place.memo.split('\n')[0]?.trim() ?? ''
 
+  // 하던 일이 끝나기 전에 누른 것도 **버리지 않는다**. 예전에는 `if (busy) return` 으로
+  // 조용히 반환해서, 저장하기 직후에 고른 사진이 그대로 사라졌다 (여정 1 E2E 가 잡았다).
+  // 게다가 `pickPhoto` 가 이미 파일 입력을 비운 뒤라 같은 사진을 다시 고르기 전엔 재시도도 막혔다.
+  // 버리는 대신 줄을 세운다 — 누른 순서 그대로 하나씩 간다.
+  const queue = useRef<Promise<unknown>>(Promise.resolve())
+
   async function run(action: () => Promise<void> | void, done?: string) {
-    if (busy) return
-    setBusy(true)
-    setFailure(null)
-    setNote(null)
-    try {
-      await action()
-      setPending(null)
-      if (done) setNote(done)
-    } catch (error) {
-      setFailure(
-        error instanceof PhotoError
-          ? photoErrorMessage(error.code)
-          : '방금 한 일을 저장하지 못했어요. 잠시 뒤에 다시 해 주세요.',
-      )
-    } finally {
-      setBusy(false)
-    }
+    const mine = queue.current.then(async () => {
+      setBusy(true)
+      setFailure(null)
+      setNote(null)
+      try {
+        await action()
+        setPending(null)
+        if (done) setNote(done)
+      } catch (error) {
+        setFailure(
+          error instanceof PhotoError
+            ? photoErrorMessage(error.code)
+            : '방금 한 일을 저장하지 못했어요. 잠시 뒤에 다시 해 주세요.',
+        )
+      } finally {
+        setBusy(false)
+      }
+    })
+    // 앞의 일이 실패해도 줄은 계속 간다 — 실패는 그 일의 화면 메시지로 이미 알렸다
+    queue.current = mine.catch(() => {})
+    await mine
   }
 
   // 보관함에서 빼기 = Place 소프트 삭제. 되돌릴 수 있으니 평소엔 묻지 않는다 (T-06).
@@ -181,7 +191,7 @@ export function PreviewCard({
         id={fileInputId}
         type="file"
         accept="image/*"
-        disabled={busy}
+        // busy 로 잠그지 않는다 — 잠그면 저장 중에 고른 사진이 줄에 서지도 못하고 사라진다
         onChange={pickPhoto}
         className="sr-only"
       />
