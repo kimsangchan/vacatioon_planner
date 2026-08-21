@@ -10,7 +10,15 @@ const JEJU = { lat: 33.4996, lng: 126.5312 }
 const SEONGSAN = { lat: 33.4581, lng: 126.9425 }
 
 function pin(id: string, category: Pin['category'], selected = false): Pin {
-  return { id, latLng: SEONGSAN, category, selected, orderNumber: null, color: 'var(--pin-spot)' }
+  return {
+    id,
+    label: `Place ${id}`,
+    latLng: SEONGSAN,
+    category,
+    selected,
+    orderNumber: null,
+    color: 'var(--pin-spot)',
+  }
 }
 
 // 노드 환경에서도 돌아야 하므로 컨테이너는 형태만 맞춘 자리표시다
@@ -35,6 +43,7 @@ describe('FakeMapProvider — MapProvider 계약 (T6-1)', () => {
 
     provider.setPins([pin('a', 'restaurant'), pin('b', 'lodging', true)])
     expect(provider.pins.map((p) => p.id)).toEqual(['a', 'b'])
+    expect(provider.pins.map((p) => p.label)).toEqual(['Place a', 'Place b'])
     expect(provider.highlightedIds).toEqual(['b'])
 
     provider.setPins([pin('c', 'spot', true)])

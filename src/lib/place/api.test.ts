@@ -6,6 +6,7 @@ import {
   PlaceError,
   toPlaceError,
   updatePlaceEstimatedCost,
+  updatePlaceOpeningHours,
   updatePlaceMemo,
   updatePlacePhone,
 } from './api'
@@ -26,6 +27,58 @@ describe('toPlaceError — E-04 오류 정규화', () => {
 
   it('나머지는 unknown 으로 모은다', () => {
     expect(toPlaceError({ message: 'boom' }).code).toBe('unknown')
+  })
+})
+
+describe('updatePlaceOpeningHours - user-authored multiline business hours', () => {
+  function fakeClient(result: { data?: unknown; error?: { message: string; code?: string } }) {
+    const calls: { patch: Record<string, unknown>; id: unknown }[] = []
+    const client = {
+      from(table: string) {
+        expect(table).toBe('places')
+        return {
+          update(patch: Record<string, unknown>) {
+            return {
+              eq(column: string, value: unknown) {
+                expect(column).toBe('id')
+                calls.push({ patch, id: value })
+                return {
+                  select: () => ({
+                    single: async () => ({ data: result.data ?? null, error: result.error ?? null }),
+                  }),
+                }
+              },
+            }
+          },
+        }
+      },
+    }
+    return { client, calls }
+  }
+
+  it('trims only outside whitespace and preserves authored line breaks', async () => {
+    const openingHours = 'Mon-Fri 09:00-18:00\nSat 10:00-15:00\nSun closed'
+    const { client, calls } = fakeClient({ data: { id: 'p1', opening_hours: openingHours } })
+
+    await updatePlaceOpeningHours(client as never, 'p1', `  \n${openingHours}\n  `)
+
+    expect(calls).toEqual([{ patch: { opening_hours: openingHours }, id: 'p1' }])
+  })
+
+  it('stores an empty string when the user clears the field', async () => {
+    const { client, calls } = fakeClient({ data: { id: 'p1', opening_hours: '' } })
+
+    await updatePlaceOpeningHours(client as never, 'p1', ' \n  ')
+
+    expect(calls[0].patch).toEqual({ opening_hours: '' })
+  })
+
+  it('normalizes a missing or inaccessible place to the not-found contract', async () => {
+    const { client } = fakeClient({ error: { message: 'no rows', code: 'PGRST116' } })
+
+    await expect(
+      updatePlaceOpeningHours(client as never, 'p1', 'Mon-Fri 09:00-18:00'),
+    ).rejects.toMatchObject({ code: 'not-found' })
   })
 })
 

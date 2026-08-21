@@ -24,6 +24,7 @@ function place(id: string, category: PlaceRow['category']): PlaceRow {
     provider: 'naver',
     provider_link: null,
     phone: '',
+    opening_hours: 'Mon-Fri 09:00-18:00\nSat 10:00-15:00',
     memo: '',
     estimated_cost: null,
     photos: [],
@@ -85,6 +86,12 @@ describe('보관함 분류 (FR-005)', () => {
     expect(unassignedPlaces(bundle).map((p) => p.id)).toEqual(['p1', 'p3'])
   })
 
+  it('keeps authored multiline opening hours on places returned by bundle helpers', () => {
+    expect(unassignedPlaces(bundle)[0].opening_hours).toBe(
+      'Mon-Fri 09:00-18:00\nSat 10:00-15:00',
+    )
+  })
+
   it('배치된 Place 는 따로 모은다', () => {
     expect(assignedPlaces(bundle).map((p) => p.id)).toEqual(['p2'])
   })
@@ -99,6 +106,7 @@ describe('toPins — 핀의 입력 (FR-005 · 결정 #41)', () => {
     const pins = toPins(bundle.places, 'p3', bundle.days)
 
     expect(pins.map((pin) => pin.id)).toEqual(['p1', 'p2', 'p3'])
+    expect(pins.map((pin) => pin.label)).toEqual(bundle.places.map((place) => place.name))
     expect(pins.map((pin) => pin.selected)).toEqual([false, false, true])
     expect(pins[0].latLng).toEqual({ lat: 33.5, lng: 126.5 })
     expect(pins[0].category).toBe('restaurant')

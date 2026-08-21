@@ -388,6 +388,20 @@ describe('CanvasBoard — 리스트↔핀 상호 하이라이트 (FR-005)', () =
     expect(scrollIntoView).toHaveBeenCalled()
   })
 
+  it('핀으로 찾은 장소가 보관함 필터에 가려져 있으면 필터를 초기화한 뒤 스크롤한다', async () => {
+    await renderBoard()
+
+    fireEvent.click(screen.getByRole('button', { name: '보관함' }))
+    fireEvent.click(screen.getByRole('button', { name: '식당 1' }))
+    expect(screen.queryByTestId('place-item-p3')).toBeNull()
+
+    await act(async () => provider.emitPinEvent('p3', 'tap'))
+
+    expect(screen.getByRole('button', { name: '전체 2' }).getAttribute('aria-pressed')).toBe('true')
+    expect(item('p3').dataset.highlighted).toBe('true')
+    expect(scrollIntoView).toHaveBeenCalled()
+  })
+
   it('리스트 항목을 누르면 지도를 그 좌표로 옮긴다', async () => {
     await renderBoard()
 
