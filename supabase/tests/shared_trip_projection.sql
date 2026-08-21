@@ -1,6 +1,6 @@
 begin;
 
-select plan(24);
+select plan(26);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 values ('00000000-0000-0000-0000-0000000000e5', 'authenticated', 'authenticated',
@@ -17,14 +17,15 @@ values ('29000000-0000-0000-0000-000000000001', '19000000-0000-0000-0000-0000000
 
 insert into public.places (
   id, trip_id, owner_id, category, name, address, road_address, lat, lng, provider,
-  phone, opening_hours, estimated_cost, provider_link, category_label
+  phone, opening_hours, estimated_cost, provider_link, category_label, images
 )
 values (
   '39000000-0000-0000-0000-000000000001', '19000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-0000000000e5', 'restaurant', '공유 식당', '제주시 구주소',
   '제주시 새주소', 33.499621, 126.531188, 'naver', '064-123-4567',
   E'월-금 09:00-18:00\n토 10:00-15:00', 25000,
-  'https://www.instagram.com/shared_restaurant', '한식>국수'
+  'https://www.instagram.com/shared_restaurant', '한식>국수',
+  '[{"thumbnail":"https://search.pstatic.net/a","link":"https://blog.example/1"}]'::jsonb
 );
 
 insert into public.places (
@@ -226,6 +227,20 @@ select ok(
   not (public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
     ->'places'->0 ? 'owner_id'),
   '넓힌 것은 목록과 공개 정보지 내부 컬럼이 아니다'
+);
+
+-- 사진은 공유가 존재하는 이유의 절반이다 (결정 #63) — 지도앱으로 나가지 않고도 판단한다
+select is(
+  jsonb_array_length(public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'places'->0->'images'),
+  1,
+  '장소 사진을 공유에 함께 보낸다'
+);
+select is(
+  public.get_shared_trip(decode('11223344556677889900aabbccddeeff', 'hex'))
+    ->'places'->0->'images'->0->>'link',
+  'https://blog.example/1',
+  '출처 링크도 함께 보낸다 — 남의 사진이라 어디서 왔는지 밝혀야 한다'
 );
 
 select * from finish();

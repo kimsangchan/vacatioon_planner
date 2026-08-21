@@ -179,6 +179,9 @@
 - [x] T10-36 "이게 뭔지" 를 화면에서 답한다 (결정 #62, 2026-08-21) — `0020_place_category_label.sql`.
   업종 원문 저장·표시 · 공유에 `provider_link` 복원 · `naverMapSearchUrl`(구+이름).
   실측 근거: 25곳에 전화 0·영업시간 0·사진 0, provider_link 5곳(지도 아님). vitest 15 + pgTAP 3
+- [x] T10-37 장소 사진 (결정 #63, 2026-08-21) — `0021_place_images.sql` + `POST /api/place-images`.
+  `{시} {동} {이름}` 으로 20장 받아 이름으로 걸러 10장, 플레이스 사진 우선. 담을 때 자동.
+  실측: 21/25 가 사진을 얻고 13/25 는 5장 이상. 인스타는 API 가 없어 링크만. vitest 18 + pgTAP 2
 - [ ] T10-5b 이동시간(도보) — 외부 API 없이 좌표 거리로 추정. 지금은 "차로 …" 한 줄만 낸다
 - [x] T10-10 확정/미확정 + 확정된 것만 경로 (결정 #47, 2026-08-20) — `0011_stop_confirmed.sql`
   (기본값 true) + pgTAP 4, `routeSegments` 가 미확정을 건너뛴다, 타임라인 행에 22px 체크

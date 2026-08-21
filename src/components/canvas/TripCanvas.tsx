@@ -144,7 +144,21 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
         owner_id: ownerId,
         ...draft,
       }),
-    onSuccess: refetchBundle,
+    onSuccess: async (saved) => {
+      await refetchBundle()
+      // 담자마자 사진을 찾아 둔다 (결정 #63). **실패해도 저장은 이미 끝났다** —
+      // 사진은 덤이라 여기서 막지 않는다. 못 찾으면 빈 배열이 저장될 뿐이다
+      try {
+        const response = await fetch('/api/place-images', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ placeId: saved.id }),
+        })
+        if (response.ok) await refetchBundle()
+      } catch {
+        // 조용히 넘어간다 — 카드에서 다시 시도할 수 있다
+      }
+    },
   })
 
   // E-05 — 리사이즈·업로드·photos 행이 한 덩어리다 (lib/photo/upload.ts)

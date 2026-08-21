@@ -6,6 +6,7 @@ import { dayColorOf, dayColorVar } from '@/lib/map/day-color'
 import { CATEGORY_COLOR_VAR, type Pin } from '@/lib/map/provider'
 import type { PlaceCategory } from '@/lib/place/category'
 import type { PlaceProvider } from '@/lib/place/api'
+import type { PlaceImage } from '@/lib/place/images'
 import type { LegMode } from '@/lib/timeline/api'
 import { TripError, toTripError } from './api'
 
@@ -36,6 +37,8 @@ export interface PlaceRow {
   provider_link: string | null
   /** 업종 원문 — "한식>국수" (결정 #62). 직접 찍은 곳은 빈 문자열 */
   category_label: string
+  /** 이미지 검색에서 이름으로 걸러 담아 둔 사진 (결정 #63). 없으면 빈 배열 */
+  images: PlaceImage[]
   /** 네이버 검색 결과가 비어 있으면 사용자가 직접 적을 수 있는 전화번호 */
   phone: string
   /** 공개 검색 결과와 별개로 사용자가 직접 적는 여러 줄 영업시간 */

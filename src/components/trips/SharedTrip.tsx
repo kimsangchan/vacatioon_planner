@@ -69,6 +69,30 @@ interface Tally {
 function PlaceFacts({ place }: { place: SharedPlace }) {
   return (
     <>
+      {place.images.length > 0 && (
+        <span className="-mx-2 flex gap-1.5 overflow-x-auto px-2 py-0.5">
+          {place.images.map((shot) => (
+            <a
+              key={shot.thumbnail}
+              href={shot.link}
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label={`${place.name} 참고 사진 출처 열기`}
+              className="shrink-0"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={shot.thumbnail}
+                alt={`${place.name} 참고 사진`}
+                width={88}
+                height={88}
+                loading="lazy"
+                className="size-22 rounded-lg object-cover"
+              />
+            </a>
+          ))}
+        </span>
+      )}
       {place.category_label !== '' && (
         <span className="truncate text-[12px] leading-tight text-fg-3">{place.category_label}</span>
       )}

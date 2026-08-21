@@ -24,6 +24,7 @@ function place(id: string, category: PlaceRow['category']): PlaceRow {
     provider: 'naver',
     provider_link: null,
     category_label: '',
+    images: [],
     phone: '',
     opening_hours: 'Mon-Fri 09:00-18:00\nSat 10:00-15:00',
     memo: '',

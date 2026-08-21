@@ -24,3 +24,13 @@ export function naverMapSearchUrl(place: MapLinkPlace): string {
   const query = region === '' ? place.name : `${region} ${place.name}`
   return `https://map.naver.com/p/search/${encodeURIComponent(query)}`
 }
+
+/**
+ * 인스타 검색 (사용자 요청). **사진을 가져올 수는 없다** — 공개 검색 API 가 없고
+ * (Graph 는 비즈니스 계정·앱심사에 해시태그 미디어만, Basic Display 는 내 것만),
+ * 스크래핑은 약관 위반이자 로그인 월로 막힌다. 실측으로도 네이버 이미지 검색 178장 중
+ * 인스타는 0장이었다. 그래서 **링크로 넘긴다** — 폰에서는 앱이 받아 연다.
+ */
+export function instagramSearchUrl(name: string): string {
+  return `https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(name.trim())}`
+}

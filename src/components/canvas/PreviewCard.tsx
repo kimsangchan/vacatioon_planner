@@ -11,7 +11,7 @@ import { ConfirmRow } from '@/components/common/ConfirmRow'
 import { HeartVote } from '@/components/common/HeartVote'
 import type { SwapCandidate } from '@/lib/timeline/swap'
 import { SwapList } from './SwapList'
-import { naverMapSearchUrl } from '@/lib/place/map-link'
+import { instagramSearchUrl, naverMapSearchUrl } from '@/lib/place/map-link'
 import type { HeartTally } from '@/lib/vote/api'
 import { CATEGORY_LABEL } from '@/lib/map/provider'
 import { PhotoError, photoErrorMessage, photoPublicUrl } from '@/lib/photo/upload'
@@ -450,6 +450,34 @@ export function PreviewCard({
       )}
 
       {/* 읽기 모드 — 저장해 둔 것을 보여 주기만 한다 (사용자 요청). */}
+      {/* 이미지 검색에서 이름으로 걸러 담아 둔 사진 (결정 #63).
+          우리 스토리지로 옮기지 않는다 — 남의 사진이라 썸네일 주소와 출처를 함께 둔다 */}
+      {sheet && place.images.length > 0 && (
+        <ul className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1">
+          {place.images.map((shot) => (
+            <li key={shot.thumbnail} className="shrink-0">
+              <a
+                href={shot.link}
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label={`${place.name} 참고 사진 출처 열기`}
+              >
+                {/* next/image 를 쓰지 않는 이유는 다른 사진과 같다 — 남의 호스트라 remotePatterns 를 못 박는다 */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={shot.thumbnail}
+                  alt={`${place.name} 참고 사진`}
+                  width={104}
+                  height={104}
+                  loading="lazy"
+                  className="size-26 rounded-xl object-cover"
+                />
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {sheet && !editing && (
         <dl className="flex flex-col gap-1.5 text-[13px]">
           {place.category_label !== '' && (
@@ -643,6 +671,14 @@ export function PreviewCard({
             className="flex min-h-8 items-center rounded-full border border-line px-3 text-sm"
           >
             네이버 지도에서 보기
+          </a>
+          <a
+            href={instagramSearchUrl(place.name)}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="flex min-h-8 items-center rounded-full border border-line px-3 text-sm"
+          >
+            인스타에서 찾아보기
           </a>
           {place.provider_link && (
             <a

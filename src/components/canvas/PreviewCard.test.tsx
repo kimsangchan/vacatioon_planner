@@ -33,6 +33,7 @@ function place(overrides: Partial<PlaceRow> = {}): PlaceRow {
     provider: 'naver',
     provider_link: 'https://map.naver.com/p/1',
     category_label: '',
+    images: [],
     phone: '',
     opening_hours: '',
     memo: '',
@@ -853,5 +854,41 @@ describe('PreviewCard — 이게 뭐 하는 데인지 알려 준다 (결정 #62)
 
     const link = screen.getByRole('link', { name: '가게 홈페이지·SNS' })
     expect(link.getAttribute('href')).toBe('https://www.instagram.com/heukdwaeji')
+  })
+})
+
+
+describe('PreviewCard — 사진으로 바로 답한다 (결정 #63)', () => {
+  const IMAGES = [
+    { thumbnail: 'https://search.pstatic.net/a', link: 'https://ldb-phinf.pstatic.net/1.jpg' },
+    { thumbnail: 'https://search.pstatic.net/b', link: 'https://blog.example/2.jpg' },
+  ]
+
+  it('담아 둔 사진을 보여 준다 — 지도앱으로 나가지 않고 판단한다', () => {
+    render(<PreviewCard place={place({ images: IMAGES })} variant="sheet" />)
+
+    const shots = screen.getAllByRole('img', { name: /흑돼지집 참고 사진/ })
+    expect(shots).toHaveLength(2)
+    expect(shots[0].getAttribute('src')).toBe('https://search.pstatic.net/a')
+  })
+
+  it('사진마다 출처로 갈 수 있다 — 남의 사진이라 어디서 왔는지 밝힌다', () => {
+    render(<PreviewCard place={place({ images: IMAGES })} variant="sheet" />)
+
+    const link = screen.getAllByRole('link', { name: /흑돼지집 참고 사진/ })[0]
+    expect(link.getAttribute('href')).toBe('https://ldb-phinf.pstatic.net/1.jpg')
+  })
+
+  it('사진이 없으면 자리를 내지 않는다 — 못 찾는 곳이 있다', () => {
+    render(<PreviewCard place={place()} variant="sheet" />)
+
+    expect(screen.queryByRole('img', { name: /참고 사진/ })).toBeNull()
+  })
+
+  it('인스타에서 찾아볼 문을 둔다 — 사진은 못 가져와도 링크는 된다', () => {
+    render(<PreviewCard place={place()} variant="sheet" />)
+
+    const link = screen.getByRole('link', { name: '인스타에서 찾아보기' })
+    expect(decodeURIComponent(link.getAttribute('href') ?? '')).toContain('q=흑돼지집')
   })
 })
