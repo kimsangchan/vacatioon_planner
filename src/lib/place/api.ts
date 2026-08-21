@@ -137,6 +137,25 @@ export async function updatePlaceEstimatedCost(
   return data as SavedPlace
 }
 
+// 전화번호 (0014). **손으로 적는다** — 네이버 지역검색의 `telephone` 은 항상 빈 문자열로 온다
+// (2026-08-21 실호출 10건 전부. 결정 #52 의 "네이버가 주는데 프록시가 버렸다"는 틀렸다).
+// 네이버 상세(`provider_link`)에는 번호가 있으니 한 번 보고 적어 두면 카드에서 바로 건다.
+// memo 와 같은 규약: 빈 문자열이 "없음"이다 — null 과 '' 두 가지 없음을 만들지 않는다.
+export async function updatePlacePhone(
+  client: SupabaseClient,
+  placeId: string,
+  phone: string,
+): Promise<void> {
+  const { error } = await client
+    .from('places')
+    .update({ phone: phone.trim() })
+    .eq('id', placeId)
+    .select('id')
+    .single()
+
+  if (error) throw toPlaceError(error)
+}
+
 // E-12 (FR-017) — Place 는 소프트 삭제, 배치된 Stop 은 즉시 삭제.
 // 순서가 중요하다: Stop 을 먼저 치워야 중간에 실패해도 "보관함엔 없는데 일정엔 남은" 상태가 안 생긴다.
 // Stop 은 되돌아오지 않으므로 UI 가 먼저 알린 뒤에 부른다 (PreviewCard 확인 문구).

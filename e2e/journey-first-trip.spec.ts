@@ -28,7 +28,7 @@ test.describe('여정 1 — 첫 여행 만들기 (스모크)', () => {
     await dropTrip(await signInNode(EMAIL), tripId)
   })
 
-  test('가입 → 여행 → 장소 3종 → 사진 → 배치 → 이동 → 타임라인', async ({ page }) => {
+  test('가입 → 여행 → 장소 3종 → 사진 → 배치 → 이동 → 타임라인', async ({ page }, testInfo) => {
     const search = await stubPlaceSearch(page)
 
     // ① 가입 (FR-001 — 처음 보는 주소면 코드 한 번이 곧 가입이다)
@@ -69,6 +69,31 @@ test.describe('여정 1 — 첫 여행 만들기 (스모크)', () => {
     await sheet.getByLabel('사진 담기').setInputFiles(PHOTO_PNG)
     await expect(sheet.getByText('사진을 담았어요.')).toBeVisible()
     await expect(sheet.getByRole('img', { name: '흑돼지 명가 사진' }).first()).toBeVisible()
+
+    // 별이 좁은 패널을 넘지 않는다 (사용자 지적) — 데스크톱 오른쪽 패널도 **같은 시트**라
+    // 손가락 크기(44px) 다섯을 그대로 쓰면 380px 패널 밖으로 나간다. jsdom 은 못 잡는다
+    const stars = await sheet.evaluate((el) => {
+      const radios = Array.from(el.querySelectorAll('[role="radio"]'))
+      const last = radios[radios.length - 1]
+      const card = el.getBoundingClientRect()
+      return {
+        count: radios.length,
+        width: last ? Math.round(last.getBoundingClientRect().width) : 0,
+        lastRight: last ? Math.round(last.getBoundingClientRect().right) : 0,
+        cardRight: Math.round(card.right),
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+      }
+    })
+    testInfo.annotations.push({
+      type: '패널 별',
+      description: `별 ${stars.count}개 · 한 칸 ${stars.width}px · 오른쪽 끝 ${stars.lastRight} ≤ 카드 ${stars.cardRight}`,
+    })
+    console.log(`[패널 별] ${stars.count}개 · ${stars.width}px · ${stars.lastRight} ≤ ${stars.cardRight}`)
+
+    expect(stars.count).toBe(5)
+    expect(stars.lastRight).toBeLessThanOrEqual(stars.cardRight)
+    expect(stars.scrollWidth).toBeLessThanOrEqual(stars.clientWidth + 1)
 
     // 데스크톱에서 상세는 지도 위가 아니라 **패널 안**에 뜨고, 그동안 목록은 자리를 내준다
     // (네이버 지도 방식). 목록의 배치 버튼을 쓰려면 상세를 닫아 목록으로 돌아온다

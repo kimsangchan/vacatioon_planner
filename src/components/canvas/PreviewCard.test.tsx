@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { PhotoError } from '@/lib/photo/upload'
 import type { PhotoRow, PlaceRow } from '@/lib/trips/bundle'
+import { STAR_COMPACT_CLASS, STAR_TAP_CLASS } from '@/components/common/StarRating'
 import { PreviewCard } from './PreviewCard'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321'
@@ -535,5 +536,59 @@ describe('PreviewCard — 현장에서 3탭에 바꾼다 (T10-23 · 결정 #53)'
     })
 
     expect(onSwap).toHaveBeenLastCalledWith('p1')
+  })
+})
+
+
+describe('PreviewCard — 좁은 패널에서 별이 넘치지 않는다 (사용자 지적)', () => {
+  const VOTE = { mine: 3, total: 7, voters: 2 }
+
+  it('데스크톱 오른쪽 패널은 compact — 44px 다섯이면 380px 패널을 넘는다', () => {
+    render(
+      <PreviewCard place={place()} variant="sheet" starSize="compact" vote={VOTE} onVote={vi.fn()} />,
+    )
+
+    for (const star of screen.getAllByRole('radio')) {
+      expect(star.className).toContain(STAR_COMPACT_CLASS)
+      expect(star.className).not.toContain(STAR_TAP_CLASS)
+    }
+  })
+
+  it('따로 말하지 않으면 손가락 크기다 — 모바일 시트가 기본이다', () => {
+    render(<PreviewCard place={place()} variant="sheet" vote={VOTE} onVote={vi.fn()} />)
+
+    for (const star of screen.getAllByRole('radio')) {
+      expect(star.className).toContain(STAR_TAP_CLASS)
+    }
+  })
+})
+
+describe('PreviewCard — 전화번호는 손으로 적는다 (사용자 지적)', () => {
+  // 네이버 지역검색의 `telephone` 은 **항상 빈 문자열**이다 (2026-08-21 실호출 10건 전부).
+  // 결정 #52 가 "네이버가 주는데 프록시가 버렸다"고 적은 것은 틀렸다 — 필드만 있고 값이 안 온다.
+  it('편집에서 전화번호를 적어 저장한다', async () => {
+    const onSavePhone = vi.fn().mockResolvedValue(undefined)
+    render(<PreviewCard place={place()} variant="sheet" onSavePhone={onSavePhone} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '고치기' }))
+    fireEvent.change(screen.getByLabelText('전화번호'), { target: { value: '064-123-4567' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '저장하기' }))
+    })
+
+    expect(onSavePhone).toHaveBeenCalledWith('064-123-4567')
+  })
+
+  it('적어 둔 번호는 눌러서 걸 수 있다', () => {
+    render(<PreviewCard place={place({ phone: '064-123-4567' })} variant="sheet" />)
+
+    const link = screen.getByRole('link', { name: '064-123-4567' })
+    expect(link.getAttribute('href')).toBe('tel:064-123-4567')
+  })
+
+  it('안 적었으면 전화 줄을 아예 내지 않는다 — 빈 칸이 자리를 먹지 않는다', () => {
+    render(<PreviewCard place={place()} variant="sheet" />)
+
+    expect(screen.queryByText('전화')).toBeNull()
   })
 })

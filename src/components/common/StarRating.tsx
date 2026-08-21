@@ -37,7 +37,7 @@ export function StarRating({ mine, total, voters, label, size = 'touch', onChang
   const box = readOnly || size === 'compact' ? STAR_COMPACT_CLASS : STAR_TAP_CLASS
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
       <div
         role={readOnly ? 'img' : 'radiogroup'}
         aria-label={readOnly ? `${label} 별점 ${mine}점` : `${label} 별점 고르기`}

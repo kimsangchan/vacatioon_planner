@@ -28,6 +28,11 @@ export interface PreviewCardProps {
   onSaveMemo?: (memo: string) => Promise<void> | void
   /** 예상 금액 (결정 #39). 원 단위 정수, 비우면 null — 실제 지출(Stop)과 다른 값이다 */
   onSaveEstimatedCost?: (estimatedCost: number | null) => Promise<void> | void
+  /**
+   * 전화번호는 **손으로 적는다** — 네이버 지역검색의 `telephone` 은 항상 빈 문자열이다
+   * (2026-08-21 실호출 10건 전부. 결정 #52 의 "네이버가 준다"는 틀렸다)
+   */
+  onSavePhone?: (phone: string) => Promise<void> | void
   /** 일정에 넣고 빼는 일도 이 카드에서 한다 (결정 #43) — 장소를 보는 자리가 곧 정하는 자리다 */
   days?: { id: string; label: string }[]
   onAssign?: (dayId: string) => Promise<void> | void
@@ -40,6 +45,11 @@ export interface PreviewCardProps {
   /** 별표 협의 (결정 #46) — 내가 준 별과 모두의 합. 없으면 별표를 아예 내지 않는다 */
   vote?: { mine: number; total: number; voters: number }
   onVote?: (stars: 0 | Stars) => void
+  /**
+   * 별 크기. 시트는 모바일만이 아니다 — **데스크톱 오른쪽 패널도 같은 시트**라
+   * 44px 다섯이면 380px 패널을 넘는다(사용자 지적). 마우스로 닿는 자리는 compact.
+   */
+  starSize?: 'touch' | 'compact'
 }
 
 const SMALL_BUTTON =
@@ -63,6 +73,8 @@ export function PreviewCard({
   onRemovePhoto,
   onSaveMemo,
   onSaveEstimatedCost,
+  onSavePhone,
+  starSize,
   days = [],
   onAssign,
   onUnassign,
@@ -74,7 +86,9 @@ export function PreviewCard({
   const fileInputId = useId()
   const memoInputId = useId()
   const amountInputId = useId()
+  const phoneInputId = useId()
   const [memo, setMemo] = useState(place.memo)
+  const [phone, setPhone] = useState(place.phone)
   // 화면에는 콤마가 붙은 문자열로 두고, 저장할 때만 정수로 되돌린다 (#17)
   const [amount, setAmount] = useState(
     place.estimated_cost === null ? '' : formatAmount(place.estimated_cost),
@@ -204,6 +218,7 @@ export function PreviewCard({
           {sheet && vote && (
             <StarRating
               label={place.name}
+              size={starSize}
               mine={vote.mine}
               total={vote.total}
               voters={vote.voters}
@@ -215,7 +230,7 @@ export function PreviewCard({
           )}
         </div>
 
-        {sheet && (onSaveMemo || onSaveEstimatedCost) && (
+        {sheet && (onSaveMemo || onSaveEstimatedCost || onSavePhone) && (
           <button
             type="button"
             aria-pressed={editing}
@@ -453,7 +468,7 @@ export function PreviewCard({
 
       {/* 메모와 예상 금액은 한 폼·한 버튼이다 — 카드에서 다 고친다는 게 이 표면의 쓸모이고,
           강조 CTA 는 화면당 하나여야 한다 (L-09). 안 바꾼 값은 보내지 않는다 */}
-      {sheet && editing && (onSaveMemo || onSaveEstimatedCost) && (
+      {sheet && editing && (onSaveMemo || onSaveEstimatedCost || onSavePhone) && (
         <div className="flex flex-col gap-2">
           {onSaveMemo && (
             <>
@@ -491,6 +506,23 @@ export function PreviewCard({
             </>
           )}
 
+          {onSavePhone && (
+            <>
+              <label htmlFor={phoneInputId} className="text-sm font-medium">
+                전화번호
+              </label>
+              <input
+                id={phoneInputId}
+                type="tel"
+                inputMode="tel"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                placeholder="네이버 상세에서 보고 적어 두세요"
+                className="min-h-12 rounded-m border border-line bg-surface-2 px-3 text-base outline-none transition-colors duration-120 placeholder:text-fg-4 focus:border-[1.5px] focus:border-brand focus:bg-surface"
+              />
+            </>
+          )}
+
           <button
             type="button"
             disabled={busy}
@@ -501,6 +533,7 @@ export function PreviewCard({
                 if (onSaveEstimatedCost && next !== place.estimated_cost) {
                   await onSaveEstimatedCost(next)
                 }
+                if (onSavePhone && phone.trim() !== place.phone) await onSavePhone(phone.trim())
               }, '저장했어요.')
             }
             className="flex min-h-10 w-fit items-center rounded-m bg-brand px-4 text-[15px] font-semibold text-white transition-opacity duration-[120ms] hover:opacity-90"

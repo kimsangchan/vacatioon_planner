@@ -7,6 +7,7 @@ import {
   toPlaceError,
   updatePlaceEstimatedCost,
   updatePlaceMemo,
+  updatePlacePhone,
 } from './api'
 
 describe('toPlaceError — E-04 오류 정규화', () => {
@@ -139,5 +140,58 @@ describe('placeErrorMessage — 다음 행동이 있는 문구 (SPEC §UI 규칙
   it('좌표 오류·알 수 없는 오류에도 문구가 있다', () => {
     expect(placeErrorMessage('validation/coords').length).toBeGreaterThan(0)
     expect(placeErrorMessage('unknown').length).toBeGreaterThan(0)
+  })
+})
+
+
+describe('updatePlacePhone — 손으로 적는 전화번호 (사용자 지적)', () => {
+  // 네이버 지역검색의 `telephone` 은 항상 빈 문자열이다 (2026-08-21 실호출 10건 전부).
+  // 결정 #52 는 "네이버가 주는데 프록시가 버렸다"고 적었지만 필드만 있고 값이 안 온다.
+  function fakeClient(result: { data?: unknown; error?: { message: string; code?: string } }) {
+    const calls: { patch: Record<string, unknown>; id: unknown }[] = []
+    const client = {
+      from(table: string) {
+        expect(table).toBe('places')
+        return {
+          update(patch: Record<string, unknown>) {
+            return {
+              eq(column: string, value: unknown) {
+                calls.push({ patch, id: value })
+                return {
+                  select: () => ({
+                    single: async () => ({ data: result.data ?? null, error: result.error ?? null }),
+                  }),
+                }
+              },
+            }
+          },
+        }
+      },
+    }
+    return { client, calls }
+  }
+
+  it('전화번호만 보낸다 — 앞뒤 공백은 떼고', async () => {
+    const { client, calls } = fakeClient({ data: { id: 'p1', phone: '064-123-4567' } })
+
+    await updatePlacePhone(client as never, 'p1', '  064-123-4567 ')
+
+    expect(calls).toEqual([{ patch: { phone: '064-123-4567' }, id: 'p1' }])
+  })
+
+  it('지우면 빈 문자열이다 — memo 와 같은 규약, null 을 만들지 않는다', async () => {
+    const { client, calls } = fakeClient({ data: { id: 'p1', phone: '' } })
+
+    await updatePlacePhone(client as never, 'p1', '   ')
+
+    expect(calls[0].patch).toEqual({ phone: '' })
+  })
+
+  it('없는 장소는 계약 코드로 알린다', async () => {
+    const { client } = fakeClient({ error: { message: 'no rows', code: 'PGRST116' } })
+
+    await expect(updatePlacePhone(client as never, 'p1', '064-1')).rejects.toMatchObject({
+      code: 'not-found',
+    })
   })
 })

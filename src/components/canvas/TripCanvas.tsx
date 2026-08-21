@@ -19,6 +19,7 @@ import {
   softDeletePlace,
   updatePlaceEstimatedCost,
   updatePlaceMemo,
+  updatePlacePhone,
 } from '@/lib/place/api'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import {
@@ -184,6 +185,13 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
   // FR-002 — 이름은 헤더에서 고친다 (새 여행은 이름 없이 시작한다 · 결정 #27)
   const rename = useMutation({
     mutationFn: (name: string) => renameTrip(supabase, tripId, name),
+    onSuccess: refetchBundle,
+  })
+
+  // 전화번호 — 네이버가 안 줘서 손으로 적는다 (2026-08-21 실호출 확인)
+  const savePhone = useMutation({
+    mutationFn: ({ placeId, phone }: { placeId: string; phone: string }) =>
+      updatePlacePhone(supabase, placeId, phone),
     onSuccess: refetchBundle,
   })
 
@@ -465,6 +473,9 @@ function TripCanvasView({ tripId, ownerId }: TripCanvasProps) {
         }}
         onSaveMemo={async (placeId, memo) => {
           await saveMemo.mutateAsync({ placeId, memo })
+        }}
+        onSavePhone={async (placeId, phone) => {
+          await savePhone.mutateAsync({ placeId, phone })
         }}
         onSaveEstimatedCost={async (placeId, estimatedCost) => {
           await saveEstimatedCost.mutateAsync({ placeId, estimatedCost })
